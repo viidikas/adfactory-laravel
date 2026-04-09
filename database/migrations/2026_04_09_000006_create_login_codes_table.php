@@ -7,18 +7,17 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('login_codes', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 100);
-            $table->string('email')->unique();
-            $table->enum('role', ['admin', 'growth_lead'])->default('growth_lead');
-            $table->string('market', 10)->nullable();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('code'); // bcrypt hashed
+            $table->timestamp('expires_at');
             $table->timestamps();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('login_codes');
     }
 };

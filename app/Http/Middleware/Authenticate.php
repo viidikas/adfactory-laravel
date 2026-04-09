@@ -7,11 +7,10 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class AdminOnly
+class Authenticate
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // First, run the same auth check as Authenticate middleware
         $userId = $request->session()->get('auth_user_id');
 
         if (! $userId) {
@@ -25,18 +24,10 @@ class AdminOnly
             return $this->unauthenticated($request);
         }
 
-        // Set user on request
+        // Set user on request so controllers/middleware can access it
         $request->attributes->set('authUser', $user);
+        // Also make it available via $request->user() pattern for convenience
         $request->setUserResolver(fn () => $user);
-
-        // Check admin role
-        if ($user->role !== 'admin') {
-            if ($request->expectsJson() || $request->is('api/*')) {
-                return response()->json(['message' => 'Admin access required.'], 403);
-            }
-
-            return redirect('/portal');
-        }
 
         return $next($request);
     }

@@ -1,12 +1,37 @@
 <template>
   <div class="login-screen">
     <div class="login-box">
-      <div class="login-logo">AD<span style="color:#e8ff47;">.</span>FACTORY</div>
-      <div class="login-sub">Sign in with your company account</div>
-      <a href="/auth/google" class="google-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Sign in with Google
-      </a>
+      <div class="login-logo">AD<span class="accent">.</span>FACTORY</div>
+      <div class="login-sub">GROWTH PORTAL</div>
+
+      <div class="login-label">WHO ARE YOU?</div>
+
+      <div class="user-list">
+        <button
+          v-for="user in users"
+          :key="user.id"
+          class="user-card"
+          :class="{ loading: form.processing && form.user_id === user.id }"
+          :disabled="form.processing"
+          @click="selectUser(user)"
+        >
+          <div class="user-initials" :class="user.role === 'admin' ? 'initials-admin' : 'initials-growth'">
+            {{ getInitials(user.name) }}
+          </div>
+          <div class="user-info">
+            <div class="user-name">{{ user.name }}</div>
+            <div class="user-meta">
+              <span class="role-label" :class="user.role === 'admin' ? 'role-admin' : 'role-growth'">
+                {{ user.role === 'admin' ? 'Admin' : 'Growth Lead' }}
+              </span>
+              <span v-if="user.market" class="market-badge">{{ user.market }}</span>
+            </div>
+          </div>
+          <div v-if="form.processing && form.user_id === user.id" class="spinner"></div>
+          <div v-else class="arrow">&#8250;</div>
+        </button>
+      </div>
+
       <div v-if="$page.props.flash?.error" class="login-error">
         {{ $page.props.flash.error }}
       </div>
@@ -14,48 +39,210 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Login',
-};
+<script setup>
+import { useForm } from '@inertiajs/vue3';
+
+const props = defineProps({
+  users: Array,
+});
+
+const form = useForm({
+  user_id: null,
+});
+
+function getInitials(name) {
+  return name
+    .split(' ')
+    .map(w => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function selectUser(user) {
+  form.user_id = user.id;
+  form.post('/login/select');
+}
 </script>
 
 <style scoped>
-:root {
-  --bg:#0a0b0e; --s1:#111318; --s2:#181b22; --s3:#1f232d;
-  --border:#252a36; --border2:#2e3545;
-  --accent:#e8ff47; --blue:#47c8ff; --orange:#ff6b47; --green:#34d399;
-  --text:#e8eaf0; --muted:#5a6278; --muted2:#7a8399;
-}
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0a0b0e; color: #e8eaf0; font-family: 'DM Mono', monospace; }
+
 .login-screen {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; background: #0a0b0e; padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #0e1117;
+  padding: 24px;
+  font-family: 'DM Mono', monospace;
+  color: #e8eaf0;
 }
+
 .login-box {
-  background: #111318; border: 1px solid #2e3545; border-radius: 16px;
-  padding: 48px 40px; width: 100%; max-width: 440px; text-align: center;
+  background: #161b22;
+  border: 1px solid #2d333b;
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 440px;
 }
+
 .login-logo {
-  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 32px;
-  color: #e8eaf0; margin-bottom: 4px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  color: #e8eaf0;
+  text-align: center;
+  margin-bottom: 4px;
 }
+
+.accent { color: #e8ff47; }
+
 .login-sub {
-  font-size: 11px; color: #7a8399; letter-spacing: 1px;
-  text-transform: uppercase; margin-bottom: 40px;
+  font-size: 10px;
+  color: #7a8399;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 36px;
 }
-.google-btn {
-  display: inline-flex; align-items: center; gap: 12px;
-  padding: 14px 28px; border-radius: 8px;
-  background: #fff; color: #333; font-family: 'DM Mono', monospace;
-  font-size: 13px; font-weight: 500; text-decoration: none;
-  transition: all 0.2s; border: none; cursor: pointer;
+
+.login-label {
+  font-size: 10px;
+  color: #7a8399;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
 }
-.google-btn:hover { background: #f0f0f0; transform: translateY(-1px); }
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  background: #0e1117;
+  border: 1px solid #2d333b;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: #e8eaf0;
+  font-family: 'DM Mono', monospace;
+  text-align: left;
+}
+
+.user-card:hover:not(:disabled) {
+  border-color: #e8ff47;
+  background: #1a1f28;
+}
+
+.user-card:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-card.loading {
+  border-color: #e8ff47;
+  opacity: 1;
+}
+
+.user-initials {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.initials-admin {
+  background: rgba(232, 255, 71, 0.15);
+  color: #e8ff47;
+}
+
+.initials-growth {
+  background: rgba(71, 200, 255, 0.15);
+  color: #47c8ff;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-label {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.role-admin { color: #e8ff47; }
+.role-growth { color: #47c8ff; }
+
+.market-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #7a8399;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.arrow {
+  font-size: 20px;
+  color: #484f58;
+  flex-shrink: 0;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #2d333b;
+  border-top-color: #e8ff47;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .login-error {
-  margin-top: 20px; padding: 12px; border-radius: 6px;
-  background: rgba(255,107,71,.1); border: 1px solid rgba(255,107,71,.3);
-  color: #ff6b47; font-size: 11px;
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 107, 71, 0.1);
+  border: 1px solid rgba(255, 107, 71, 0.3);
+  color: #ff6b47;
+  font-size: 11px;
+  text-align: center;
 }
 </style>

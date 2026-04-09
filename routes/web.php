@@ -1,22 +1,24 @@
 <?php
 
-use App\Http\Controllers\Auth\GoogleController;
+use App\Http\Controllers\Auth\LoginController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/login', fn () => Inertia::render('Login'))->name('login');
-Route::get('/auth/google', [GoogleController::class, 'redirect']);
-Route::get('/auth/google/callback', [GoogleController::class, 'callback']);
+// Auth routes (no middleware)
+Route::get('/login', [LoginController::class, 'showUserList'])->name('login');
+Route::post('/login/select', [LoginController::class, 'selectUser']);
+Route::get('/login/verify', [LoginController::class, 'showVerify']);
+Route::post('/login/verify', [LoginController::class, 'verify']);
+Route::get('/login/resend', [LoginController::class, 'resend']);
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+// Protected routes
 Route::middleware('auth')->group(function () {
-    Route::get('/', fn () => Inertia::render('AdFactory'))->middleware('admin');
-    Route::get('/portal', fn () => Inertia::render('GrowthPortal'));
+    Route::get('/', function () {
+        return Inertia::render('AdFactory');
+    })->middleware('admin');
 
-    Route::post('/logout', function () {
-        auth()->logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
-
-        return redirect('/login');
-    })->name('logout');
+    Route::get('/portal', function () {
+        return Inertia::render('GrowthPortal');
+    });
 });
