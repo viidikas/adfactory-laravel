@@ -13,7 +13,7 @@ use Inertia\Inertia;
 
 class LoginController extends Controller
 {
-    public function showUserList(Request $request)
+    public function showLogin(Request $request)
     {
         if ($request->session()->has('auth_user_id')) {
             $user = User::find($request->session()->get('auth_user_id'));
@@ -23,22 +23,22 @@ class LoginController extends Controller
             $request->session()->forget('auth_user_id');
         }
 
-        $users = User::orderBy('role', 'asc')
-            ->orderBy('name', 'asc')
-            ->get(['id', 'name', 'email', 'role', 'market']);
-
-        return Inertia::render('Login', [
-            'users' => $users,
-        ]);
+        return Inertia::render('Login');
     }
 
     public function selectUser(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'email' => 'required|email',
         ]);
 
-        $user = User::findOrFail($request->user_id);
+        $user = User::where('email', $request->email)->first();
+
+        // Always show the same message — don't reveal whether the email exists
+        if (! $user) {
+            session()->flash('success', 'If this email is registered, a login code has been sent.');
+            return redirect('/login');
+        }
 
         // Delete old codes for this user
         LoginCode::where('user_id', $user->id)->delete();

@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // Auth routes (no middleware)
-Route::get('/login', [LoginController::class, 'showUserList'])->name('login');
+Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login/select', [LoginController::class, 'selectUser']);
 Route::get('/login/verify', [LoginController::class, 'showVerify']);
 Route::post('/login/verify', [LoginController::class, 'verify']);
