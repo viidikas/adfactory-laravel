@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+        ]);
+
         $middleware->alias([
             'auth' => \App\Http\Middleware\Authenticate::class,
             'admin' => \App\Http\Middleware\AdminOnly::class,
