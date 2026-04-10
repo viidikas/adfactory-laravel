@@ -411,10 +411,13 @@ async function loadClipsFromProxy() {
       slateNum:     m.slateNum || '',
       actor:        m.actor || '',
       version:      m.version || '',
+      description:  m.description || '',
+      markets:      m.markets || '',
+      copy:         m.copy || [],
       file:         null,
       fileHandle:   null,
-      url:          '',   // no blob URL — video preview unavailable until rescan
-      matchStatus:  'unmatched',
+      url:          '',
+      matchStatus:  m.copy?.length ? 'matched' : 'unmatched',
     }));
 
     matchClipsToSheetData();
@@ -426,6 +429,26 @@ async function loadClipsFromProxy() {
     if (el('lib-stats-bar'))  el('lib-stats-bar').style.display = '';
     if (el('nb-2')) { el('nb-2').textContent = state.clipLibrary.length + ' clips'; el('nb-2').className = 'nav-badge ok'; }
   } catch(e) { /* proxy not running — silent, user can scan manually */ }
+}
+
+function loadSlateData() {
+  // Build copyAssignments from enriched clip data (already loaded from API)
+  if (!state.clipLibrary.length) return;
+  const bySlate = {};
+  state.clipLibrary.forEach(clip => {
+    if (clip.copy?.length && clip.slate && !bySlate[clip.slate]) {
+      bySlate[clip.slate] = clip.copy;
+    }
+  });
+  if (Object.keys(bySlate).length) {
+    state.copyAssignments = bySlate;
+    Object.keys(bySlate).forEach(slate => {
+      if (state.copySelection[slate] === undefined) state.copySelection[slate] = 0;
+    });
+    localStorage.setItem('af_copy_assignments', JSON.stringify(state.copyAssignments));
+    localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+    if (typeof renderCopySelector === 'function') renderCopySelector();
+  }
 }
 
 function clearLibrary() {
@@ -457,8 +480,10 @@ function openClipModal(clipId) {
   if (!clip) return;
   currentModalClip = clip;
 
-  // Match by exact slate only — no fuzzy fallback
-  const scene = SCENE_DATA.find(s => s.slate === clip.slate) || null;
+  // Use enriched data from API, fall back to SCENE_DATA
+  const scene = clip.description
+    ? { slate: clip.slate, category: clip.category, shot: clip.description, markets: clip.markets || '' }
+    : (typeof SCENE_DATA !== 'undefined' ? SCENE_DATA.find(s => s.slate === clip.slate) : null) || null;
 
   const assignedKey = state.slateAssignments[clip.id] || '';
   const keyOptions = Object.entries(COPY_KEYS).map(([k, v]) =>

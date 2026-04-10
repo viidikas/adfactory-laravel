@@ -25,8 +25,22 @@ async function loadClipsFromServer() {
       slateNum:     m.slateNum || '',
       actor:        m.actor    || '',
       version:      m.version  || '',
+      description:  m.description || '',
+      markets:      m.markets  || '',
+      copy:         m.copy     || [],
       url:          '/api/video?path=' + encodeURIComponent(m.relativePath)
     })).filter(m => m.slate);
+
+    // Also populate copyRows from enriched clip data for getCopyForClip
+    if (!copyRows.length) {
+      const seen = new Set();
+      clipLibrary.forEach(c => {
+        (c.copy || []).forEach(row => {
+          const k = row.en + '|' + (row.shot || '');
+          if (!seen.has(k)) { seen.add(k); copyRows.push(row); }
+        });
+      });
+    }
     clipLibrary.sort((a,b) => a.relativePath.localeCompare(b.relativePath));
     const allActors = [...new Set(clipLibrary.map(c => c.actor))].sort();
     populateActorFilter(allActors);

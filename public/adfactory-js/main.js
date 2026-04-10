@@ -43,7 +43,7 @@ function init() {
   // Load saved sheets, projects, and clips
   loadSheetsMeta();
   loadProjects();
-  loadClipsFromProxy();
+  loadClipsFromProxy().then(() => loadSlateData());
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -219,7 +219,81 @@ function updateSheetUrl(id, url) {
 async function analyseAllSheets() {
   const targets = state.sheets.filter(s => s.url);
   if (!targets.length) { toast('Add at least one Sheet URL first', true); return; }
-  for (const s of targets) await analyseSheet(s.id);
+
+  // Disable buttons and show progress
+  const btn = document.querySelector('#step-1 .btn-primary');
+  if (btn) { btn.innerHTML = '<span class="spinner"></span> Analysing…'; btn.disabled = true; }
+  toast('Fetching sheets and analysing with AI… this may take a minute');
+
+  try {
+    const r = await fetch('/api/analyse-sheets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sheet_urls: targets.map(s => ({ url: s.url, label: s.label || '' }))
+      })
+    });
+
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Analysis failed');
+
+    // Update sheet statuses
+    targets.forEach(s => { s.status = 'ok'; s.type = 'analysed'; });
+    saveSheetsMeta();
+    renderSheetList();
+
+    // Store slate data locally and auto-map to clips
+    if (data.slate_data) {
+      state.slateData = data.slate_data;
+      applySlateDataToClips(data.slate_data);
+    }
+
+    document.getElementById('analysis-card').style.display = 'block';
+    document.getElementById('analysis-results').innerHTML = `
+      <div style="color:var(--text);font-size:11px;line-height:1.8;">
+        <strong style="color:var(--green);">✓ Analysis complete</strong><br>
+        Slates matched: <strong>${data.slates}</strong><br>
+        Copy rows: <strong>${data.copy_rows}</strong>
+      </div>`;
+
+    toast(`✓ Analysis complete — ${data.slates} slates, ${data.copy_rows} copy rows`);
+    document.getElementById('nb-1').textContent = data.slates + ' slates';
+    document.getElementById('nb-1').className = 'nav-badge ok';
+  } catch(e) {
+    toast('Analysis failed: ' + e.message, true);
+    document.getElementById('analysis-card').style.display = 'block';
+    document.getElementById('analysis-results').innerHTML =
+      `<div style="color:var(--orange);">⚠ ${e.message}</div>`;
+  }
+
+  if (btn) { btn.innerHTML = '🤖 Analyse All'; btn.disabled = false; }
+}
+
+function applySlateDataToClips(slateData) {
+  // Update clip library with enriched data from AI
+  state.clipLibrary.forEach(clip => {
+    const sd = slateData[clip.slate];
+    if (!sd) return;
+    clip.description = sd.description || '';
+    clip.markets = sd.markets || '';
+    clip.copy = sd.copy || [];
+    clip.matchStatus = sd.copy?.length ? 'matched' : 'unmatched';
+  });
+
+  // Build copyAssignments from slate_data for getCopy() compatibility
+  state.copyAssignments = {};
+  Object.entries(slateData).forEach(([slate, sd]) => {
+    if (sd.copy?.length) {
+      state.copyAssignments[slate] = sd.copy;
+      if (state.copySelection[slate] === undefined) state.copySelection[slate] = 0;
+    }
+  });
+  localStorage.setItem('af_copy_assignments', JSON.stringify(state.copyAssignments));
+  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+
+  if (typeof renderClipGrid === 'function') renderClipGrid();
+  if (typeof updateLibStats === 'function') updateLibStats();
+  if (typeof renderCopySelector === 'function') renderCopySelector();
 }
 
 // ═══════════════════════════════════════════════════════════════

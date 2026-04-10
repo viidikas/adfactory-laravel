@@ -24,6 +24,10 @@ class ClipController extends Controller
             }
         }
 
+        // Load slate data for enrichment
+        $slateDataRaw = Setting::get('slate_data', '{}');
+        $slateData = json_decode($slateDataRaw, true) ?: [];
+
         return response()->json($query->get()->map(fn ($c) => [
             'id' => $c->id,
             'name' => $c->name,
@@ -34,6 +38,9 @@ class ClipController extends Controller
             'slateNum' => $c->slate_num,
             'actor' => $c->actor,
             'version' => $c->version,
+            'description' => $slateData[$c->slate]['description'] ?? null,
+            'markets' => $slateData[$c->slate]['markets'] ?? null,
+            'copy' => $slateData[$c->slate]['copy'] ?? [],
         ]));
     }
 

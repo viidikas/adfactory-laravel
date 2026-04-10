@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AnalyseController;
 use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\OrderController;
@@ -42,6 +43,7 @@ Route::middleware('auth')->group(function () {
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {
+        Route::post('/analyse-sheets', [AnalyseController::class, 'analyse']);
         Route::post('/projects', [ProjectController::class, 'store']);
         Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
         Route::put('/projects/{project}/activate', [ProjectController::class, 'activate']);
