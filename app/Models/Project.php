@@ -12,11 +12,13 @@ class Project extends Model
         'is_active',
         'clips_count',
         'scanned_at',
+        'designs',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'scanned_at' => 'datetime',
+        'designs' => 'array',
     ];
 
     public function clips()

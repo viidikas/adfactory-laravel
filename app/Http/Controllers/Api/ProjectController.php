@@ -115,6 +115,18 @@ class ProjectController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function designs(Project $project)
+    {
+        return response()->json($project->designs ?? []);
+    }
+
+    public function updateDesigns(Request $request, Project $project)
+    {
+        $project->update(['designs' => $request->input('designs', [])]);
+
+        return response()->json(['ok' => true, 'count' => count($project->designs ?? [])]);
+    }
+
     public function destroy(Project $project)
     {
         $project->delete();

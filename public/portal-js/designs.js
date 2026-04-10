@@ -7,9 +7,16 @@ let availableDesigns = [];
 
 async function loadDesigns() {
   try {
-    const r = await fetch('/api/config');
-    const cfg = await r.json();
-    availableDesigns = cfg.designs || [];
+    // Load designs from active project
+    const pr = await fetch('/api/projects');
+    if (!pr.ok) throw new Error();
+    const projects = await pr.json();
+    const active = projects.find(p => p.is_active);
+    if (active) {
+      availableDesigns = active.designs || [];
+    } else {
+      availableDesigns = [];
+    }
   } catch(e) { availableDesigns = []; }
 }
 

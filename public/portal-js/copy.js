@@ -28,11 +28,10 @@ async function loadSheetFromConfig() {
   try {
     const r   = await fetch('/api/config');
     const cfg = await r.json();
-    // Load designs (keep full objects — needed for images and labels)
-    availableDesigns = cfg.designs || [];
 
-    // Load pre-parsed copy rows from server (saved by admin AI analysis)
-    if (cfg.copy_rows?.length) {
+    // Copy rows are now loaded from enriched clips (via loadClipsFromServer)
+    // Fall back to config copy_rows if available
+    if (cfg.copy_rows?.length && !copyRows.length) {
       copyRows = cfg.copy_rows;
       toast(`✓ Copy loaded — ${copyRows.length} lines`);
       return;

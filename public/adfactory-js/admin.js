@@ -174,18 +174,45 @@ function renameFormatKey(i, newKey) {
 // ═══════════════════════════════════════════════════════════════
 //  ADMIN CONFIG (copy sheet URL + rendered path, stored in proxy)
 // ═══════════════════════════════════════════════════════════════
+let adminDesigns = [];
+let activeProjectId = null;
+
 async function loadAdminConfig() {
   try {
-    const r = await fetch('/api/config');
-    if (!r.ok) throw new Error();
-    const cfg = await r.json();
-    const rp = document.getElementById('admin-rendered-path');
-    if (rp && cfg.rendered_path) rp.value = cfg.rendered_path;
-    renderAdminDesigns(cfg.designs || []);
+    // Load rendered path from config
+    const cr = await fetch('/api/config');
+    if (cr.ok) {
+      const cfg = await cr.json();
+      const rp = document.getElementById('admin-rendered-path');
+      if (rp && cfg.rendered_path) rp.value = cfg.rendered_path;
+    }
+    // Load designs from active project
+    const pr = await fetch('/api/projects');
+    if (!pr.ok) throw new Error();
+    const projects = await pr.json();
+    const active = projects.find(p => p.is_active);
+    if (active) {
+      activeProjectId = active.id;
+      adminDesigns = active.designs || [];
+      renderAdminDesigns(adminDesigns);
+    } else {
+      renderAdminDesigns([]);
+    }
   } catch(e) {
     const st = document.getElementById('admin-path-status');
     if (st) st.textContent = '⚠ Could not load config';
   }
+}
+
+async function saveProjectDesigns() {
+  if (!activeProjectId) { toast('No active project — activate one first', true); return false; }
+  try {
+    const r = await fetch(`/api/projects/${activeProjectId}/designs`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ designs: adminDesigns })
+    });
+    return r.ok;
+  } catch(e) { return false; }
 }
 
 function renderAdminDesigns(designs) {
@@ -222,10 +249,9 @@ function renderAdminDesigns(designs) {
 async function addAdminDesign() {
   const key   = document.getElementById('new-design-key').value.trim();
   const label = document.getElementById('new-design-label').value.trim();
-  const status = document.getElementById('admin-designs-status');
   if (!key) { toast('Enter a design key (e.g. design1)', true); return; }
+  if (adminDesigns.find(d => (d.key||d) === key)) { toast('Design key already exists', true); return; }
 
-  // Read images as base64
   const RATIOS = ['16x9','1x1','9x16','4x5'];
   const images = {};
   for (const ratio of RATIOS) {
@@ -235,26 +261,19 @@ async function addAdminDesign() {
     }
   }
 
-  try {
-    const r   = await fetch('/api/config');
-    const cfg = await r.json();
-    const designs = cfg.designs || [];
-    if (designs.find(d => (d.key||d) === key)) { toast('Design key already exists', true); return; }
-    designs.push({ key, label, images });
-    await fetch('/api/config', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ designs })
-    });
-    // Clear inputs
-    document.getElementById('new-design-key').value = '';
-    document.getElementById('new-design-label').value = '';
-    RATIOS.forEach(r => {
-      const inp = document.getElementById(`new-design-img-${r}`);
-      if (inp) inp.value = '';
-    });
-    toast(`✓ Design "${key}" added`);
-    loadAdminConfig();
-  } catch(e) { toast('Could not save — server error', true); }
+  adminDesigns.push({ key, label, images });
+  renderAdminDesigns(adminDesigns);
+
+  // Clear inputs
+  document.getElementById('new-design-key').value = '';
+  document.getElementById('new-design-label').value = '';
+  RATIOS.forEach(r => {
+    const inp = document.getElementById(`new-design-img-${r}`);
+    if (inp) inp.value = '';
+  });
+
+  toast(`✓ Design "${key}" added`);
+  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
 }
 
 async function replaceDesignImage(designIdx, ratio) {
@@ -263,18 +282,12 @@ async function replaceDesignImage(designIdx, ratio) {
   input.onchange = async () => {
     if (!input.files?.[0]) return;
     const b64 = await fileToBase64(input.files[0]);
-    const r   = await fetch('/api/config');
-    const cfg = await r.json();
-    const designs = cfg.designs || [];
-    if (!designs[designIdx]) return;
-    if (!designs[designIdx].images) designs[designIdx].images = {};
-    designs[designIdx].images[ratio] = b64;
-    await fetch('/api/config', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ designs })
-    });
+    if (!adminDesigns[designIdx]) return;
+    if (!adminDesigns[designIdx].images) adminDesigns[designIdx].images = {};
+    adminDesigns[designIdx].images[ratio] = b64;
+    renderAdminDesigns(adminDesigns);
     toast(`✓ ${ratio} image updated`);
-    loadAdminConfig();
+    if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
   };
   input.click();
 }
@@ -289,18 +302,10 @@ function fileToBase64(file) {
 }
 
 async function removeAdminDesign(idx) {
-  try {
-    const r   = await fetch('/api/config');
-    const cfg = await r.json();
-    const designs = cfg.designs || [];
-    designs.splice(idx, 1);
-    await fetch('/api/config', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ designs })
-    });
-    toast('✓ Design removed');
-    loadAdminConfig();
-  } catch(e) { toast('Could not save — server error', true); }
+  adminDesigns.splice(idx, 1);
+  renderAdminDesigns(adminDesigns);
+  toast('✓ Design removed');
+  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
 }
 
 async function saveAdminConfig() {

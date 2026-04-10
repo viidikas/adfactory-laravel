@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
 
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
+    Route::get('/projects/{project}/designs', [ProjectController::class, 'designs']);
 
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
@@ -47,6 +48,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/projects', [ProjectController::class, 'store']);
         Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
         Route::put('/projects/{project}/activate', [ProjectController::class, 'activate']);
+        Route::put('/projects/{project}/designs', [ProjectController::class, 'updateDesigns']);
         Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
 
         Route::get('/users', [UserController::class, 'index']);
