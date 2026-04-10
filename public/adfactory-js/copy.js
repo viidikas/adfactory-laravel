@@ -173,6 +173,7 @@ Rules:
         ).join('');
 
       toast(`✓ ${s.label || 'Sheet'} — ${parsed.type}, ${parsed.row_count || '?'} rows`);
+      if (typeof saveSheetsMeta === 'function') saveSheetsMeta();
     } else {
       s.status = 'error';
       s.analysisText = `<span style="color:var(--orange)">Could not parse Claude response — try again.</span>`;
@@ -217,60 +218,47 @@ function formatAnalysis(parsed) {
 
 // ═══════════════════════════════════════════════════════════════
 //  AUTO-MAP copy sheet rows → clips
+//
+//  Matching rules:
+//  1. Shot column has slate codes (e.g. "PU1, PU7") → row applies to those slates only
+//  2. Shot column blank → row applies to entire category (fallback)
+//  3. Brand = "SmartSaver" → excluded entirely
+//  4. Multiple rows can match the same slate — store ALL, user picks which to use
 // ═══════════════════════════════════════════════════════════════
+function slugifyCopy(en) {
+  // First 3 words, max 18 chars, strip punctuation, join with _
+  const words = (en || '').replace(/[^\w\s]/g, '').trim().split(/\s+/).slice(0, 3);
+  let slug = words.join('_');
+  if (slug.length > 18) slug = slug.slice(0, 18).replace(/_$/, '');
+  return slug;
+}
+
 function autoMapCopyToClips(copyRows) {
   if (!copyRows?.length) return;
 
-  // Normalise category names from the sheet to match SCENE_DATA
   const CAT_NORM = {
-    'product usage':         'Product Usage',
-    'travel':                'Travel and Holiday',
-    'travel and holiday':    'Travel and Holiday',
-    'home reno':             'Home Renovation',
-    'home renovation':       'Home Renovation',
-    'lifestyle/events':      'Lifestyle and Events',
-    'lifestyle and events':  'Lifestyle and Events',
-    'tech':                  'Electronics and Devices',
-    'electronics and devices':'Electronics and Devices',
-    'financial relief':      'Financial Relief',
+    'product usage':'Product Usage', 'travel':'Travel and Holiday',
+    'travel and holiday':'Travel and Holiday', 'home reno':'Home Renovation',
+    'home renovation':'Home Renovation', 'lifestyle/events':'Lifestyle and Events',
+    'lifestyle and events':'Lifestyle and Events', 'tech':'Electronics and Devices',
+    'electronics and devices':'Electronics and Devices', 'financial relief':'Financial Relief',
   };
-
-  function normCat(raw) {
-    return CAT_NORM[(raw||'').toLowerCase().trim()] || raw || '';
-  }
-
-  // Detect key-only sheet (no category, no shot column at all)
-  const hasCategory = copyRows.some(r => r.category && r.category.trim());
-  const hasShot     = copyRows.some(r => r.shot && r.shot.trim());
-
-  if (!hasCategory && !hasShot) {
-    // Pure key-only sheet — load into COPY_KEYS for manual assignment
-    copyRows.forEach(r => {
-      if (r.key && r.en) {
-        COPY_KEYS[r.key] = { en:r.en||'', et:r.et||'', fr:r.fr||'', de:r.de||'', es:r.es||'' };
-      }
-    });
-    toast(`✓ ${copyRows.length} copy keys loaded — assign to clips via the Clip Library`);
-    return;
-  }
+  function normCat(raw) { return CAT_NORM[(raw||'').toLowerCase().trim()] || raw || ''; }
 
   // Build per-slate and per-category copy buckets
-  // { slate → [copyRow, ...] }  and  { normCategory → [copyRow, ...] }
-  const bySlate = {};   // e.g. { 'PU1': [row], 'PU7': [row, row] }
-  const byCat   = {};   // e.g. { 'Product Usage': [row, ...] }
+  const bySlate = {};   // { 'PU1': [row, ...] }
+  const byCat   = {};   // { 'Product Usage': [row, ...] }
 
   copyRows.forEach(row => {
     const cat   = normCat(row.category);
     const shot  = (row.shot || '').trim();
     const brand = (row.brand || '').toLowerCase();
 
-    // Only include Creditstar or Either/blank rows (skip SmartSaver-only for now)
-    const brandOk = !brand || brand === 'either' || brand === 'creditstar' ||
-                    brand === 'credistar' || brand === '';
-    if (!brandOk) return;
+    // Rule 3: exclude SmartSaver
+    if (brand === 'smartsaver') return;
 
     const rowEntry = {
-      key:      row.key || (row.en || '').slice(0,30),
+      key:      slugifyCopy(row.en) || row.key || '',
       en:       row.en  || '',
       et:       row.et  || '',
       fr:       row.fr  || '',
@@ -282,25 +270,24 @@ function autoMapCopyToClips(copyRows) {
     };
 
     if (shot) {
-      // Parse slate codes from Shot column: "PU7, PU8, PU10, PU18"
+      // Rule 1: parse slate codes from Shot column
       const slates = shot.split(/[\s,;]+/).map(s => s.trim()).filter(s => /^[A-Z]{2}\d+$/.test(s));
       slates.forEach(slate => {
         if (!bySlate[slate]) bySlate[slate] = [];
         bySlate[slate].push(rowEntry);
       });
-      // If no parseable slate codes, fall through to category
       if (!slates.length && cat) {
         if (!byCat[cat]) byCat[cat] = [];
         byCat[cat].push(rowEntry);
       }
     } else if (cat) {
-      // No shot specified → applies to entire category
+      // Rule 2: blank shot → category-wide fallback
       if (!byCat[cat]) byCat[cat] = [];
       byCat[cat].push(rowEntry);
     }
   });
 
-  // Now assign to every slate in the actual clip library
+  // Assign to every slate in the actual clip library
   let totalMapped = 0;
   const allSlates = [...new Set(state.clipLibrary.map(c => c.slate).filter(Boolean))];
 
@@ -309,11 +296,9 @@ function autoMapCopyToClips(copyRows) {
     const slateCat = normCat(clipForSlate?.category || '');
     const matches  = [];
 
-    // 1. Slate-specific rows first (highest priority)
+    // Rule 4: collect ALL matching rows — slate-specific first, then category-wide
     if (bySlate[slate]) matches.push(...bySlate[slate]);
-
-    // 2. Category-wide rows — only add if NO slate-specific rows exist for this slate
-    if (!matches.length && byCat[slateCat]) {
+    if (byCat[slateCat]) {
       byCat[slateCat].forEach(r => {
         if (!matches.find(m => m.en === r.en)) matches.push(r);
       });
@@ -341,10 +326,14 @@ function autoMapCopyToClips(copyRows) {
   renderClipGrid();
   updateLibStats();
   renderCopySelector();
-  toast(`✓ Copy mapped to ${totalMapped} slates — see Step 3 for multi-option slates`);
+  toast(`✓ Copy mapped to ${totalMapped}/${allSlates.length} slates`);
 }
 
-// ─── getCopy: copyAssignments (slate-level) → slateAssignments (key) → fallback ──
+// ─── getCopy: priority order per spec ──
+// 1. copyAssignments[slate][userSelectedIndex] for that language
+// 2. Manual override from slateAssignments (user picked a specific key)
+// 3. Global language override
+// 4. Empty string — row will be OMITTED from CSV (never use placeholder)
 function getCopy(clip, brand, lang) {
   const slate = clip.slate || '';
 
@@ -361,16 +350,12 @@ function getCopy(clip, brand, lang) {
   const libClip = state.clipLibrary.find(c => c.id === clipId || c.name === (clip.filename||''));
   const assignedKey = libClip ? state.slateAssignments[libClip.id] : state.slateAssignments[clipId];
   if (assignedKey && COPY_KEYS[assignedKey]) {
-    return COPY_KEYS[assignedKey][lang.toLowerCase()] || COPY_KEYS[assignedKey]['en'] || '';
+    return COPY_KEYS[assignedKey][lang.toLowerCase()] || '';
   }
 
-  // 3. clipCopyMap (legacy auto-map)
-  const mapId = libClip ? libClip.id : clipId;
-  if (state.clipCopyMap[mapId]?.[lang]) return state.clipCopyMap[mapId][lang];
-
-  // 4. Global override
+  // 3. Global language override
   if (state.copyOverride[lang]) return state.copyOverride[lang];
 
-  // 5. Built-in fallback
-  return getBuiltinCopy(slate, brand) || '';
+  // 4. No copy found — return empty (row will be omitted from CSV)
+  return '';
 }

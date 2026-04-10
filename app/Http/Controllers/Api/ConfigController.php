@@ -16,12 +16,13 @@ class ConfigController extends Controller
             'designs' => $this->getJson('designs'),
             'copy_rows' => $this->getJson('copy_rows'),
             'shot_descriptions' => $this->getJson('shot_descriptions'),
+            'sheets_meta' => $this->getJson('sheets_meta'),
         ]);
     }
 
     public function store(Request $request)
     {
-        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions'];
+        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions', 'sheets_meta'];
 
         foreach ($allowed as $field) {
             if ($request->has($field)) {

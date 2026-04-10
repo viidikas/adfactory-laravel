@@ -40,7 +40,8 @@ function init() {
 
   renderSlateFilter();
 
-  // Load projects and clips
+  // Load saved sheets, projects, and clips
+  loadSheetsMeta();
   loadProjects();
   loadClipsFromProxy();
 }
@@ -109,7 +110,6 @@ function addSheetRow() {
   const id = Date.now();
   state.sheets.push({ id, url:'', label:'', csvText:'', type:'unknown', data:null, analysisText:'', status:'idle' });
   renderSheetList();
-  // Focus the new URL input
   setTimeout(() => {
     const inputs = document.querySelectorAll('.sheet-url-input');
     if (inputs.length) inputs[inputs.length-1].focus();
@@ -119,6 +119,35 @@ function addSheetRow() {
 function removeSheet(id) {
   state.sheets = state.sheets.filter(s => s.id !== id);
   renderSheetList();
+  saveSheetsMeta();
+}
+
+function saveSheetsMeta() {
+  const meta = state.sheets.map(s => ({
+    id: s.id, url: s.url || '', label: s.label || '',
+    type: s.type || 'unknown', status: s.status === 'ok' ? 'ok' : 'idle',
+    row_count: s.data?.row_count || 0,
+  }));
+  fetch('/api/config', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ sheets_meta: meta })
+  }).catch(() => {});
+}
+
+async function loadSheetsMeta() {
+  try {
+    const r = await fetch('/api/config');
+    const cfg = await r.json();
+    const meta = cfg.sheets_meta || [];
+    if (!meta.length) return;
+    state.sheets = meta.map(m => ({
+      id: m.id || Date.now() + Math.random(),
+      url: m.url || '', label: m.label || '',
+      type: m.type || 'unknown', data: m.row_count ? { row_count: m.row_count } : null,
+      analysisText: '', status: m.status || 'idle', csvText: '',
+    }));
+    renderSheetList();
+  } catch(e) {}
 }
 
 function renderSheetList() {
@@ -156,14 +185,14 @@ function renderSheetList() {
       <div style="margin-bottom:8px;">
         <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px;">Label (optional)</div>
         <input type="text" placeholder="e.g. Clips — Product Usage" value="${esc(s.label||'')}"
-          onchange="state.sheets.find(x=>x.id===${s.id}).label=this.value"
+          onchange="state.sheets.find(x=>x.id===${s.id}).label=this.value;saveSheetsMeta()"
           style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
       </div>
 
       <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
         <input type="text" class="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(s.url||'')}"
-          onchange="state.sheets.find(x=>x.id===${s.id}).url=this.value.trim()"
+          onchange="state.sheets.find(x=>x.id===${s.id}).url=this.value.trim();saveSheetsMeta()"
           onkeydown="if(event.key==='Enter') analyseSheet(${s.id})"
           style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:10px;outline:none;"
           onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'">
