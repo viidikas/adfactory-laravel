@@ -22,3 +22,8 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('GrowthPortal');
     });
 });
+
+// API routes — under /api prefix, using web middleware (sessions)
+Route::prefix('api')->group(function () {
+    require __DIR__.'/api.php';
+});
