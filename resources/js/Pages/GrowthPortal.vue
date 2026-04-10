@@ -93,7 +93,6 @@
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <input type="text" id="new-user-name" class="form-input" placeholder="Name" style="flex:1;min-width:120px;">
               <input type="email" id="new-user-email" class="form-input" placeholder="Email" style="flex:1;min-width:180px;">
-              <input type="text" id="new-user-market" class="form-input" placeholder="Market" style="width:100px;">
               <button class="btn btn-primary" onclick="addUser()">+ Add</button>
             </div>
           </div>

@@ -340,12 +340,10 @@ async function loadGrowthLeadUsers() {
       <thead><tr>
         <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Name</th>
         <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Email</th>
-        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Market</th>
       </tr></thead>
       <tbody>${leads.map(u => `<tr style="border-bottom:1px solid var(--border);">
         <td style="padding:8px 10px;color:var(--text);">${esc(u.name)}</td>
         <td style="padding:8px 10px;color:var(--muted);">${esc(u.email||'—')}</td>
-        <td style="padding:8px 10px;color:var(--blue);">${esc(u.market||'—')}</td>
       </tr>`).join('')}</tbody>
     </table>`;
     if (status) status.textContent = '';
@@ -358,7 +356,6 @@ async function loadGrowthLeadUsers() {
 async function addGrowthLead() {
   const name   = document.getElementById('new-user-name').value.trim();
   const email  = document.getElementById('new-user-email').value.trim();
-  const market = document.getElementById('new-user-market').value.trim();
   const status = document.getElementById('users-status');
   if (!name) { toast('Enter a name', true); return; }
   if (!email) { toast('Enter an email', true); return; }
@@ -366,12 +363,11 @@ async function addGrowthLead() {
     const r = await fetch('/api/users', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, email, market, role:'growth_lead'}),
+      body: JSON.stringify({name, email, role:'growth_lead'}),
     });
     if (!r.ok) throw new Error('Server error');
-    document.getElementById('new-user-name').value   = '';
-    document.getElementById('new-user-email').value  = '';
-    document.getElementById('new-user-market').value = '';
+    document.getElementById('new-user-name').value  = '';
+    document.getElementById('new-user-email').value = '';
     toast(`✓ ${name} added — they can now log into the Growth Portal`);
     loadGrowthLeadUsers();
   } catch(e) {

@@ -54,10 +54,6 @@
         </nav>
 
         <div class="sidebar-footer">
-          <div class="api-status">
-            <div class="api-dot" id="api-dot"></div>
-            <span id="api-status-text">Claude API not configured</span>
-          </div>
           <button class="logout-btn" @click="logout()">Sign out</button>
         </div>
       </aside>
@@ -136,17 +132,6 @@ export default {
       return `
     <!-- STEP 1 — DATA SOURCES -->
     <div class="step-panel active" id="step-1">
-      <div class="card card-accent">
-        <div class="card-title">&#128273; Claude API Key</div>
-        <div class="card-sub">Required for AI to read and interpret your Google Sheets. Your key is stored locally only.</div>
-        <div class="input-group">
-          <div class="input-row" style="margin:0;">
-            <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." oninput="checkApiKey()">
-          </div>
-          <button class="btn btn-secondary" onclick="saveApiKey()">Save</button>
-        </div>
-        <div id="api-key-hint" class="input-hint" style="margin-top:6px;"></div>
-      </div>
       <div class="card">
         <div class="card-title">&#128202; Google Sheets</div>
         <div class="card-sub">Paste Google Sheets URLs below. Sheets must be set to <strong style="color:var(--text)">General access &rarr; Anyone with the link</strong>.</div>
@@ -265,7 +250,7 @@ export default {
 
     <!-- STEP 9 — SETTINGS -->
     <div class="step-panel" id="step-9">
-      <div class="card card-accent"><div class="card-title">&#9881; Settings</div><div class="card-sub">Configure the app.</div><div class="input-row"><label>Claude API Key</label><input type="password" id="api-key-settings" placeholder="sk-ant-api03-..."></div><div class="input-row"><label>Default Base Output Path</label><input type="text" id="default-path-settings"></div><div class="btn-row"><button class="btn btn-primary" onclick="saveSettings()">Save Settings</button><button class="btn btn-secondary" onclick="clearAll()">Reset All</button></div></div>
+      <div class="card card-accent"><div class="card-title">&#9881; Settings</div><div class="card-sub">Configure the app.</div><div class="input-row"><label>Default Base Output Path</label><input type="text" id="default-path-settings"></div><div class="btn-row"><button class="btn btn-primary" onclick="saveSettings()">Save Settings</button><button class="btn btn-secondary" onclick="clearAll()">Reset All</button></div></div>
       <div class="card card-blue"><div class="card-title">&#127912; Designs</div><div class="card-sub">Each design is a distinct graphic package in your AE project.</div><div id="designs-list"></div><div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-secondary btn-sm" onclick="addDesign()">+ Add design</button><button class="btn btn-primary btn-sm" onclick="applyDesignsFormats()">&#10003; Save &amp; Apply</button></div></div>
       <div class="card"><div class="card-title">&#128208; Formats</div><div class="card-sub">All available formats.</div><div id="formats-list"></div><div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-secondary btn-sm" onclick="addFormat()">+ Add format</button><button class="btn btn-primary btn-sm" onclick="applyDesignsFormats()">&#10003; Save &amp; Apply</button></div></div>
     </div>
@@ -282,7 +267,7 @@ export default {
         </div>
       </div>
       <div class="card card-blue"><div class="card-title">&#128194; Rendered Files Path</div><div class="card-sub">Where finished renders are placed.</div><div class="input-row" style="margin-bottom:8px;"><label>Rendered output folder</label><input type="text" id="admin-rendered-path" placeholder="/path/to/exports"></div><div class="btn-row"><button class="btn btn-primary btn-sm" onclick="saveAdminConfig()">Save</button><span id="admin-path-status" style="font-size:10px;color:var(--muted);margin-left:8px;"></span></div></div>
-      <div class="card"><div class="card-title">&#128101; Growth Lead Users</div><div class="card-sub">Manage who can access the Growth Portal.</div><div id="users-list" style="margin-bottom:16px;"></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="text" id="new-user-name" placeholder="Name" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:150px;"><input type="email" id="new-user-email" placeholder="Email" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:180px;"><input type="text" id="new-user-market" placeholder="Market" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:120px;"><button class="btn btn-primary btn-sm" onclick="addGrowthLead()">+ Add</button></div><div id="users-status" style="font-size:10px;color:var(--muted);margin-top:8px;"></div></div>
+      <div class="card"><div class="card-title">&#128101; Growth Lead Users</div><div class="card-sub">Manage who can access the Growth Portal.</div><div id="users-list" style="margin-bottom:16px;"></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><input type="text" id="new-user-name" placeholder="Name" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:150px;"><input type="email" id="new-user-email" placeholder="Email" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:180px;"><button class="btn btn-primary btn-sm" onclick="addGrowthLead()">+ Add</button></div><div id="users-status" style="font-size:10px;color:var(--muted);margin-top:8px;"></div></div>
     </div>`;
     },
   },

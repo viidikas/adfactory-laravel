@@ -26,12 +26,10 @@ function renderAdminUsers(users) {
     <thead><tr>
       <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Name</th>
       <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Email</th>
-      <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Market</th>
     </tr></thead>
     <tbody>${growthLeads.map(u => `<tr style="border-bottom:1px solid var(--border);">
       <td style="padding:8px 10px;color:var(--text);">${esc(u.name)}</td>
       <td style="padding:8px 10px;color:var(--muted);">${esc(u.email||'—')}</td>
-      <td style="padding:8px 10px;color:var(--blue);">${esc(u.market||'—')}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -39,15 +37,13 @@ function renderAdminUsers(users) {
 async function addUser() {
   const name   = document.getElementById('new-user-name').value.trim();
   const email  = document.getElementById('new-user-email').value.trim();
-  const market = document.getElementById('new-user-market').value.trim();
   if (!name) { toast('Enter a name', true); return; }
   if (!email) { toast('Enter an email', true); return; }
   const r = await fetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name, email, market, role:'growth_lead'})});
+    body: JSON.stringify({name, email, role:'growth_lead'})});
   if (r.ok) {
     document.getElementById('new-user-name').value  = '';
     document.getElementById('new-user-email').value = '';
-    document.getElementById('new-user-market').value = '';
     toast(`✓ ${name} added as growth lead`);
     loadAdminOrders(); // refreshes both orders and users list
   } else {

@@ -5,7 +5,6 @@ async function analyseSheet(id) {
   const s = state.sheets.find(x => x.id === id);
   if (!s) return;
   if (!s.url) { toast('Paste a Google Sheets URL first', true); return; }
-  if (!state.apiKey) { toast('Save your Claude API key first', true); return; }
 
   s.status = 'loading';
   renderSheetList();
@@ -37,7 +36,7 @@ async function analyseSheet(id) {
   try {
     const response = await fetch('/api/proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': state.apiKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8000,
