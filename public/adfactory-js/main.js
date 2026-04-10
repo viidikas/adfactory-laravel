@@ -17,11 +17,6 @@ function toast(msg, err) {
 //  INIT
 // ═══════════════════════════════════════════════════════════════
 function init() {
-  if (state.apiKey) {
-    document.getElementById('api-key-input').value = state.apiKey;
-    document.getElementById('api-key-settings').value = state.apiKey;
-    updateApiStatus(true);
-  }
   document.getElementById('base-path').value = state.basePath;
   document.getElementById('default-path-settings').value = state.basePath;
 
@@ -105,39 +100,6 @@ function goStep(n) {
 
 function nextStep() {
   if (state.currentStep < 7) goStep(state.currentStep + 1);
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  API KEY
-// ═══════════════════════════════════════════════════════════════
-function saveApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key.startsWith('sk-ant')) {
-    toast('Invalid API key format', true);
-    return;
-  }
-  state.apiKey = key;
-  localStorage.setItem('af_api_key', key);
-  updateApiStatus(true);
-  toast('✓ API key saved');
-}
-
-function checkApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  const hint = document.getElementById('api-key-hint');
-  if (!key) { hint.textContent = ''; return; }
-  if (key.startsWith('sk-ant')) {
-    hint.style.color = 'var(--green)';
-    hint.textContent = '✓ Valid key format';
-  } else {
-    hint.style.color = 'var(--orange)';
-    hint.textContent = 'Key should start with sk-ant-api…';
-  }
-}
-
-function updateApiStatus(ok) {
-  document.getElementById('api-dot').className = 'api-dot ' + (ok ? 'ok' : 'err');
-  document.getElementById('api-status-text').textContent = ok ? 'Claude API ready' : 'Claude API not configured';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -226,7 +188,6 @@ function updateSheetUrl(id, url) {
 }
 
 async function analyseAllSheets() {
-  if (!state.apiKey) { toast('Save your Claude API key first', true); return; }
   const targets = state.sheets.filter(s => s.url);
   if (!targets.length) { toast('Add at least one Sheet URL first', true); return; }
   for (const s of targets) await analyseSheet(s.id);
@@ -924,9 +885,7 @@ function applyDesignsFormats() {
 }
 
 function saveSettings() {
-  const key  = document.getElementById('api-key-settings').value.trim();
   const path = document.getElementById('default-path-settings').value.trim();
-  if (key)  { state.apiKey = key; localStorage.setItem('af_api_key', key); updateApiStatus(true); }
   if (path) { state.basePath = path; localStorage.setItem('af_base_path', path); document.getElementById('base-path').value = path; }
   localStorage.setItem('af_designs', JSON.stringify(state.designs));
   localStorage.setItem('af_formats', JSON.stringify(state.formats));
