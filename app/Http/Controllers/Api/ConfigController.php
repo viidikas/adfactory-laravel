@@ -10,25 +10,18 @@ class ConfigController extends Controller
 {
     public function index()
     {
-        $sheetUrl = Setting::get('sheet_url', '');
-        $renderedPath = Setting::get('rendered_path', '');
-        $designsRaw = Setting::get('designs', '[]');
-
-        $designs = is_string($designsRaw) ? json_decode($designsRaw, true) : $designsRaw;
-        if (! is_array($designs)) {
-            $designs = [];
-        }
-
         return response()->json([
-            'sheet_url' => $sheetUrl,
-            'rendered_path' => $renderedPath,
-            'designs' => $designs,
+            'sheet_url' => Setting::get('sheet_url', ''),
+            'rendered_path' => Setting::get('rendered_path', ''),
+            'designs' => $this->getJson('designs'),
+            'copy_rows' => $this->getJson('copy_rows'),
+            'shot_descriptions' => $this->getJson('shot_descriptions'),
         ]);
     }
 
     public function store(Request $request)
     {
-        $allowed = ['sheet_url', 'rendered_path', 'designs'];
+        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions'];
 
         foreach ($allowed as $field) {
             if ($request->has($field)) {
@@ -41,5 +34,13 @@ class ConfigController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    private function getJson(string $key): array
+    {
+        $raw = Setting::get($key, '[]');
+        $decoded = is_string($raw) ? json_decode($raw, true) : $raw;
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

@@ -40,9 +40,12 @@ async function analyseSheet(id) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8000,
-        system: `You are a data analyst for a video ad production system. Analyse this copy sheet CSV and extract structured data.
+        system: `You are a data analyst for a video ad production system. Analyse this CSV sheet and extract structured data.
 
-Respond ONLY with valid JSON — no preamble, no markdown fences:
+The sheet could be one of two types:
+
+TYPE 1 — COPY SHEET (has language columns like EN, ET, FR, DE, ES with advertising headline text):
+Respond with:
 {
   "type": "copy",
   "summary": "One sentence description",
@@ -50,7 +53,7 @@ Respond ONLY with valid JSON — no preamble, no markdown fences:
   "copy_rows": [
     {
       "key": "Mins",
-      "category": "Product usage",
+      "category": "Product Usage",
       "shot": "PU1, PU2, PU7",
       "brand": "Creditstar",
       "en": "Money in minutes",
@@ -59,19 +62,41 @@ Respond ONLY with valid JSON — no preamble, no markdown fences:
       "de": "Geld in Minuten",
       "es": "Dinero en minutos"
     }
-  ],
-  "notes": "observations"
+  ]
 }
 
+TYPE 2 — SHOT DESCRIPTION SHEET (describes what happens in each video shot/slate):
+Respond with:
+{
+  "type": "shots",
+  "summary": "One sentence description",
+  "row_count": 42,
+  "shot_descriptions": [
+    {
+      "slate": "PU1",
+      "category": "Product Usage",
+      "description": "Phone passed from one hand to another, smile",
+      "actors": "Victoria, Andrey, Kemal",
+      "markets": "EEA"
+    }
+  ]
+}
+
+Category slug mapping for slate codes:
+- Product Usage → PU (e.g. PU1, PU18)
+- Travel and Holiday → TH
+- Home Renovation → HR
+- Lifestyle and Events → LE
+- Electronics and Devices → EG
+- Financial Relief → FR
+
 Rules:
-- Find the Category column → "category" field
-- Find the Shot column → "shot" field (may contain slate codes like "PU1, PU7, PU18" or be blank)
-- Find the Brand column → "brand" field
-- Find EN, ET, FR, DE, ES language columns → en/et/fr/de/es fields
-- The "key" field: use the EN text truncated to 20 chars, or any key/label column if present
-- Extract EVERY row that has copy text. Do not skip rows even if Shot or Category is blank.
-- Preserve the exact slate codes in the "shot" field exactly as written (e.g. "PU7, PU8, PU10, PU18")`,
-        messages: [{ role: 'user', content: `Analyse this copy sheet CSV:\n\n${csvText}` }]
+- Detect the sheet type from its columns and content
+- For copy sheets: extract EVERY row with copy text. Preserve exact slate codes in "shot" field (e.g. "PU7, PU8, PU10, PU18"). Use the EN text truncated to 20 chars as "key".
+- For shot sheets: extract every shot/slate. Construct the slate code from category + number (e.g. "Product Usage" shot 18 = "PU18").
+- Normalise category names to: Product Usage, Travel and Holiday, Home Renovation, Lifestyle and Events, Electronics and Devices, Financial Relief
+- Respond ONLY with valid JSON — no preamble, no markdown fences.`,
+        messages: [{ role: 'user', content: `Analyse this sheet CSV:\n\n${csvText}` }]
       })
     });
 
@@ -89,12 +114,34 @@ Rules:
       s.status = 'ok';
       s.analysisText = formatAnalysis(parsed);
 
-      if (parsed.type === 'clips' && parsed.clip_data?.length) {
-        const existing = new Set(state.analysedClips.map(c => c.filename));
-        state.analysedClips = [...state.analysedClips, ...parsed.clip_data.filter(c => !existing.has(c.filename))];
-        document.getElementById('nb-1').textContent = state.analysedClips.length + ' clips';
+      if (parsed.type === 'shots' && parsed.shot_descriptions?.length) {
+        // Store shot descriptions to server and update local SCENE_DATA
+        const shots = parsed.shot_descriptions;
+        shots.forEach(shot => {
+          const existing = typeof SCENE_DATA !== 'undefined' ? SCENE_DATA.findIndex(s => s.slate === shot.slate) : -1;
+          const entry = {
+            slate: shot.slate,
+            category: shot.category || '',
+            actor_options: (shot.actors || '').split(/[\s,]+/).map(a => a.trim()).filter(Boolean),
+            markets: shot.markets || '',
+            shot: shot.description || '',
+          };
+          if (existing >= 0) {
+            SCENE_DATA[existing] = entry;
+          } else if (typeof SCENE_DATA !== 'undefined') {
+            SCENE_DATA.push(entry);
+          }
+        });
+        // Save to server
+        fetch('/api/config', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ shot_descriptions: shots })
+        }).catch(() => {});
+        toast(`✓ Shot descriptions loaded — ${shots.length} shots`);
+        document.getElementById('nb-1').textContent = shots.length + ' shots';
         document.getElementById('nb-1').className = 'nav-badge ok';
       }
+
       if (parsed.copy_rows?.length) {
         // Store indexed by key for manual lookup
         parsed.copy_rows.forEach(row => {
@@ -108,10 +155,10 @@ Rules:
           if (cat && !state.analysedCopy[cat]) state.analysedCopy[cat] = {};
           if (cat && row.key) state.analysedCopy[cat][row.key] = row;
         });
-        // Persist sheet URL to config so Growth Portal can fetch copy
+        // Save copy data and sheet URL to server
         fetch('/api/config', {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({sheet_url: s.url.trim()})
+          body: JSON.stringify({ sheet_url: s.url.trim(), copy_rows: parsed.copy_rows })
         }).catch(() => {});
         toast(`✓ Copy sheet loaded — ${parsed.copy_rows.length} rows, auto-mapping clips…`);
       }
@@ -253,20 +300,21 @@ function autoMapCopyToClips(copyRows) {
     }
   });
 
-  // Now assign to every slate in SCENE_DATA
+  // Now assign to every slate in the actual clip library
   let totalMapped = 0;
-  const allSlates = [...new Set(SCENE_DATA.map(s => s.slate))];
+  const allSlates = [...new Set(state.clipLibrary.map(c => c.slate).filter(Boolean))];
 
   allSlates.forEach(slate => {
-    const sceneCat = normCat(SCENE_DATA.find(s => s.slate === slate)?.category || '');
+    const clipForSlate = state.clipLibrary.find(c => c.slate === slate);
+    const slateCat = normCat(clipForSlate?.category || '');
     const matches  = [];
 
     // 1. Slate-specific rows first (highest priority)
     if (bySlate[slate]) matches.push(...bySlate[slate]);
 
     // 2. Category-wide rows — only add if NO slate-specific rows exist for this slate
-    if (!matches.length && byCat[sceneCat]) {
-      byCat[sceneCat].forEach(r => {
+    if (!matches.length && byCat[slateCat]) {
+      byCat[slateCat].forEach(r => {
         if (!matches.find(m => m.en === r.en)) matches.push(r);
       });
     }

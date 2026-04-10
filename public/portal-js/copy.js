@@ -3,11 +3,23 @@
 // ═══════════════════════════════════════════════════════════════
 
 function getCopyForClip(clip) {
-  // Return all copy rows that match this clip's category (or are category-wide)
+  // 1. Slate-specific matches (shot field contains this clip's slate code)
+  const slate = clip.slate || '';
+  const slateMatches = slate ? copyRows.filter(r => {
+    const shot = (r.shot || '').trim();
+    if (!shot) return false;
+    const codes = shot.split(/[\s,;]+/).map(s => s.trim());
+    return codes.includes(slate);
+  }) : [];
+  if (slateMatches.length) return slateMatches;
+
+  // 2. Category-wide matches (no shot specified, same category)
   const cat = (clip.category || '').toLowerCase();
   return copyRows.filter(r => {
     const rCat = (r.category || '').toLowerCase();
-    if (!rCat) return true; // no category = applies everywhere
+    const rShot = (r.shot || '').trim();
+    if (rShot) return false; // skip slate-specific rows (already checked above)
+    if (!rCat) return true;
     return rCat === cat || rCat.replace(/\s+/g,'') === cat.replace(/\s+/g,'');
   });
 }
@@ -19,6 +31,14 @@ async function loadSheetFromConfig() {
     // Load designs (keep full objects — needed for images and labels)
     availableDesigns = cfg.designs || [];
 
+    // Load pre-parsed copy rows from server (saved by admin AI analysis)
+    if (cfg.copy_rows?.length) {
+      copyRows = cfg.copy_rows;
+      toast(`✓ Copy loaded — ${copyRows.length} lines`);
+      return;
+    }
+
+    // Fallback: fetch and parse sheet CSV directly
     const url = cfg.sheet_url || '';
     if (!url) return;
     const sr   = await fetch('/api/sheets?url=' + encodeURIComponent(url));
