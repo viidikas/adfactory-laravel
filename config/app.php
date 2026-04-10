@@ -33,4 +33,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'footage_path' => env('FOOTAGE_PATH', '/mnt/footage'),
+    'rendered_path' => env('RENDERED_PATH', '/mnt/exports'),
+
 ];

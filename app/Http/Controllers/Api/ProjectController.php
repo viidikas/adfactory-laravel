@@ -28,7 +28,7 @@ class ProjectController extends Controller
             'path' => 'required|string|max:255|unique:projects,path',
         ]);
 
-        $basePath = rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/');
+        $basePath = rtrim(config('app.footage_path', '/mnt/footage'), '/');
         $fullPath = $validated['path'] === '.'
             ? $basePath
             : $basePath . '/' . $validated['path'];
@@ -46,7 +46,7 @@ class ProjectController extends Controller
 
     public function scan(Project $project)
     {
-        $basePath = rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/');
+        $basePath = rtrim(config('app.footage_path', '/mnt/footage'), '/');
         $projectPath = $project->path === '.'
             ? $basePath
             : $basePath . '/' . $project->path;

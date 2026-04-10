@@ -26,6 +26,6 @@ class Project extends Model
 
     public function getFullPath(): string
     {
-        return rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/') . '/' . $this->path;
+        return rtrim(config('app.footage_path', '/mnt/footage'), '/') . '/' . $this->path;
     }
 }

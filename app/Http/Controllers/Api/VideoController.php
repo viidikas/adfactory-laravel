@@ -11,7 +11,7 @@ class VideoController extends Controller
 {
     public function stream(Request $request)
     {
-        $basePath = env('FOOTAGE_PATH', '/mnt/footage');
+        $basePath = config('app.footage_path', '/mnt/footage');
         $relativePath = $request->query('path', '');
 
         return $this->streamFile($basePath, $relativePath);
@@ -19,7 +19,7 @@ class VideoController extends Controller
 
     public function thumb(Request $request)
     {
-        $basePath = env('FOOTAGE_PATH', '/mnt/footage');
+        $basePath = config('app.footage_path', '/mnt/footage');
         $relativePath = $request->query('path', '');
 
         if (! $relativePath) {
@@ -79,7 +79,7 @@ class VideoController extends Controller
 
     public function rendered(Request $request)
     {
-        $basePath = env('RENDERED_PATH', '/mnt/exports');
+        $basePath = config('app.rendered_path', '/mnt/exports');
         $relativePath = $request->query('path', '');
 
         return $this->streamFile($basePath, $relativePath);
