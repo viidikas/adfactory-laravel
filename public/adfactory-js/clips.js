@@ -1,4 +1,111 @@
 // ═══════════════════════════════════════════════════════════════
+//  PROJECTS — server-side folder management
+// ═══════════════════════════════════════════════════════════════
+
+async function loadProjects() {
+  const list = document.getElementById('project-list');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/projects');
+    if (!r.ok) throw new Error();
+    const projects = await r.json();
+    if (!projects.length) {
+      list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:8px 0;">No projects yet. Create one below.</div>';
+      return;
+    }
+    list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10px;">
+      <thead><tr>
+        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Project</th>
+        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Folder</th>
+        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Clips</th>
+        <th style="background:var(--s3);padding:7px 10px;text-align:right;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Actions</th>
+      </tr></thead>
+      <tbody>${projects.map(p => `<tr style="border-bottom:1px solid var(--border);${p.is_active?'background:rgba(232,255,71,.05);':''}">
+        <td style="padding:8px 10px;color:var(--text);">
+          ${esc(p.name)}
+          ${p.is_active ? '<span style="font-size:8px;color:var(--accent);margin-left:6px;text-transform:uppercase;letter-spacing:1px;">Active</span>' : ''}
+        </td>
+        <td style="padding:8px 10px;color:var(--muted);font-size:9px;">${esc(p.path)}</td>
+        <td style="padding:8px 10px;color:var(--muted);">${p.clips_count}${p.scanned_at ? '' : ' <span style="color:var(--orange);">not scanned</span>'}</td>
+        <td style="padding:8px 10px;text-align:right;white-space:nowrap;">
+          <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:9px;" onclick="scanProject(${p.id})">Scan</button>
+          ${p.is_active ? '' : `<button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:9px;" onclick="activateProject(${p.id})">Activate</button>`}
+          <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:9px;color:var(--orange);" onclick="deleteProject(${p.id},'${esc(p.name)}')">Delete</button>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:10px;color:var(--orange);padding:8px 0;">Could not load projects</div>';
+  }
+}
+
+async function createProject() {
+  const name = document.getElementById('new-project-name').value.trim();
+  const path = document.getElementById('new-project-path').value.trim();
+  const status = document.getElementById('project-status');
+  if (!name || !path) { toast('Enter both name and folder name', true); return; }
+  try {
+    const r = await fetch('/api/projects', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, path})
+    });
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.message || 'Server error');
+    }
+    document.getElementById('new-project-name').value = '';
+    document.getElementById('new-project-path').value = '';
+    if (status) status.textContent = '';
+    toast(`Project "${name}" created`);
+    loadProjects();
+  } catch(e) {
+    if (status) status.textContent = e.message;
+    toast(e.message, true);
+  }
+}
+
+async function scanProject(id) {
+  toast('Scanning folder...');
+  try {
+    const r = await fetch(`/api/projects/${id}/scan`, {method:'POST'});
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.message || 'Scan failed');
+    }
+    const data = await r.json();
+    toast(`Scanned ${data.count} clips`);
+    loadProjects();
+    loadClipsFromProxy();
+  } catch(e) {
+    toast(e.message, true);
+  }
+}
+
+async function activateProject(id) {
+  try {
+    const r = await fetch(`/api/projects/${id}/activate`, {method:'PUT'});
+    if (!r.ok) throw new Error();
+    toast('Project activated');
+    loadProjects();
+    loadClipsFromProxy();
+  } catch(e) {
+    toast('Could not activate project', true);
+  }
+}
+
+async function deleteProject(id, name) {
+  if (!confirm(`Delete project "${name}" and all its clips?`)) return;
+  try {
+    const r = await fetch(`/api/projects/${id}`, {method:'DELETE'});
+    if (!r.ok) throw new Error();
+    toast('Project deleted');
+    loadProjects();
+  } catch(e) {
+    toast('Could not delete project', true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  CLIP LIBRARY — folder scan, match, player, copy assignment
 // ═══════════════════════════════════════════════════════════════
 

@@ -14,6 +14,7 @@ class Clip extends Model
 
     protected $fillable = [
         'id',
+        'project_id',
         'name',
         'name_no_ext',
         'relative_path',
@@ -23,4 +24,9 @@ class Clip extends Model
         'actor',
         'version',
     ];
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
 }

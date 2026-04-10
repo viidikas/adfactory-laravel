@@ -45,8 +45,8 @@ function init() {
 
   renderSlateFilter();
 
-  // Auto-restore clip library and footage path from proxy on reload
-  loadFootagePath();
+  // Load projects and clips
+  loadProjects();
   loadClipsFromProxy();
 }
 
@@ -99,7 +99,7 @@ function goStep(n) {
   }
   if (n === 8) { loadAFOrders(); }
   if (n === 9) { renderDesignsList(); renderFormatsList(); }
-  if (n === 2) { loadFootagePath(); if (!state.clipLibrary.length) loadClipsFromProxy(); }
+  if (n === 2) { loadProjects(); if (!state.clipLibrary.length) loadClipsFromProxy(); }
   if (n === 10) { loadAdminConfig(); loadGrowthLeadUsers(); }
 }
 

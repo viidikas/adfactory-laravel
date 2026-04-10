@@ -4,21 +4,50 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Clip;
+use App\Models\Project;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class ClipController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Clip::all());
+        $query = Clip::query();
+
+        if ($request->has('project_id')) {
+            $query->where('project_id', $request->input('project_id'));
+        } else {
+            // Default: return clips for the active project
+            $activeProject = Project::where('is_active', true)->first();
+            if ($activeProject) {
+                $query->where('project_id', $activeProject->id);
+            }
+        }
+
+        return response()->json($query->get()->map(fn ($c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+            'nameNoExt' => $c->name_no_ext,
+            'relativePath' => $c->relative_path,
+            'category' => $c->category,
+            'slate' => $c->slate,
+            'slateNum' => $c->slate_num,
+            'actor' => $c->actor,
+            'version' => $c->version,
+        ]));
     }
 
     public function meta()
     {
+        $activeProject = Project::where('is_active', true)->first();
+
         return response()->json([
-            'clips_count' => Clip::count(),
+            'clips_count' => $activeProject ? $activeProject->clips_count : Clip::count(),
             'base_path' => Setting::get('footage_base_path', ''),
+            'active_project' => $activeProject ? [
+                'id' => $activeProject->id,
+                'name' => $activeProject->name,
+            ] : null,
         ]);
     }
 
@@ -27,7 +56,7 @@ class ClipController extends Controller
         if ($request->has('clips')) {
             $clips = $request->input('clips', []);
 
-            Clip::truncate();
+            Clip::whereNull('project_id')->delete();
 
             foreach ($clips as $clipData) {
                 Clip::create([

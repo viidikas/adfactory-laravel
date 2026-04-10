@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProxyController;
 use App\Http\Controllers\Api\SheetController;
 use App\Http\Controllers\Api\UserController;
@@ -20,6 +21,9 @@ Route::middleware('auth')->group(function () {
     // Claude proxy
     Route::post('/proxy', [ProxyController::class, 'forward']);
 
+    // Projects
+    Route::get('/projects', [ProjectController::class, 'index']);
+
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
     Route::post('/clips', [ClipController::class, 'store'])->middleware('admin');
@@ -36,8 +40,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::put('/orders/{order}', [OrderController::class, 'update']);
 
-    // Users (admin only)
+    // Admin-only routes
     Route::middleware('admin')->group(function () {
+        Route::post('/projects', [ProjectController::class, 'store']);
+        Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
+        Route::put('/projects/{project}/activate', [ProjectController::class, 'activate']);
+        Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
+
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
         Route::put('/users/{id}', [UserController::class, 'update']);

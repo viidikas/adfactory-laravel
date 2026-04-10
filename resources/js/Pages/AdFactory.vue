@@ -151,15 +151,17 @@ export default {
     <!-- STEP 2 — CLIP LIBRARY -->
     <div class="step-panel" id="step-2">
       <div class="card card-accent">
-        <div class="card-title">&#128194; Footage Source</div>
-        <div class="card-sub">Enter the absolute path to your source footage folder. Then click "Scan Folder" to browse and index files.<br><br><strong style="color:var(--warn);">Note:</strong> Scanning requires Chrome or Edge.</div>
-        <div class="input-row" style="margin-bottom:12px;">
-          <label>Footage path</label>
-          <input type="text" id="footage-base-path" placeholder="/Users/.../03_Exports/02_Graded_Masters" onchange="saveFootagePath(this.value)">
-        </div>
-        <div class="btn-row" style="margin-top:0;">
-          <button class="btn btn-primary" onclick="scanFolder()">&#128269; Scan Folder</button>
-          <button class="btn btn-secondary" onclick="clearLibrary()" id="btn-clear-lib" style="display:none;">&#10005; Clear Library</button>
+        <div class="card-title">&#128194; Projects</div>
+        <div class="card-sub">Each project is a folder on the server under /mnt/footage/. Create a project, scan it to load clips.</div>
+        <div id="project-list" style="margin-bottom:16px;"></div>
+        <div style="background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:14px;">
+          <div style="font-size:10px;color:var(--muted2);font-weight:500;margin-bottom:10px;">Add new project</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="new-project-name" placeholder="Project name" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:180px;">
+            <input type="text" id="new-project-path" placeholder="folder-name" style="background:var(--s2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;flex:1;min-width:150px;">
+            <button class="btn btn-primary btn-sm" onclick="createProject()">+ Create</button>
+          </div>
+          <div id="project-status" style="font-size:10px;color:var(--muted);margin-top:8px;"></div>
         </div>
       </div>
       <div id="lib-stats-bar" style="display:none;" class="lib-stats">
