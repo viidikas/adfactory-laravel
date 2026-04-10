@@ -28,7 +28,10 @@ class ProjectController extends Controller
             'path' => 'required|string|max:255|unique:projects,path',
         ]);
 
-        $fullPath = rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/') . '/' . $validated['path'];
+        $basePath = rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/');
+        $fullPath = $validated['path'] === '.'
+            ? $basePath
+            : $basePath . '/' . $validated['path'];
 
         if (! is_dir($fullPath)) {
             return response()->json([
@@ -44,7 +47,9 @@ class ProjectController extends Controller
     public function scan(Project $project)
     {
         $basePath = rtrim(env('FOOTAGE_PATH', '/mnt/footage'), '/');
-        $projectPath = $basePath . '/' . $project->path;
+        $projectPath = $project->path === '.'
+            ? $basePath
+            : $basePath . '/' . $project->path;
 
         if (! is_dir($projectPath)) {
             return response()->json([
