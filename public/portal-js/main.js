@@ -29,7 +29,7 @@ async function loadUsers() {
     const users = await r.json();
     renderUserList(users);
   } catch(e) {
-    document.getElementById('user-list').innerHTML = '<div style="color:var(--orange);font-size:10px;">Could not load users — is proxy.py running?</div>';
+    document.getElementById('user-list').innerHTML = '<div style="color:var(--orange);font-size:10px;">Could not load users</div>';
   }
 }
 

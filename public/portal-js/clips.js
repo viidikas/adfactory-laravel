@@ -34,7 +34,7 @@ async function loadClipsFromServer() {
     document.getElementById('browse-filters').style.display = 'flex';
     renderGrid();
   } catch(e) {
-    if (status) status.textContent = 'Could not load clips — is proxy.py running?';
+    if (status) status.textContent = 'Could not load clips';
   }
 }
 

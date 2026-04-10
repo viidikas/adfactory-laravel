@@ -184,7 +184,7 @@ async function loadAdminConfig() {
     renderAdminDesigns(cfg.designs || []);
   } catch(e) {
     const st = document.getElementById('admin-path-status');
-    if (st) st.textContent = '⚠ proxy.py not running';
+    if (st) st.textContent = '⚠ Could not load config';
   }
 }
 
@@ -254,7 +254,7 @@ async function addAdminDesign() {
     });
     toast(`✓ Design "${key}" added`);
     loadAdminConfig();
-  } catch(e) { toast('Could not save — is proxy.py running?', true); }
+  } catch(e) { toast('Could not save — server error', true); }
 }
 
 async function replaceDesignImage(designIdx, ratio) {
@@ -300,7 +300,7 @@ async function removeAdminDesign(idx) {
     });
     toast('✓ Design removed');
     loadAdminConfig();
-  } catch(e) { toast('Could not save — is proxy.py running?', true); }
+  } catch(e) { toast('Could not save — server error', true); }
 }
 
 async function saveAdminConfig() {
@@ -317,7 +317,7 @@ async function saveAdminConfig() {
     const st = document.getElementById('admin-path-status');
     if (st) { st.textContent='✓ Saved'; setTimeout(()=>{if(st)st.textContent='';},3000); }
     toast('✓ Admin config saved');
-  } catch(e) { toast('⚠ Could not save — is proxy.py running?', true); }
+  } catch(e) { toast('⚠ Could not save — server error', true); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -339,41 +339,44 @@ async function loadGrowthLeadUsers() {
     list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10px;">
       <thead><tr>
         <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Name</th>
+        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Email</th>
         <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">Market</th>
-        <th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">ID</th>
       </tr></thead>
       <tbody>${leads.map(u => `<tr style="border-bottom:1px solid var(--border);">
         <td style="padding:8px 10px;color:var(--text);">${esc(u.name)}</td>
+        <td style="padding:8px 10px;color:var(--muted);">${esc(u.email||'—')}</td>
         <td style="padding:8px 10px;color:var(--blue);">${esc(u.market||'—')}</td>
-        <td style="padding:8px 10px;color:var(--muted);font-size:9px;">${esc(u.id)}</td>
       </tr>`).join('')}</tbody>
     </table>`;
     if (status) status.textContent = '';
   } catch(e) {
     list.innerHTML = '';
-    if (status) status.textContent = '⚠ Could not load users — is proxy.py running?';
+    if (status) status.textContent = '⚠ Could not load users';
   }
 }
 
 async function addGrowthLead() {
   const name   = document.getElementById('new-user-name').value.trim();
+  const email  = document.getElementById('new-user-email').value.trim();
   const market = document.getElementById('new-user-market').value.trim();
   const status = document.getElementById('users-status');
   if (!name) { toast('Enter a name', true); return; }
+  if (!email) { toast('Enter an email', true); return; }
   try {
     const r = await fetch('/api/users', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, market, role:'growth_lead'}),
+      body: JSON.stringify({name, email, market, role:'growth_lead'}),
     });
     if (!r.ok) throw new Error('Server error');
-    document.getElementById('new-user-name').value  = '';
+    document.getElementById('new-user-name').value   = '';
+    document.getElementById('new-user-email').value  = '';
     document.getElementById('new-user-market').value = '';
     toast(`✓ ${name} added — they can now log into the Growth Portal`);
     loadGrowthLeadUsers();
   } catch(e) {
-    if (status) status.textContent = '⚠ Could not add user — is proxy.py running?';
-    toast('Failed to add user — is proxy.py running?', true);
+    if (status) status.textContent = '⚠ Could not add user';
+    toast('Failed to add user', true);
   }
 }
 
@@ -395,7 +398,7 @@ async function loadAFOrders() {
     if (count) count.textContent = `${orders.length} order${orders.length!==1?'s':''}`;
     renderAFOrders(_afOrdersCache);
   } catch(e) {
-    list.innerHTML = '<div style="font-size:10px;color:var(--orange);padding:10px;">Could not load orders — is proxy.py running?</div>';
+    list.innerHTML = '<div style="font-size:10px;color:var(--orange);padding:10px;">Could not load orders — server error</div>';
   }
 }
 

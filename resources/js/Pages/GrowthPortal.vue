@@ -90,9 +90,10 @@
             <div class="card-sub">Manage who has access to the Growth Portal.</div>
             <div id="admin-users-list" style="margin-bottom:16px;"></div>
             <div style="font-size:10px;color:var(--muted2);margin-bottom:8px;font-weight:500;">Add new growth lead:</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="new-user-name" class="form-input" placeholder="Name (e.g. Maria)" style="flex:1;">
-              <input type="text" id="new-user-market" class="form-input" placeholder="Market (e.g. FI)" style="width:100px;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="new-user-name" class="form-input" placeholder="Name" style="flex:1;min-width:120px;">
+              <input type="email" id="new-user-email" class="form-input" placeholder="Email" style="flex:1;min-width:180px;">
+              <input type="text" id="new-user-market" class="form-input" placeholder="Market" style="width:100px;">
               <button class="btn btn-primary" onclick="addUser()">+ Add</button>
             </div>
           </div>

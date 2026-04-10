@@ -905,7 +905,7 @@ function saveFootagePath(path) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({base_path: path})
   }).then(() => toast('✓ Footage path saved'))
-    .catch(() => toast('Could not save — is proxy.py running?', true));
+    .catch(() => toast('Could not save footage path', true));
 }
 
 // ═══════════════════════════════════════════════════════════════
