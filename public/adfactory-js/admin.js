@@ -243,7 +243,7 @@ async function addAdminDesign() {
     designs.push({ key, label, images });
     await fetch('/api/config', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({...cfg, designs})
+      body: JSON.stringify({ designs })
     });
     // Clear inputs
     document.getElementById('new-design-key').value = '';
@@ -271,7 +271,7 @@ async function replaceDesignImage(designIdx, ratio) {
     designs[designIdx].images[ratio] = b64;
     await fetch('/api/config', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({...cfg, designs})
+      body: JSON.stringify({ designs })
     });
     toast(`✓ ${ratio} image updated`);
     loadAdminConfig();
@@ -296,7 +296,7 @@ async function removeAdminDesign(idx) {
     designs.splice(idx, 1);
     await fetch('/api/config', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({...cfg, designs})
+      body: JSON.stringify({ designs })
     });
     toast('✓ Design removed');
     loadAdminConfig();
