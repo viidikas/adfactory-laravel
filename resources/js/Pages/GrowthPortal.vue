@@ -1,19 +1,7 @@
 <template>
   <div>
-    <!-- LOGIN SCREEN (hidden when logged in via portal JS) -->
-    <div class="login-screen" id="login-screen">
-      <div class="login-box">
-        <div class="login-logo">AD.FACTORY</div>
-        <div class="login-sub">Growth Portal</div>
-        <div class="login-label">Who are you?</div>
-        <div class="user-list" id="user-list">
-          <div style="font-size:10px;color:var(--muted);text-align:center;">Loading users...</div>
-        </div>
-      </div>
-    </div>
-
     <!-- APP SHELL -->
-    <div class="app" id="app">
+    <div class="app" id="app" style="display:flex;">
       <div class="topbar">
         <div>
           <div class="topbar-logo">AD.FACTORY <span>GROWTH PORTAL</span></div>
@@ -213,6 +201,12 @@ import { router } from '@inertiajs/vue3';
 export default {
   name: 'GrowthPortal',
   mounted() {
+    // Pass authenticated user to portal JS so it skips its own login screen
+    const authUser = this.$page.props.auth?.user;
+    if (authUser) {
+      window.__portalUser = authUser;
+    }
+
     // Load CSS
     const link = document.createElement('link');
     link.rel = 'stylesheet';

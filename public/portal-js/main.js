@@ -50,10 +50,7 @@ function renderUserList(users) {
 
 async function login(user) {
   currentUser = user;
-  localStorage.setItem('gp_user', JSON.stringify(user));
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.getElementById('topbar-user-name').textContent = user.name + (user.market ? ' · '+user.market : '');
+  document.getElementById('topbar-user-name').textContent = user.name;
   if (user.role === 'admin') {
     document.getElementById('tab-admin').classList.remove('hidden');
   }
@@ -96,10 +93,9 @@ function showTab(tab) {
 //  and leaving the clip grid empty.
 // ═══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function portalInit() {
-  loadUsers();
-  if (currentUser) {
-    login(currentUser);
-  } else {
-    document.getElementById('login-screen').style.display = 'flex';
+  // Auth is handled by Laravel sessions — use the user passed from Inertia
+  const authUser = window.__portalUser;
+  if (authUser) {
+    login(authUser);
   }
 });
