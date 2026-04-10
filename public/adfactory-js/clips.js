@@ -457,10 +457,8 @@ function openClipModal(clipId) {
   if (!clip) return;
   currentModalClip = clip;
 
-  const scene = SCENE_DATA.find(s =>
-    s.slate === clip.slate ||
-    (s.category === clip.category && s.actor_options.includes(clip.actor))
-  ) || null;
+  // Match by exact slate only — no fuzzy fallback
+  const scene = SCENE_DATA.find(s => s.slate === clip.slate) || null;
 
   const assignedKey = state.slateAssignments[clip.id] || '';
   const keyOptions = Object.entries(COPY_KEYS).map(([k, v]) =>
@@ -476,17 +474,14 @@ function openClipModal(clipId) {
       ).join('')
     : `<div style="color:var(--muted);font-size:10px;padding:8px 0;">Select a copy key to preview translations</div>`;
 
-  const sceneHtml = scene
-    ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:10px;line-height:2;">
-        <div><span style="color:var(--muted);">Slate:</span> <strong style="color:var(--accent);">${esc(scene.slate)}</strong></div>
-        <div><span style="color:var(--muted);">Category:</span> ${esc(scene.category)}</div>
+  const sceneHtml = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:10px;line-height:2;">
+        <div><span style="color:var(--muted);">Slate:</span> <strong style="color:var(--accent);">${esc(clip.slate)}</strong></div>
+        <div><span style="color:var(--muted);">Category:</span> ${esc(clip.category)}</div>
         <div><span style="color:var(--muted);">Actor:</span> ${esc(clip.actor)}</div>
-        <div><span style="color:var(--muted);">Markets:</span> ${esc(scene.markets)}</div>
-        <div><span style="color:var(--muted);">Shot:</span> <span style="color:var(--muted2);">${esc(scene.shot)}</span></div>
+        ${scene ? `<div><span style="color:var(--muted);">Markets:</span> ${esc(scene.markets)}</div>` : ''}
+        ${scene ? `<div><span style="color:var(--muted);">Shot:</span> <span style="color:var(--muted2);">${esc(scene.shot)}</span></div>` : ''}
         <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);font-size:9px;word-break:break-all;color:var(--muted2);">📁 ${esc(clip.relativePath)}</div>
-      </div>`
-    : `<div style="font-size:10px;color:var(--orange);padding:6px 0;">⚠ No matching scene — check filename format</div>
-       <div style="font-size:9px;color:var(--muted);">📁 ${esc(clip.relativePath)}</div>`;
+      </div>`;
 
   document.getElementById('modal-overlay').innerHTML = `
     <div class="modal modal-relative">

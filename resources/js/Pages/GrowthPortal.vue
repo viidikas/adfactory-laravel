@@ -233,7 +233,11 @@ export default {
       router.post('/logout');
     },
     loadScriptsSequential(scripts, index) {
-      if (index >= scripts.length) return;
+      if (index >= scripts.length) {
+        // All scripts loaded — init the portal
+        if (typeof window.portalInit === 'function') window.portalInit();
+        return;
+      }
       const script = document.createElement('script');
       script.src = scripts[index];
       script.onload = () => this.loadScriptsSequential(scripts, index + 1);

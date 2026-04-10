@@ -92,10 +92,10 @@ function showTab(tab) {
 //  those scripts are still being parsed, causing ReferenceErrors
 //  and leaving the clip grid empty.
 // ═══════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', function portalInit() {
-  // Auth is handled by Laravel sessions — use the user passed from Inertia
+// portalInit is called after all scripts are loaded (from GrowthPortal.vue)
+function portalInit() {
   const authUser = window.__portalUser;
   if (authUser) {
     login(authUser);
   }
-});
+}
