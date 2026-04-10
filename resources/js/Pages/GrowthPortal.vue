@@ -18,9 +18,9 @@
         <div>
           <div class="topbar-logo">AD.FACTORY <span>GROWTH PORTAL</span></div>
         </div>
-        <div class="topbar-user" @click="logout()">
-          <span id="topbar-user-name">&mdash;</span>
-          <span style="font-size:9px;color:var(--muted);">&middot; Sign out</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="topbar-user-name" style="font-size:11px;color:var(--muted);">&mdash;</span>
+          <button class="logout-btn" @click="logout()">Sign out</button>
         </div>
       </div>
 
@@ -208,6 +208,8 @@
 </template>
 
 <script>
+import { router } from '@inertiajs/vue3';
+
 export default {
   name: 'GrowthPortal',
   mounted() {
@@ -234,7 +236,7 @@ export default {
       if (typeof window.showTab === 'function') window.showTab(tab);
     },
     logout() {
-      if (typeof window.logout === 'function') window.logout();
+      router.post('/logout');
     },
     loadScriptsSequential(scripts, index) {
       if (index >= scripts.length) return;
@@ -249,4 +251,19 @@ export default {
 
 <style>
 /* Base styles are loaded from growth-portal.css via the dynamic link tag */
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border, #2d333b);
+  border-radius: 6px;
+  color: var(--muted, #7a8399);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.logout-btn:hover {
+  border-color: #e8ff47;
+  color: #e8ff47;
+}
 </style>

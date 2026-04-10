@@ -58,6 +58,7 @@
             <div class="api-dot" id="api-dot"></div>
             <span id="api-status-text">Claude API not configured</span>
           </div>
+          <button class="logout-btn" @click="logout()">Sign out</button>
         </div>
       </aside>
 
@@ -84,6 +85,8 @@
 </template>
 
 <script>
+import { router } from '@inertiajs/vue3';
+
 export default {
   name: 'AdFactory',
   mounted() {
@@ -112,6 +115,9 @@ export default {
     },
     nextStep() {
       if (typeof window.nextStep === 'function') window.nextStep();
+    },
+    logout() {
+      router.post('/logout');
     },
     loadCSS() {
       const link = document.createElement('link');
@@ -285,4 +291,21 @@ export default {
 
 <style>
 /* Base styles are loaded from adfactory.css via the dynamic link tag */
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border, #2d333b);
+  border-radius: 6px;
+  color: var(--muted, #7a8399);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 8px;
+  width: 100%;
+}
+.logout-btn:hover {
+  border-color: #e8ff47;
+  color: #e8ff47;
+}
 </style>
