@@ -48,26 +48,26 @@ class ClipParser
             if ($hasVersionSuffix && count($parts) >= 4) {
                 // Strip version, then walk back from end to find slate number
                 $version = preg_replace('/^v/i', '', $lastPart);
-                $actorParts = [];
                 $i = count($parts) - 2; // start before version
                 while ($i > 0 && ! ctype_digit($parts[$i])) {
-                    array_unshift($actorParts, $parts[$i]);
                     $i--;
                 }
                 $slateNum = $parts[$i];
-                $actor = implode(' ', $actorParts);
+                // Everything between slateNum and version = actors (comma-separated)
+                $actorParts = array_slice($parts, $i + 1, count($parts) - $i - 2);
+                $actor = implode(', ', array_filter($actorParts));
                 $category = implode(' ', array_slice($parts, 0, $i));
             } else {
                 // No version: walk back from end to find the slate number
-                $actorParts = [$parts[count($parts) - 1]];
-                $i = count($parts) - 2;
+                $i = count($parts) - 1;
                 while ($i > 0 && ! ctype_digit($parts[$i])) {
-                    array_unshift($actorParts, $parts[$i]);
                     $i--;
                 }
                 if (ctype_digit($parts[$i])) {
                     $slateNum = $parts[$i];
-                    $actor = implode(' ', $actorParts);
+                    // Everything after slateNum = actors (comma-separated)
+                    $actorParts = array_slice($parts, $i + 1);
+                    $actor = implode(', ', array_filter($actorParts));
                     $category = implode(' ', array_slice($parts, 0, $i));
                 } else {
                     // Fallback: no slate number found
