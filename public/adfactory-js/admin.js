@@ -211,8 +211,17 @@ async function saveProjectDesigns() {
       method: 'PUT', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ designs: adminDesigns })
     });
-    return r.ok;
-  } catch(e) { return false; }
+    if (!r.ok) {
+      const text = await r.text();
+      console.error('Save designs failed:', r.status, text);
+      toast(`Save failed (${r.status})`, true);
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.error('Save designs error:', e);
+    return false;
+  }
 }
 
 function renderAdminDesigns(designs) {

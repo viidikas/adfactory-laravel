@@ -24,6 +24,23 @@ class ClipController extends Controller
             }
         }
 
+        // Optional filters
+        if ($request->filled('category')) {
+            $query->whereRaw('LOWER(category) = ?', [strtolower($request->input('category'))]);
+        }
+
+        if ($request->filled('search')) {
+            $search = '%'.strtolower($request->input('search')).'%';
+            $query->where(function ($q) use ($search) {
+                $q->whereRaw('LOWER(name) LIKE ?', [$search])
+                  ->orWhereRaw('LOWER(actor) LIKE ?', [$search]);
+            });
+        }
+
+        if ($request->filled('actor')) {
+            $query->where('actor', $request->input('actor'));
+        }
+
         // Load slate data for enrichment
         $slateDataRaw = Setting::get('slate_data', '{}');
         $slateData = json_decode($slateDataRaw, true) ?: [];

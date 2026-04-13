@@ -3,11 +3,20 @@
 // ═══════════════════════════════════════════════════════════════
 const LANGS = ['EN','ET','DE','FR','ES'];
 
-let currentUser  = JSON.parse(localStorage.getItem('gp_user') || 'null');
+let currentUser  = null;
 let clipLibrary  = [];
-let copyRows     = [];   // parsed from sheet: [{key, category, en, et, fr, de, es, brand, shot}]
+let copyLines    = [];   // from /api/copy-lines
+let copyRows     = [];   // legacy compat — alias for copyLines
 let basket       = JSON.parse(localStorage.getItem('gp_basket') || '[]');
-// basket item: { id, clip{name,slate,category,actor,url}, copyKey, copyText{en,et,...}, langs:[] }
+
+// Shared filter state between modes
+let sharedState = {
+  selectedCategory: null,
+  selectedCopy:     null,   // full copy row object
+  selectedClips:    [],     // clip IDs
+  selectedLangs:    ['EN'],
+  selectedDesigns:  [],
+};
 
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -21,33 +30,26 @@ function toast(msg, err=false) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════════
+const ALL_TABS = ['copy-browse','browse','orders','admin'];
+
+function showTab(tab) {
+  ALL_TABS.forEach(t => {
+    const view = document.getElementById('view-'+t);
+    const tabEl = document.getElementById('tab-'+t);
+    if (view) view.classList.toggle('hidden', t !== tab);
+    if (tabEl) tabEl.classList.toggle('active', t === tab);
+  });
+  if (tab === 'orders')      loadOrders();
+  if (tab === 'admin')       loadAdminOrders();
+  if (tab === 'copy-browse') initCopyBrowse();
+  if (tab === 'browse')      { renderGrid(); closeDetailPanel(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  AUTH
 // ═══════════════════════════════════════════════════════════════
-async function loadUsers() {
-  try {
-    const r = await fetch('/api/users');
-    const users = await r.json();
-    renderUserList(users);
-  } catch(e) {
-    document.getElementById('user-list').innerHTML = '<div style="color:var(--orange);font-size:10px;">Could not load users</div>';
-  }
-}
-
-function renderUserList(users) {
-  const colors = {'admin':'var(--accent)','growth_lead':'var(--blue)'};
-  const initials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-  document.getElementById('user-list').innerHTML = users.map(u => `
-    <div class="user-btn" onclick="login(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-      <div class="user-avatar" style="background:${colors[u.role]||'var(--muted)'};color:#000;">
-        ${esc(initials(u.name))}
-      </div>
-      <div>
-        <div class="user-name">${esc(u.name)}${u.market?' · '+esc(u.market):''}</div>
-        <div class="user-role">${u.role === 'admin' ? '⚙ Admin' : '🌍 Growth Lead'}</div>
-      </div>
-    </div>`).join('');
-}
-
 async function login(user) {
   currentUser = user;
   document.getElementById('topbar-user-name').textContent = user.name;
@@ -55,44 +57,65 @@ async function login(user) {
     document.getElementById('tab-admin').classList.remove('hidden');
   }
   updateBasketBar();
+
+  // Load data in parallel
+  await Promise.all([
+    loadCopyLines(),
+    loadDesigns(),
+    loadClipsFromServer(),
+  ]);
+
   loadOrders();
-  loadDesigns();
-  // Load copies BEFORE clips so renderGrid sees copy assignments
-  await loadSheetFromConfig();
-  loadClipsFromServer();
-}
-
-function logout() {
-  currentUser = null;
-  localStorage.removeItem('gp_user');
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TABS
+//  COPY LINES — from /api/copy-lines
 // ═══════════════════════════════════════════════════════════════
-function showTab(tab) {
-  ['browse','orders','designs','admin'].forEach(t => {
-    document.getElementById('view-'+t)?.classList.toggle('hidden', t !== tab);
-    document.getElementById('tab-'+t)?.classList.toggle('active', t === tab);
+async function loadCopyLines() {
+  try {
+    const r = await fetch('/api/copy-lines');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    copyLines = Array.isArray(data) ? data : (data.lines || []);
+    copyRows = copyLines; // legacy compat
+  } catch(e) {
+    copyLines = [];
+    copyRows = [];
+  }
+}
+
+function getCopyForClip(clip) {
+  const slate = clip.slate || '';
+  // 1. Slate-specific matches
+  const slateMatches = slate ? copyLines.filter(r => {
+    const shot = (r.shot || '').trim();
+    if (!shot) return false;
+    return shot.split(/[\s,;]+/).map(s => s.trim()).includes(slate);
+  }) : [];
+  if (slateMatches.length) return slateMatches;
+
+  // 2. Category-wide fallback
+  const cat = (clip.category || '').toLowerCase();
+  return copyLines.filter(r => {
+    const rCat = (r.category || '').toLowerCase();
+    const rShot = (r.shot || '').trim();
+    if (rShot) return false;
+    if (!rCat) return true;
+    return rCat === cat;
   });
-  if (tab === 'orders')  loadOrders();
-  if (tab === 'admin')   loadAdminOrders();
-  if (tab === 'designs') renderDesignsPage();
+}
+
+function getCopyForCategory(category) {
+  const cat = (category || '').toLowerCase();
+  return copyLines.filter(r => {
+    const rCat = (r.category || '').toLowerCase();
+    return rCat === cat || !rCat;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  INIT — deferred until all portal scripts have loaded so that
-//  functions like loadClipsFromServer, loadOrders, loadDesigns and
-//  loadSheetFromConfig (defined in clips.js, orders.js, designs.js
-//  and copy.js respectively) are guaranteed to exist before login()
-//  calls them.  Without this deferral, a returning user whose
-//  session is persisted in localStorage triggers login() while
-//  those scripts are still being parsed, causing ReferenceErrors
-//  and leaving the clip grid empty.
+//  INIT
 // ═══════════════════════════════════════════════════════════════
-// portalInit is called after all scripts are loaded (from GrowthPortal.vue)
 function portalInit() {
   const authUser = window.__portalUser;
   if (authUser) {

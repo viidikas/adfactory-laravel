@@ -197,6 +197,23 @@ textarea.form-input{resize:vertical;min-height:70px;}
 /* ── TOAST ── */
 #toast{position:fixed;bottom:80px;right:24px;background:var(--s2);border:1px solid var(--accent);color:var(--accent);padding:10px 18px;border-radius:7px;font-size:11px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;}
 
+/* ── COPY BROWSE (Mode A) ── */
+.copy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+.copy-card{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:all .15s;position:relative;}
+.copy-card:hover{border-color:var(--accent);background:rgba(232,255,71,.03);}
+.copy-card-cat{position:absolute;top:10px;right:12px;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;background:var(--s3);padding:2px 8px;border-radius:3px;}
+.copy-card-en{font-size:13px;color:var(--text);font-weight:500;line-height:1.5;margin-bottom:8px;padding-right:80px;}
+.copy-card-translations{font-size:9px;color:var(--muted2);line-height:1.6;margin-bottom:4px;}
+.copy-card-shot{font-size:9px;color:var(--blue);margin-top:6px;}
+.cat-chip{display:inline-block;padding:6px 14px;border-radius:20px;font-size:10px;cursor:pointer;border:1px solid var(--border2);color:var(--muted2);transition:all .15s;text-transform:uppercase;letter-spacing:.5px;}
+.cat-chip:hover{border-color:var(--accent);color:var(--text);}
+.cat-chip.sel{background:rgba(232,255,71,.1);border-color:var(--accent);color:var(--accent);}
+
+/* ── SLIDE-IN DETAIL PANEL (Mode B) ── */
+.clip-detail-panel{width:400px;flex-shrink:0;background:var(--s1);border-left:1px solid var(--border);position:sticky;top:56px;height:calc(100vh - 56px - 44px);overflow-y:auto;transition:width .2s;}
+.clip-detail-panel.hidden{width:0;overflow:hidden;border:none;padding:0;}
+.detail-panel-inner{padding:20px;}
+
 /* ── UTILITY ── */
 .hidden{display:none!important;}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:9px;background:var(--s3);color:var(--muted2);border:1px solid var(--border);}

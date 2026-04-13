@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class ConfigController extends Controller
 {
@@ -33,6 +34,10 @@ class ConfigController extends Controller
                 }
                 Setting::set($field, $value);
             }
+        }
+
+        if ($request->has('sheet_url')) {
+            Cache::forget('copy_lines');
         }
 
         return response()->json(['ok' => true]);

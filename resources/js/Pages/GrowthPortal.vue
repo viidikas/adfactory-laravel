@@ -13,15 +13,55 @@
       </div>
 
       <div class="tab-bar">
-        <div class="tab active" id="tab-browse" @click="showTab('browse')">&#127908; Browse Clips</div>
-        <div class="tab" id="tab-orders" @click="showTab('orders')">&#128203; My Orders</div>
-        <div class="tab" id="tab-designs" @click="showTab('designs')">&#127912; Designs</div>
-        <div class="tab hidden" id="tab-admin" @click="showTab('admin')">&#9881; Admin</div>
+        <div class="tab active" id="tab-copy-browse" @click="showTab('copy-browse')">Browse by Copy</div>
+        <div class="tab" id="tab-browse" @click="showTab('browse')">Browse by Clips</div>
+        <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
+        <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
       </div>
 
       <div class="content">
-        <!-- BROWSE TAB -->
-        <div id="view-browse">
+        <!-- MODE A: BROWSE BY COPY -->
+        <div id="view-copy-browse">
+          <div id="copy-browse-status" style="font-size:11px;color:var(--muted);padding:20px 0;"></div>
+          <!-- Step 1: Copy cards -->
+          <div id="copy-step-1">
+            <div id="copy-cat-chips" class="browse-filters" style="margin-bottom:16px;"></div>
+            <div id="copy-grid" class="copy-grid"></div>
+            <div id="copy-empty" class="empty hidden">
+              <div class="empty-icon">&#9997;</div>
+              <div class="empty-title">No copy lines found</div>
+              <div class="empty-sub">Admin needs to configure sheets in AD.FACTORY</div>
+            </div>
+          </div>
+          <!-- Step 2: Clip selector for chosen copy -->
+          <div id="copy-step-2" class="hidden">
+            <div id="copy-breadcrumb" style="margin-bottom:16px;"></div>
+            <div id="copy-clip-grid" class="clip-grid"></div>
+            <div id="copy-clip-empty" class="empty hidden">
+              <div class="empty-icon">&#127908;</div>
+              <div class="empty-title">No clips in this category</div>
+            </div>
+          </div>
+          <!-- Step 3: Language + Design selection -->
+          <div id="copy-step-3" class="hidden">
+            <div id="copy-step3-breadcrumb" style="margin-bottom:16px;"></div>
+            <div id="copy-step3-summary" class="card" style="margin-bottom:16px;"></div>
+            <div class="card">
+              <div class="card-title">Languages</div>
+              <div id="copy-lang-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">Designs</div>
+              <div id="copy-design-chips" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;"></div>
+            </div>
+            <div style="margin-top:16px;">
+              <button class="btn btn-primary" onclick="addCopyBrowseToBasket()">+ Add to order</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODE B: BROWSE BY CLIPS -->
+        <div id="view-browse" class="hidden">
           <div id="clips-status" style="font-size:11px;color:var(--muted);padding:20px 0;"></div>
           <div class="browse-filters" id="browse-filters" style="display:none;">
             <input type="text" id="search-input" placeholder="Search clips..." oninput="renderGrid()">
@@ -33,11 +73,17 @@
             <select id="filter-actor" onchange="renderGrid()"><option value="">All actors</option></select>
             <span id="grid-count" style="font-size:10px;color:var(--muted);margin-left:4px;"></span>
           </div>
-          <div class="clip-grid" id="clip-grid"></div>
-          <div id="browse-empty" class="empty hidden">
-            <div class="empty-icon">&#128269;</div>
-            <div class="empty-title">No clips found</div>
-            <div class="empty-sub">Try a different search or category filter</div>
+          <div style="display:flex;gap:0;position:relative;">
+            <div style="flex:1;min-width:0;">
+              <div class="clip-grid" id="clip-grid"></div>
+              <div id="browse-empty" class="empty hidden">
+                <div class="empty-icon">&#128269;</div>
+                <div class="empty-title">No clips found</div>
+                <div class="empty-sub">Try a different search or category filter</div>
+              </div>
+            </div>
+            <!-- Slide-in detail panel -->
+            <div id="clip-detail-panel" class="clip-detail-panel hidden"></div>
           </div>
         </div>
 
@@ -51,20 +97,10 @@
           </div>
         </div>
 
-        <!-- DESIGNS TAB -->
-        <div id="view-designs" class="hidden">
-          <div id="designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;padding:4px 0;"></div>
-          <div id="designs-empty" class="empty hidden">
-            <div class="empty-icon">&#127912;</div>
-            <div class="empty-title">No designs configured</div>
-            <div class="empty-sub">Ask admin to add designs in AD.FACTORY settings</div>
-          </div>
-        </div>
-
         <!-- ADMIN TAB -->
         <div id="view-admin" class="hidden">
           <div class="card">
-            <div class="card-title">&#128203; All Orders</div>
+            <div class="card-title">All Orders</div>
             <div class="card-sub">Review incoming orders from growth leads.</div>
           </div>
           <div id="admin-orders-list"></div>
@@ -74,7 +110,7 @@
             <div class="empty-sub">Orders from growth leads will appear here</div>
           </div>
           <div class="card" style="margin-top:32px;border-color:var(--border2);">
-            <div class="card-title">&#128101; Growth Leads</div>
+            <div class="card-title">Growth Leads</div>
             <div class="card-sub">Manage who has access to the Growth Portal.</div>
             <div id="admin-users-list" style="margin-bottom:16px;"></div>
             <div style="font-size:10px;color:var(--muted2);margin-bottom:8px;font-weight:500;">Add new growth lead:</div>
@@ -82,55 +118,6 @@
               <input type="text" id="new-user-name" class="form-input" placeholder="Name" style="flex:1;min-width:120px;">
               <input type="email" id="new-user-email" class="form-input" placeholder="Email" style="flex:1;min-width:180px;">
               <button class="btn btn-primary" onclick="addUser()">+ Add</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Clip detail modal -->
-    <div class="modal-overlay hidden" id="clip-modal-overlay">
-      <div class="clip-modal">
-        <div class="clip-modal-video">
-          <div class="clip-modal-path" id="cm-path"></div>
-          <video id="cm-video" controls style="width:100%;border-radius:8px;background:#000;"></video>
-          <div class="cm-nav">
-            <button class="btn btn-ghost" id="cm-prev" onclick="clipModalNav(-1)">&#8249; Prev</button>
-            <span id="cm-nav-label" style="font-size:10px;color:var(--muted2);"></span>
-            <button class="btn btn-ghost" id="cm-next" onclick="clipModalNav(1)">Next &#8250;</button>
-          </div>
-        </div>
-        <div class="clip-modal-panel">
-          <div class="clip-modal-panel-scroll">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;">&#128203; Clip Info</div>
-              <button onclick="closeClipModal()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;padding:4px;">&times;</button>
-            </div>
-            <div class="cm-info-block" id="cm-info"></div>
-            <div style="margin-top:18px;">
-              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-bottom:6px;">&#9997;&#65039; Select Copy</div>
-              <select id="cm-copy-select" onchange="onCopySelect()" style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:9px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;margin-bottom:10px;">
-                <option value="">&mdash; choose copy &mdash;</option>
-              </select>
-              <div id="cm-copy-langs" style="background:var(--s3);border-radius:6px;padding:12px;display:none;"></div>
-            </div>
-            <div style="margin-top:18px;">
-              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-bottom:6px;">&#127758; Language</div>
-              <div id="cm-lang-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-            </div>
-            <div style="margin-top:18px;">
-              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-bottom:6px;">&#127912; Design</div>
-              <div id="cm-design-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-            </div>
-            <div id="cm-duplicate-warning" style="display:none;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;padding:10px 12px;font-size:10px;color:var(--warn);margin-top:14px;">
-              This exact combination is already in your order.
-            </div>
-          </div>
-          <div id="cm-existing-variants" style="margin-top:14px;"></div>
-          <div class="cm-actions">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-primary" style="flex:1;" onclick="addClipFromModal()">+ Add Variant</button>
-              <button class="btn btn-ghost" onclick="closeClipModal()">Done</button>
             </div>
           </div>
         </div>
@@ -161,21 +148,22 @@
     <!-- Basket bar -->
     <div class="basket-bar" id="basket-bar">
       <div class="basket-count">
-        <b id="basket-count-num">0</b> clips in order
+        <b id="basket-count-num">0</b> items in order
         <span style="font-size:9px;color:var(--muted);margin-left:8px;" id="basket-langs-summary"></span>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="clear-basket-btn" onclick="clearBasket()">Clear</button>
-        <button class="submit-order-btn" onclick="openSubmitModal()">Submit Order &rarr;</button>
+        <button class="submit-order-btn" onclick="openSubmitModal()">Review &amp; Submit &rarr;</button>
       </div>
     </div>
 
     <!-- Submit modal -->
     <div class="modal-overlay hidden" id="submit-modal">
-      <div class="modal-box">
-        <div class="modal-title">Submit Order</div>
+      <div class="modal-box" style="max-width:600px;">
+        <div class="modal-title">Review &amp; Submit Order</div>
         <div class="modal-sub">Your order will be sent to production.</div>
-        <div class="form-group">
+        <div id="order-summary-items" style="background:var(--s2);border-radius:6px;padding:12px;margin-top:10px;font-size:10px;max-height:300px;overflow-y:auto;"></div>
+        <div class="form-group" style="margin-top:16px;">
           <label class="form-label">Market / Audience</label>
           <input type="text" id="order-market" class="form-input" placeholder="e.g. FI, EE, DK...">
         </div>
@@ -183,10 +171,9 @@
           <label class="form-label">Note (optional)</label>
           <textarea id="order-note" class="form-input" placeholder="Any specific requirements..."></textarea>
         </div>
-        <div id="order-summary-items" style="background:var(--s2);border-radius:6px;padding:12px;margin-top:10px;font-size:10px;max-height:220px;overflow-y:auto;"></div>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeSubmitModal()">Cancel</button>
-          <button class="btn btn-primary" onclick="submitOrder()">&#9889; Submit</button>
+          <button class="btn btn-primary" onclick="submitOrder()">Submit Order</button>
         </div>
       </div>
     </div>
@@ -201,23 +188,21 @@ import { router } from '@inertiajs/vue3';
 export default {
   name: 'GrowthPortal',
   mounted() {
-    // Pass authenticated user to portal JS so it skips its own login screen
     const authUser = this.$page.props.auth?.user;
     if (authUser) {
       window.__portalUser = authUser;
     }
 
-    // Load CSS
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = '/portal-css/growth-portal.css';
     document.head.appendChild(link);
 
-    // Load scripts in dependency order
     const scripts = [
       '/portal-js/main.js',
       '/portal-js/designs.js',
       '/portal-js/copy.js',
+      '/portal-js/copy-browse.js',
       '/portal-js/clips.js',
       '/portal-js/orders.js',
       '/portal-js/admin.js',
@@ -234,7 +219,6 @@ export default {
     },
     loadScriptsSequential(scripts, index) {
       if (index >= scripts.length) {
-        // All scripts loaded — init the portal
         if (typeof window.portalInit === 'function') window.portalInit();
         return;
       }
@@ -248,7 +232,6 @@ export default {
 </script>
 
 <style>
-/* Base styles are loaded from growth-portal.css via the dynamic link tag */
 .logout-btn {
   background: none;
   border: 1px solid var(--border, #2d333b);

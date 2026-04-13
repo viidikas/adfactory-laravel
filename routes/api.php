@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AnalyseController;
 use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
+use App\Http\Controllers\Api\CopyLineController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProxyController;
@@ -25,6 +26,9 @@ Route::middleware('auth')->group(function () {
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{project}/designs', [ProjectController::class, 'designs']);
+
+    // Copy lines
+    Route::get('/copy-lines', [CopyLineController::class, 'index']);
 
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
