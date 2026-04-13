@@ -30,6 +30,11 @@ class ClipParser
         $nameNoExt = preg_replace('/\.[^.]+$/', '', $filename);
         $parts = explode('_', $nameNoExt);
 
+        // Strip empty trailing parts (from trailing underscores like "Actor_.mov")
+        while (count($parts) > 1 && $parts[count($parts) - 1] === '') {
+            array_pop($parts);
+        }
+
         $category = '';
         $slateNum = '';
         $actor = '';
@@ -37,35 +42,37 @@ class ClipParser
 
         if (count($parts) >= 3) {
             $lastPart = end($parts);
-            $hasVersionSuffix = ctype_digit($lastPart);
+            // Detect version: pure digit ("2") or v+digit ("v2")
+            $hasVersionSuffix = ctype_digit($lastPart) || preg_match('/^v\d+$/i', $lastPart);
 
             if ($hasVersionSuffix && count($parts) >= 4) {
-                // Last part is version: Category_Num_Actor_Version
-                $version = $lastPart;
-                $slateNumIdx = count($parts) - 3;
-                $slateNum = $parts[$slateNumIdx];
-                $actor = implode(' ', array_slice($parts, $slateNumIdx + 1, count($parts) - $slateNumIdx - 2));
-                $category = implode(' ', array_slice($parts, 0, $slateNumIdx));
+                // Strip version, then walk back from end to find slate number
+                $version = preg_replace('/^v/i', '', $lastPart);
+                $actorParts = [];
+                $i = count($parts) - 2; // start before version
+                while ($i > 0 && ! ctype_digit($parts[$i])) {
+                    array_unshift($actorParts, $parts[$i]);
+                    $i--;
+                }
+                $slateNum = $parts[$i];
+                $actor = implode(' ', $actorParts);
+                $category = implode(' ', array_slice($parts, 0, $i));
             } else {
-                // No version: Category_Num_Actor
-                $secondToLast = $parts[count($parts) - 2];
-
-                if (ctype_digit($secondToLast)) {
-                    // Simple case: slateNum is second-to-last
-                    // But actor might span multiple parts (e.g. Viktoria_Lauri)
-                    // Walk back from end to find the slate number
-                    $actorParts = [$parts[count($parts) - 1]];
-                    $i = count($parts) - 2;
-                    while ($i > 0 && !ctype_digit($parts[$i])) {
-                        array_unshift($actorParts, $parts[$i]);
-                        $i--;
-                    }
+                // No version: walk back from end to find the slate number
+                $actorParts = [$parts[count($parts) - 1]];
+                $i = count($parts) - 2;
+                while ($i > 0 && ! ctype_digit($parts[$i])) {
+                    array_unshift($actorParts, $parts[$i]);
+                    $i--;
+                }
+                if (ctype_digit($parts[$i])) {
                     $slateNum = $parts[$i];
                     $actor = implode(' ', $actorParts);
                     $category = implode(' ', array_slice($parts, 0, $i));
                 } else {
+                    // Fallback: no slate number found
                     $actor = $parts[count($parts) - 1];
-                    $category = implode(' ', array_slice($parts, 0, count($parts) - 2));
+                    $category = implode(' ', array_slice($parts, 0, count($parts) - 1));
                 }
             }
         } elseif (count($parts) === 2) {
