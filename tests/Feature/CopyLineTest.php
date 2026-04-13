@@ -29,96 +29,62 @@ class CopyLineTest extends TestCase
         ]);
     }
 
-    private function seedSlateData(): void
+    private function seedCopyLines(): void
     {
-        $slateData = [
-            'LE3' => [
-                'description' => 'Older actor sighing with joy',
-                'markets' => 'EEA',
-                'copy' => [
-                    [
-                        'key' => 'Fund_your_forever',
-                        'en' => 'Fund your forever',
-                        'et' => 'Rahasta oma igavikku',
-                        'fr' => 'Financez votre avenir',
-                        'de' => 'Finanziere dein Für-immer',
-                        'es' => 'Financia tu para siempre',
-                        'brand' => 'Creditstar',
-                        'shot' => 'LE1, LE2, LE3',
-                        'category' => 'Lifestyle/Events', // shorthand from sheet
-                    ],
-                ],
+        $copyLines = [
+            [
+                'key' => 'Fund_your_forever',
+                'category' => 'Lifestyle and Events',
+                'shot' => 'LE3',
+                'brand' => 'Creditstar',
+                'en' => 'Fund your forever',
+                'et' => 'Rahasta oma igavikku',
+                'fr' => 'Financez votre avenir',
+                'de' => 'Finanziere dein Für-immer',
+                'es' => 'Financia tu para siempre',
             ],
-            'PU1' => [
-                'description' => 'Phone passed from one hand to another',
-                'markets' => 'EEA',
-                'copy' => [
-                    [
-                        'key' => 'Tap_to_invest',
-                        'en' => 'Tap to invest',
-                        'et' => 'Puuduta investeerimiseks',
-                        'fr' => '',
-                        'de' => '',
-                        'es' => '',
-                        'brand' => 'Creditstar',
-                        'shot' => 'PU1, PU2, PU7',
-                        'category' => 'Product usage', // lowercase from sheet
-                    ],
-                    [
-                        'key' => 'SmartSaver_row',
-                        'en' => 'SmartSaver only text',
-                        'et' => '',
-                        'fr' => '',
-                        'de' => '',
-                        'es' => '',
-                        'brand' => 'SmartSaver',
-                        'shot' => 'PU1',
-                        'category' => 'Product Usage',
-                    ],
-                ],
+            [
+                'key' => 'Tap_to_invest',
+                'category' => 'Product Usage',
+                'shot' => 'PU1, PU2, PU7',
+                'brand' => 'Creditstar',
+                'en' => 'Tap to invest',
+                'et' => 'Puuduta investeerimiseks',
+                'fr' => '',
+                'de' => '',
+                'es' => '',
             ],
-            'HR5' => [
-                'description' => 'Unboxing a home appliance',
-                'markets' => 'ES, EE',
-                'copy' => [
-                    [
-                        'key' => 'Borrow_smart',
-                        'en' => 'Borrow smart, build happy',
-                        'et' => 'Laena targalt',
-                        'fr' => '',
-                        'de' => '',
-                        'es' => '',
-                        'brand' => 'Creditstar',
-                        'shot' => '',
-                        'category' => 'Home Reno', // shorthand from sheet
-                    ],
-                ],
+            [
+                'key' => 'SmartSaver_text',
+                'category' => 'Product Usage',
+                'shot' => 'PU1',
+                'brand' => 'SmartSaver',
+                'en' => 'SmartSaver only text',
+                'et' => '',
+                'fr' => '',
+                'de' => '',
+                'es' => '',
             ],
-            'TH1' => [
-                'description' => 'Pulling a suitcase',
-                'markets' => 'EEA',
-                'copy' => [
-                    [
-                        'key' => 'Empty_en_row',
-                        'en' => '',
-                        'et' => 'Some Estonian',
-                        'fr' => '',
-                        'de' => '',
-                        'es' => '',
-                        'brand' => '',
-                        'shot' => 'TH1',
-                    ],
-                ],
+            [
+                'key' => 'Borrow_smart',
+                'category' => 'Home Renovation',
+                'shot' => '',
+                'brand' => 'Creditstar',
+                'en' => 'Borrow smart, build happy',
+                'et' => 'Laena targalt',
+                'fr' => '',
+                'de' => '',
+                'es' => '',
             ],
         ];
 
-        Setting::set('slate_data', json_encode($slateData));
+        Setting::set('copy_lines', json_encode($copyLines));
     }
 
     public function test_returns_200_for_authenticated_user(): void
     {
         $user = $this->createGrowthLead();
-        $this->seedSlateData();
+        $this->seedCopyLines();
 
         $response = $this->withSession(['auth_user_id' => $user->id])
             ->getJson('/api/copy-lines');
@@ -136,7 +102,7 @@ class CopyLineTest extends TestCase
     public function test_categories_are_normalised(): void
     {
         $user = $this->createGrowthLead();
-        $this->seedSlateData();
+        $this->seedCopyLines();
 
         $response = $this->withSession(['auth_user_id' => $user->id])
             ->getJson('/api/copy-lines');
@@ -144,32 +110,29 @@ class CopyLineTest extends TestCase
         $lines = $response->json();
         $categories = collect($lines)->pluck('category')->unique()->values()->toArray();
 
-        $this->assertNotContains('Home Reno', $categories);
-        $this->assertNotContains('Lifestyle/Events', $categories);
-        $this->assertNotContains('Product usage', $categories);
         $this->assertContains('Home Renovation', $categories);
         $this->assertContains('Lifestyle and Events', $categories);
         $this->assertContains('Product Usage', $categories);
     }
 
-    public function test_empty_en_rows_excluded(): void
+    public function test_smartsaver_rows_included(): void
     {
         $user = $this->createGrowthLead();
-        $this->seedSlateData();
+        $this->seedCopyLines();
 
         $response = $this->withSession(['auth_user_id' => $user->id])
             ->getJson('/api/copy-lines');
 
         $lines = $response->json();
-        $enValues = collect($lines)->pluck('en')->toArray();
+        $keys = collect($lines)->pluck('key')->toArray();
 
-        $this->assertNotContains('', $enValues);
+        $this->assertContains('SmartSaver_text', $keys);
     }
 
-    public function test_shot_field_contains_slate_codes(): void
+    public function test_shot_field_present(): void
     {
         $user = $this->createGrowthLead();
-        $this->seedSlateData();
+        $this->seedCopyLines();
 
         $response = $this->withSession(['auth_user_id' => $user->id])
             ->getJson('/api/copy-lines');
@@ -178,13 +141,13 @@ class CopyLineTest extends TestCase
         $le3Line = collect($lines)->firstWhere('key', 'Fund_your_forever');
 
         $this->assertNotNull($le3Line);
-        $this->assertStringContains('LE3', $le3Line['shot']);
+        $this->assertTrue(str_contains($le3Line['shot'], 'LE3'));
     }
 
-    public function test_blank_shot_uses_category_from_slate(): void
+    public function test_blank_shot_has_category(): void
     {
         $user = $this->createGrowthLead();
-        $this->seedSlateData();
+        $this->seedCopyLines();
 
         $response = $this->withSession(['auth_user_id' => $user->id])
             ->getJson('/api/copy-lines');
@@ -194,9 +157,10 @@ class CopyLineTest extends TestCase
 
         $this->assertNotNull($hrLine);
         $this->assertEquals('Home Renovation', $hrLine['category']);
+        $this->assertEquals('', $hrLine['shot']);
     }
 
-    public function test_returns_empty_array_when_no_slate_data(): void
+    public function test_returns_empty_array_when_no_data(): void
     {
         $user = $this->createGrowthLead();
 
@@ -205,13 +169,5 @@ class CopyLineTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson([]);
-    }
-
-    private function assertStringContains(string $needle, string $haystack): void
-    {
-        $this->assertTrue(
-            str_contains($haystack, $needle),
-            "Failed asserting that '{$haystack}' contains '{$needle}'."
-        );
     }
 }

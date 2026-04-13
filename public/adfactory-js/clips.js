@@ -1,4 +1,99 @@
 // ═══════════════════════════════════════════════════════════════
+//  COPY FILTER — filter clip grid by copy line
+// ═══════════════════════════════════════════════════════════════
+let adminCopyLines = [];
+let adminCopyFilterCat = '';
+let adminActiveCopyFilter = null; // the selected copy row
+
+async function toggleCopyFilterPanel() {
+  const panel = document.getElementById('lib-copy-filter');
+  if (!panel) return;
+  const visible = panel.style.display !== 'none';
+  if (visible) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  if (!adminCopyLines.length) {
+    try {
+      const r = await fetch('/api/copy-lines');
+      if (r.ok) adminCopyLines = await r.json();
+    } catch(e) {}
+  }
+  renderCopyFilterPanel();
+}
+
+function renderCopyFilterPanel() {
+  const CATS = ['','Product Usage','Travel and Holiday','Home Renovation','Lifestyle and Events','Electronics and Devices','Financial Relief'];
+  const chipsEl = document.getElementById('lib-copy-cat-chips');
+  const listEl = document.getElementById('lib-copy-list');
+  if (!chipsEl || !listEl) return;
+
+  chipsEl.innerHTML = CATS.map(c =>
+    `<span class="chip${adminCopyFilterCat===c?' sel':''}" style="padding:4px 10px;font-size:9px;cursor:pointer;border:1px solid var(--border);border-radius:4px;${adminCopyFilterCat===c?'background:var(--accent);color:#000;border-color:var(--accent);':'color:var(--muted2);'}" onclick="adminCopyFilterCat='${esc(c)}';renderCopyFilterPanel()">${c || 'All'}</span>`
+  ).join('');
+
+  let lines = adminCopyLines;
+  if (adminCopyFilterCat) {
+    lines = lines.filter(r => r.category === adminCopyFilterCat);
+  }
+
+  if (!lines.length) {
+    listEl.innerHTML = '<div style="padding:14px;font-size:10px;color:var(--muted);">No copy lines found</div>';
+    return;
+  }
+
+  listEl.innerHTML = lines.map((row, i) => {
+    const isActive = adminActiveCopyFilter && adminActiveCopyFilter.key === row.key;
+    const shotLabel = row.shot || 'Category-wide';
+    return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;${isActive?'background:rgba(232,255,71,.08);':''}${isActive?'':''};" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${isActive?'rgba(232,255,71,.08)':''}'" onclick="selectCopyFilterLine(${i})">
+      <div style="font-size:11px;color:var(--text);font-weight:500;margin-bottom:3px;">${esc(row.en)}</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:9px;color:var(--blue);">${esc(shotLabel)}</span>
+        ${row.brand ? `<span style="font-size:8px;padding:1px 6px;border-radius:3px;background:var(--s3);color:var(--muted);">${esc(row.brand)}</span>` : ''}
+        ${row.category ? `<span style="font-size:8px;color:var(--muted);">${esc(row.category)}</span>` : ''}
+      </div>
+      ${row.et ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;">${esc(row.et)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function selectCopyFilterLine(idx) {
+  const lines = adminCopyFilterCat
+    ? adminCopyLines.filter(r => r.category === adminCopyFilterCat)
+    : adminCopyLines;
+  const row = lines[idx];
+  if (!row) return;
+
+  if (adminActiveCopyFilter && adminActiveCopyFilter.key === row.key) {
+    clearCopyFilter();
+    return;
+  }
+
+  adminActiveCopyFilter = row;
+  renderCopyFilterPanel();
+  renderCopyFilterPill();
+  renderClipGrid();
+}
+
+function clearCopyFilter() {
+  adminActiveCopyFilter = null;
+  const pill = document.getElementById('lib-copy-active-pill');
+  if (pill) pill.style.display = 'none';
+  renderCopyFilterPanel();
+  renderClipGrid();
+}
+
+function renderCopyFilterPill() {
+  const pill = document.getElementById('lib-copy-active-pill');
+  if (!pill || !adminActiveCopyFilter) { if (pill) pill.style.display = 'none'; return; }
+  const row = adminActiveCopyFilter;
+  const shotLabel = row.shot || 'Category-wide';
+  pill.style.display = 'flex';
+  pill.innerHTML = `<span style="color:var(--accent);font-weight:500;">Filtered by:</span> <span style="color:var(--text);">${esc(row.en)}</span> <span style="color:var(--blue);">(${esc(shotLabel)})</span> <button onclick="clearCopyFilter()" style="background:none;border:none;color:var(--orange);cursor:pointer;font-size:12px;margin-left:auto;">✕ Clear</button>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  PROJECTS — server-side folder management
 // ═══════════════════════════════════════════════════════════════
 
@@ -336,6 +431,18 @@ function renderClipGrid() {
     if (search && !c.name.toLowerCase().includes(search) && !c.actor.toLowerCase().includes(search) && !c.category.toLowerCase().includes(search)) return false;
     if (statusFilter && c.matchStatus !== statusFilter) return false;
     if (catFilter && c.category !== catFilter) return false;
+    // Copy filter: match by shot codes or category
+    if (adminActiveCopyFilter) {
+      const cf = adminActiveCopyFilter;
+      const cfCat = (cf.category || '').toLowerCase();
+      const cfShot = (cf.shot || '').trim();
+      if (cfShot) {
+        const codes = cfShot.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+        if (!codes.includes((c.slate || '').toUpperCase())) return false;
+      } else if (cfCat) {
+        if ((c.category || '').toLowerCase() !== cfCat) return false;
+      }
+    }
     return true;
   });
 

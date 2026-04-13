@@ -179,7 +179,17 @@ export default {
           <option value="">All categories</option><option value="Product Usage">Product Usage</option><option value="Travel and Holiday">Travel and Holiday</option><option value="Home Renovation">Home Renovation</option><option value="Lifestyle and Events">Lifestyle and Events</option><option value="Electronics and Devices">Electronics and Devices</option><option value="Financial Relief">Financial Relief</option>
         </select>
         <span id="lib-grid-count" style="font-size:10px;color:var(--muted);margin-left:4px;"></span>
+        <button class="btn btn-secondary btn-sm" onclick="toggleCopyFilterPanel()" id="btn-copy-filter" style="margin-left:auto;">Filter by Copy ▾</button>
       </div>
+      <div id="lib-copy-filter" style="display:none;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;">Filter by Copy</div>
+          <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:9px;" onclick="clearCopyFilter()">Clear filter</button>
+        </div>
+        <div id="lib-copy-cat-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div id="lib-copy-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--s2);"></div>
+      </div>
+      <div id="lib-copy-active-pill" style="display:none;margin-bottom:10px;padding:8px 12px;background:rgba(232,255,71,.06);border:1px solid var(--accent);border-radius:6px;font-size:10px;display:none;align-items:center;gap:8px;"></div>
       <div id="clip-grid" class="clip-grid"></div>
       <div id="lib-empty" class="empty" style="display:none;"><div class="empty-icon">&#128269;</div><div class="empty-title">No clips match</div><div class="empty-sub">Try clearing the search or filter.</div></div>
     </div>
