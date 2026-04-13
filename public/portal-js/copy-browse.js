@@ -79,7 +79,8 @@ function renderCopyGrid() {
 }
 
 function selectCopyLine(idx) {
-  const row = copyLines.filter(r => !copyBrowseCatFilter || r.category === copyBrowseCatFilter)[idx];
+  const filtered = copyLines.filter(r => !copyBrowseCatFilter || r.category === copyBrowseCatFilter);
+  const row = filtered[idx];
   if (!row) return;
 
   sharedState.selectedCopy = row;
@@ -103,8 +104,15 @@ function renderCopyClipGrid() {
       <span style="font-size:10px;color:var(--muted);margin-left:8px;">${esc(copy.category)}</span>`;
   }
 
-  const cat = copy.category;
-  const clips = clipLibrary.filter(c => c.category === cat);
+  // Filter clips: by slate codes if specified, otherwise by category
+  const shotCodes = (copy.shot || '').split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  const cat = (copy.category || '').toLowerCase();
+  const clips = clipLibrary.filter(c => {
+    if (shotCodes.length) {
+      return shotCodes.includes((c.slate || '').toUpperCase());
+    }
+    return (c.category || '').toLowerCase() === cat;
+  });
   const grid = document.getElementById('copy-clip-grid');
   const empty = document.getElementById('copy-clip-empty');
 

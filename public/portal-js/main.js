@@ -86,16 +86,16 @@ async function loadCopyLines() {
 }
 
 function getCopyForClip(clip) {
-  const slate = clip.slate || '';
+  const slate = (clip.slate || '').toUpperCase();
   // 1. Slate-specific matches
   const slateMatches = slate ? copyLines.filter(r => {
     const shot = (r.shot || '').trim();
     if (!shot) return false;
-    return shot.split(/[\s,;]+/).map(s => s.trim()).includes(slate);
+    return shot.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).includes(slate);
   }) : [];
   if (slateMatches.length) return slateMatches;
 
-  // 2. Category-wide fallback
+  // 2. Category-wide fallback (no shot field = applies to whole category)
   const cat = (clip.category || '').toLowerCase();
   return copyLines.filter(r => {
     const rCat = (r.category || '').toLowerCase();
