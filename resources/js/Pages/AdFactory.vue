@@ -250,6 +250,10 @@ export default {
 
     <!-- STEP 7 — GENERATE -->
     <div class="step-panel" id="step-7">
+      <div id="gen-preview-panel" class="card" style="margin-bottom:14px;">
+        <div class="card-title">Generation Preview</div>
+        <div id="gen-preview-content" style="font-size:10px;color:var(--muted2);line-height:2.2;"></div>
+      </div>
       <div class="card card-green"><div class="card-title">&#9889; Generate Templater Sheet</div><div class="card-sub" id="gen-summary">Ready to generate.</div><div class="btn-row"><button class="btn btn-primary" onclick="generateSheet()">&#9889; Generate</button><button class="btn btn-blue" onclick="exportCSV()" id="btn-export-csv" disabled>&#11015; Download CSV</button><button class="btn btn-green" onclick="exportGSheets()" id="btn-export-gs" disabled>&#8599; Open in Google Sheets</button></div></div>
       <div id="gen-progress" style="display:none;" class="progress-block"><div class="pb-row"><div class="pb-lbl">Building rows</div><div class="pb-bar"><div class="pb-fill" id="pb-fill" style="width:0%"></div></div><div class="pb-val" id="pb-val">0%</div></div></div>
       <div id="preview-section" style="display:none;"><div class="preview-wrap"><div class="preview-header"><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;">Output Preview</div><div class="preview-count" id="preview-count"></div></div><div class="table-scroll"><table><thead><tr><th>#</th><th>format</th><th>aef_output_name</th><th>aef_duration</th><th>trim_in</th><th>trim_out</th><th>aef_footage</th><th>format</th><th>headline</th><th>brand</th><th>disclaimer</th><th>duration_full</th><th>status</th><th>filename</th><th>output (Templater)</th></tr></thead><tbody id="preview-tbody"></tbody></table></div></div></div>

@@ -371,11 +371,23 @@ async function generateSheet() {
   }
 
   // Filter by selected slates
-  // Intersect slate filter with active categories (guards against stale cross-category selections)
   if (f.slate?.length) {
     const catSlates = new Set(SCENE_DATA.filter(s => f.cat.includes(s.category)).map(s => s.slate));
     const activeSlates = f.slate.filter(s => catSlates.has(s));
     if (activeSlates.length) clips = clips.filter(c => activeSlates.includes(c.slate));
+  }
+
+  // Apply copy filter if active (from Step 2 "Filter by Copy")
+  const copyFilter = (typeof adminActiveCopyFilter !== 'undefined') ? adminActiveCopyFilter : null;
+  if (copyFilter) {
+    const cfCat = (copyFilter.category || '').toLowerCase();
+    const cfShot = (copyFilter.shot || '').trim();
+    if (cfShot) {
+      const codes = cfShot.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+      clips = clips.filter(c => codes.includes((c.slate || '').toUpperCase()));
+    } else if (cfCat) {
+      clips = clips.filter(c => (c.category || '').toLowerCase() === cfCat);
+    }
   }
 
   if (!clips.length) { toast('No clips match your filters', true); return; }
@@ -400,8 +412,13 @@ async function generateSheet() {
             const PREFIX = { Creditstar:'CS', Monefit:'MF' };
             const compName = brandComps[compKey] || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign}`;
 
-            // Get copy: override > sheet copy > empty
-            const copy = getCopy(clip, brand, lang);
+            // Get copy: copy filter override > slate assignment > sheet copy > empty
+            let copy;
+            if (copyFilter && copyFilter[lang.toLowerCase()]) {
+              copy = copyFilter[lang.toLowerCase()];
+            } else {
+              copy = getCopy(clip, brand, lang);
+            }
             if (!copy) continue; // omit rows with no copy assigned
 
             const actorClean = (clip.actor||'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
@@ -484,11 +501,75 @@ async function generateSheet() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  GENERATION PREVIEW — live summary of what will be exported
+// ═══════════════════════════════════════════════════════════════
+function updateGenPreview() {
+  const el = document.getElementById('gen-preview-content');
+  if (!el) return;
+
+  const f = state.filters;
+  const cf = (typeof adminActiveCopyFilter !== 'undefined') ? adminActiveCopyFilter : null;
+
+  // Determine clips
+  let clips = state.clipLibrary.filter(c => f.cat.includes(c.category));
+  if (f.slate?.length) {
+    const catSlates = new Set(SCENE_DATA.filter(s => f.cat.includes(s.category)).map(s => s.slate));
+    const activeSlates = f.slate.filter(s => catSlates.has(s));
+    if (activeSlates.length) clips = clips.filter(c => activeSlates.includes(c.slate));
+  }
+
+  // Apply copy filter
+  if (cf) {
+    const cfCat = (cf.category || '').toLowerCase();
+    const cfShot = (cf.shot || '').trim();
+    if (cfShot) {
+      const codes = cfShot.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+      clips = clips.filter(c => codes.includes((c.slate || '').toUpperCase()));
+    } else if (cfCat) {
+      clips = clips.filter(c => (c.category || '').toLowerCase() === cfCat);
+    }
+  }
+
+  // Count valid formats across selected designs
+  let fmtCount = 0;
+  for (const d of f.design) {
+    fmtCount += getDesignFmts(d).filter(fmt => f.fmt.includes(fmt)).length;
+  }
+
+  const copyLabel = cf
+    ? `<strong style="color:var(--accent);">${esc(cf.en)}</strong> <span style="color:var(--blue);">(${esc(cf.shot || 'Category-wide')})</span>`
+    : '<span style="color:var(--muted);">All copies (per-slate assignments)</span>';
+
+  const clipNames = clips.length <= 10
+    ? clips.map(c => `${c.slate} ${c.actor}`).join(', ')
+    : `${clips.length} clips`;
+
+  const rowEstimate = clips.length * f.lang.length * fmtCount;
+
+  el.innerHTML = `
+    <div><span style="color:var(--muted);min-width:70px;display:inline-block;">Copy:</span> ${copyLabel}</div>
+    <div><span style="color:var(--muted);min-width:70px;display:inline-block;">Clips:</span> <strong style="color:var(--text);">${clipNames}</strong></div>
+    <div><span style="color:var(--muted);min-width:70px;display:inline-block;">Langs:</span> <strong style="color:var(--text);">${f.lang.join(', ')}</strong></div>
+    <div><span style="color:var(--muted);min-width:70px;display:inline-block;">Designs:</span> <strong style="color:var(--text);">${f.design.join(', ')}</strong> (${fmtCount} format variants)</div>
+    <div><span style="color:var(--muted);min-width:70px;display:inline-block;">Brands:</span> <strong style="color:var(--text);">${f.brand.join(', ')}</strong></div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
+      <span style="color:var(--muted);">Estimated rows:</span>
+      <strong style="color:var(--accent);font-size:12px;">${clips.length} clips × ${f.lang.length} langs × ${fmtCount} fmts × ${f.brand.length} brands = ${rowEstimate * f.brand.length} rows</strong>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  EXPORT
 // ═══════════════════════════════════════════════════════════════
+function getExportFilename() {
+  const date = new Date().toISOString().slice(0,10);
+  const cf = (typeof adminActiveCopyFilter !== 'undefined') ? adminActiveCopyFilter : null;
+  const suffix = cf ? (cf.key || 'filtered') : 'all';
+  return `adfactory_${suffix}_${date}.csv`;
+}
+
 function exportCSV() {
   if (!state.generatedRows.length) { toast('Generate first', true); return; }
-  // Use visible columns from Step 5 preview if available, else all columns
   const cols = previewVisibleCols.length
     ? PREVIEW_ALL_COLS.filter(c => previewVisibleCols.includes(c.key)).map(c => c.key)
     : Object.keys(state.generatedRows[0]);
@@ -496,7 +577,7 @@ function exportCSV() {
   const csv = [cols.map(e).join(','), ...state.generatedRows.map(r => cols.map(h=>e(r[h])).join(','))].join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-  a.download = `adfactory_templater_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = getExportFilename();
   a.click();
   toast(`⬇ Downloaded ${state.generatedRows.length} rows, ${cols.length} columns`);
 }
@@ -520,10 +601,9 @@ function exportGSheets() {
       toast('✓ CSV copied — in the new sheet: click cell A1 then Cmd+V to paste', false);
     }, 800);
   }).catch(() => {
-    // Clipboard failed — fall back to download
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-    a.download = `adfactory_templater_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = getExportFilename();
     a.click();
     toast('Clipboard blocked — downloading CSV instead. Import it into Google Sheets manually.');
   });

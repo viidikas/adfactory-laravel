@@ -84,6 +84,7 @@ function goStep(n) {
   }
   if (n === 7) {
     syncCompNames(); updateGenSummary();
+    if (typeof updateGenPreview === 'function') updateGenPreview();
     const ps = document.getElementById('preview-section'); if (ps) ps.style.display = 'none';
     const pb = document.getElementById('preview-tbody');   if (pb) pb.innerHTML = '';
     const gp = document.getElementById('gen-progress');    if (gp) gp.style.display = 'none';
