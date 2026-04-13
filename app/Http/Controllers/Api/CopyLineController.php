@@ -159,9 +159,6 @@ class CopyLineController extends Controller
             $row = $rows[$i];
 
             $brand = $colMap['brand'] !== null ? trim($row[$colMap['brand']] ?? '') : '';
-            if (strtolower($brand) === 'smartsaver') {
-                continue;
-            }
 
             $en = $colMap['en'] !== null ? trim($row[$colMap['en']] ?? '') : '';
             if ($en === '') {
