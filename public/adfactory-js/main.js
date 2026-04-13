@@ -267,6 +267,36 @@ async function analyseAllSheets() {
   }
 
   if (btn) { btn.innerHTML = '🤖 Analyse All'; btn.disabled = false; }
+
+  // After AI analysis, sync copy from the copies sheet deterministically
+  await syncCopyFromSheet();
+}
+
+async function syncCopyFromSheet() {
+  // Find the copies sheet URL (the one with language columns, not shot descriptions)
+  // Save the first sheet URL to config as the copy sheet
+  const copySheet = state.sheets.find(s => s.url);
+  if (copySheet) {
+    await fetch('/api/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sheet_url: copySheet.url })
+    });
+  }
+
+  try {
+    const r = await fetch('/api/copy-lines/sync', { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      toast(`✓ Copy synced — ${data.copy_lines} lines, ${data.slates_mapped} slates`);
+      // Reload clips to get updated copy data
+      await loadClipsFromProxy();
+      loadSlateData();
+    } else {
+      toast('Copy sync: ' + (data.error || 'failed'), true);
+    }
+  } catch(e) {
+    // Copy sync is optional — AI analysis may have handled it
+  }
 }
 
 function applySlateDataToClips(slateData) {

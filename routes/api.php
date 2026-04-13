@@ -29,6 +29,7 @@ Route::middleware('auth')->group(function () {
 
     // Copy lines
     Route::get('/copy-lines', [CopyLineController::class, 'index']);
+    Route::post('/copy-lines/sync', [CopyLineController::class, 'sync'])->middleware('admin');
 
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
