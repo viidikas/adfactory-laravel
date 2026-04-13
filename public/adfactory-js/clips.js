@@ -432,8 +432,56 @@ async function loadClipsFromProxy() {
 }
 
 function loadSlateData() {
-  // Build copyAssignments from enriched clip data (already loaded from API)
+  // Rebuild SCENE_DATA and COPY_KEYS from enriched clip data
+  // so all downstream code (filters, generate, copy mapping) works
   if (!state.clipLibrary.length) return;
+
+  // Rebuild SCENE_DATA from clips
+  const slateMap = {};
+  state.clipLibrary.forEach(clip => {
+    if (!clip.slate) return;
+    if (!slateMap[clip.slate]) {
+      slateMap[clip.slate] = {
+        slate: clip.slate,
+        category: clip.category || '',
+        actor_options: [],
+        markets: clip.markets || '',
+        shot: clip.description || '',
+      };
+    }
+    const entry = slateMap[clip.slate];
+    // Collect actors (split comma-separated)
+    (clip.actor || '').split(',').map(a => a.trim()).filter(Boolean).forEach(a => {
+      if (!entry.actor_options.includes(a)) entry.actor_options.push(a);
+    });
+    // Use enriched data if available
+    if (clip.description && !entry.shot) entry.shot = clip.description;
+    if (clip.markets && !entry.markets) entry.markets = clip.markets;
+  });
+  // Replace SCENE_DATA entirely with DB data
+  if (typeof SCENE_DATA !== 'undefined') {
+    SCENE_DATA.length = 0;
+    Object.values(slateMap).forEach(s => SCENE_DATA.push(s));
+  }
+
+  // Rebuild COPY_KEYS from clip copy data
+  if (typeof COPY_KEYS !== 'undefined') {
+    // Clear existing hardcoded keys
+    Object.keys(COPY_KEYS).forEach(k => delete COPY_KEYS[k]);
+    // Populate from enriched clips
+    state.clipLibrary.forEach(clip => {
+      (clip.copy || []).forEach(row => {
+        if (row.key && row.en && !COPY_KEYS[row.key]) {
+          COPY_KEYS[row.key] = {
+            en: row.en || '', et: row.et || '', fr: row.fr || '',
+            de: row.de || '', es: row.es || '',
+          };
+        }
+      });
+    });
+  }
+
+  // Build copyAssignments from enriched clip data
   const bySlate = {};
   state.clipLibrary.forEach(clip => {
     if (clip.copy?.length && clip.slate && !bySlate[clip.slate]) {
