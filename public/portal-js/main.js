@@ -65,7 +65,8 @@ async function login(user) {
     loadClipsFromServer(),
   ]);
 
-  loadOrders();
+  // Show default tab
+  showTab('copy-browse');
 }
 
 // ═══════════════════════════════════════════════════════════════
