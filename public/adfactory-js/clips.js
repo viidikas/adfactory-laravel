@@ -486,15 +486,20 @@ function openClipModal(clipId) {
     : (typeof SCENE_DATA !== 'undefined' ? SCENE_DATA.find(s => s.slate === clip.slate) : null) || null;
 
   const assignedKey = state.slateAssignments[clip.id] || '';
-  const keyOptions = Object.entries(COPY_KEYS).map(([k, v]) =>
-    `<option value="${k}" ${assignedKey === k ? 'selected' : ''}>${k} — ${v.en}</option>`
+  // Use clip's matched copy from API — only show relevant copy options
+  const clipCopyOptions = clip.copy && clip.copy.length
+    ? clip.copy
+    : (state.copyAssignments[clip.slate] || []);
+  const keyOptions = clipCopyOptions.map(row =>
+    `<option value="${esc(row.key)}" ${assignedKey === row.key ? 'selected' : ''}>${esc(row.key)} — ${esc(row.en)}</option>`
   ).join('');
 
-  const previewLangs = assignedKey && COPY_KEYS[assignedKey]
-    ? Object.entries(COPY_KEYS[assignedKey]).map(([lang, txt]) =>
+  const selectedRow = assignedKey ? clipCopyOptions.find(r => r.key === assignedKey) : null;
+  const previewLangs = selectedRow
+    ? ['en','et','fr','de','es'].filter(l => selectedRow[l]).map(lang =>
         `<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);">
           <span style="font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:1px;width:22px;flex-shrink:0;">${lang.toUpperCase()}</span>
-          <span style="font-size:11px;color:var(--text);">${esc(txt)}</span>
+          <span style="font-size:11px;color:var(--text);">${esc(selectedRow[lang])}</span>
         </div>`
       ).join('')
     : `<div style="color:var(--muted);font-size:10px;padding:8px 0;">Select a copy key to preview translations</div>`;
@@ -555,14 +560,18 @@ function openClipModal(clipId) {
 function previewCopyKey(key) {
   const preview = document.getElementById('modal-copy-preview');
   if (!preview) return;
-  if (!key || !COPY_KEYS[key]) {
+  // Find the copy row from the current clip's matched copy
+  const clip = currentModalClip;
+  const copyOptions = clip?.copy?.length ? clip.copy : (state.copyAssignments[clip?.slate] || []);
+  const row = copyOptions.find(r => r.key === key);
+  if (!key || !row) {
     preview.innerHTML = `<div style="color:var(--muted);font-size:10px;padding:8px 0;">Select a copy key to preview translations</div>`;
     return;
   }
-  preview.innerHTML = Object.entries(COPY_KEYS[key]).map(([lang, txt]) =>
+  preview.innerHTML = ['en','et','fr','de','es'].filter(l => row[l]).map(lang =>
     `<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);">
       <span style="font-size:9px;color:var(--blue);text-transform:uppercase;letter-spacing:1px;width:22px;flex-shrink:0;">${lang.toUpperCase()}</span>
-      <span style="font-size:11px;color:var(--text);">${esc(txt)}</span>
+      <span style="font-size:11px;color:var(--text);">${esc(row[lang])}</span>
     </div>`
   ).join('');
 }
