@@ -17,34 +17,31 @@ function toast(msg, err) {
 //  INIT
 // ═══════════════════════════════════════════════════════════════
 function init() {
-  document.getElementById('base-path').value = state.basePath;
-  document.getElementById('default-path-settings').value = state.basePath;
+  try {
+    const bp = document.getElementById('base-path');
+    if (bp) bp.value = state.basePath;
+    const dps = document.getElementById('default-path-settings');
+    if (dps) dps.value = state.basePath;
 
-  // Initialize filename parts if not set
-  if (!state.filenameParts) {
-    state.filenameParts = JSON.parse(localStorage.getItem('af_filename_parts') || 'null')
-      || ['brand','slate','actor','design','format','lang'];
+    if (!state.filenameParts) {
+      state.filenameParts = JSON.parse(localStorage.getItem('af_filename_parts') || 'null')
+        || ['brand','slate','actor','design','format','lang'];
+    }
+
+    // Initialize components that exist in the DOM
+    try { syncFiltersFromDesigns(); } catch(e) {}
+    try { syncCompNames(); } catch(e) {}
+    try { renderDesignsList(); } catch(e) {}
+    try { renderFormatsList(); } catch(e) {}
+  } catch(e) {
+    console.error('Init error:', e);
   }
-
-  syncFiltersFromDesigns();
-  syncCompNames();
-  addSheetRow();
-  renderCopyOverrideFields();
-  renderCompNameFields();
-  renderDesignsList();
-  renderFormatsList();
-  updateFilterChips();
-  updateFilterSummary();
-  updatePathPreview();
-  renderFilenameBuilder();
-
-  renderSlateFilter();
 
   // Load clips and slate data, then show default view
   loadClipsFromProxy().then(() => {
     loadSlateData();
     updateProjectNav();
-  });
+  }).catch(() => {});
 
   // Default to Orders view
   goView('orders');
