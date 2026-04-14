@@ -17,33 +17,18 @@ function toast(msg, err) {
 //  INIT
 // ═══════════════════════════════════════════════════════════════
 function init() {
-  try {
-    const bp = document.getElementById('base-path');
-    if (bp) bp.value = state.basePath;
-    const dps = document.getElementById('default-path-settings');
-    if (dps) dps.value = state.basePath;
-
-    if (!state.filenameParts) {
-      state.filenameParts = JSON.parse(localStorage.getItem('af_filename_parts') || 'null')
-        || ['brand','slate','actor','design','format','lang'];
-    }
-
-    // Initialize components that exist in the DOM
-    try { syncFiltersFromDesigns(); } catch(e) {}
-    try { syncCompNames(); } catch(e) {}
-    try { renderDesignsList(); } catch(e) {}
-    try { renderFormatsList(); } catch(e) {}
-  } catch(e) {
-    console.error('Init error:', e);
+  if (!state.filenameParts) {
+    state.filenameParts = JSON.parse(localStorage.getItem('af_filename_parts') || 'null')
+      || ['brand','slate','actor','design','format','lang'];
   }
 
-  // Load clips and slate data, then show default view
+  // Load clips in background
   loadClipsFromProxy().then(() => {
     loadSlateData();
     updateProjectNav();
   }).catch(() => {});
 
-  // Default to Orders view
+  // Show Orders view (default landing)
   goView('orders');
 }
 
@@ -1265,16 +1250,19 @@ function getBuiltinCopy(slate, brand) {
 // Keyboard: Escape closes modal, arrow keys navigate
 document.addEventListener('keydown', e => {
   const overlay = document.getElementById('modal-overlay');
-  if (overlay.classList.contains('hidden')) return;
+  if (!overlay || overlay.classList.contains('hidden')) return;
   if (e.key === 'Escape') closeModal();
   if (e.key === 'ArrowLeft')  modalNav(-1);
   if (e.key === 'ArrowRight') modalNav(1);
 });
 
 // Click outside modal to close
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+const _modalOverlay = document.getElementById('modal-overlay');
+if (_modalOverlay) {
+  _modalOverlay.addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+}
 
 // ── START ──
 init();
