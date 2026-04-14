@@ -19,12 +19,16 @@ class ConfigController extends Controller
             'shot_descriptions' => $this->getJson('shot_descriptions'),
             'sheets_meta' => $this->getJson('sheets_meta'),
             'slate_data' => $this->getJson('slate_data'),
+            'templater_designs' => $this->getJson('templater_designs'),
+            'templater_formats' => $this->getJson('templater_formats'),
+            'templater_comp_names' => $this->getJson('templater_comp_names'),
+            'base_output_path' => Setting::get('base_output_path', ''),
         ]);
     }
 
     public function store(Request $request)
     {
-        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions', 'sheets_meta', 'slate_data'];
+        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions', 'sheets_meta', 'slate_data', 'templater_designs', 'templater_formats', 'templater_comp_names', 'base_output_path'];
 
         foreach ($allowed as $field) {
             if ($request->has($field)) {

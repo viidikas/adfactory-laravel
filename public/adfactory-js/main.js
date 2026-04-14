@@ -22,6 +22,26 @@ function init() {
       || ['brand','slate','actor','design','format','lang'];
   }
 
+  // Load config from server (designs, formats, comp names, paths)
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    if (cfg.templater_designs?.length) {
+      state.designs = cfg.templater_designs;
+      localStorage.setItem('af_designs', JSON.stringify(state.designs));
+    }
+    if (cfg.templater_formats?.length) {
+      state.formats = cfg.templater_formats;
+      localStorage.setItem('af_formats', JSON.stringify(state.formats));
+    }
+    if (cfg.templater_comp_names && Object.keys(cfg.templater_comp_names).length) {
+      state.compNames = cfg.templater_comp_names;
+      localStorage.setItem('af_comp_names', JSON.stringify(state.compNames));
+    }
+    if (cfg.base_output_path) {
+      state.basePath = cfg.base_output_path;
+      localStorage.setItem('af_base_path', state.basePath);
+    }
+  }).catch(() => {});
+
   // Load clips in background
   loadClipsFromProxy().then(() => {
     loadSlateData();
@@ -1101,16 +1121,40 @@ function applyDesignsFormats() {
   localStorage.setItem('af_designs', JSON.stringify(state.designs));
   localStorage.setItem('af_formats', JSON.stringify(state.formats));
   localStorage.setItem('af_comp_names', JSON.stringify(state.compNames));
-  toast('✓ Applied — filter chips and comp names updated');
+  // Persist to server
+  fetch('/api/config', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      templater_designs: state.designs,
+      templater_formats: state.formats,
+      templater_comp_names: state.compNames,
+    })
+  }).then(() => toast('✓ Saved and applied'))
+    .catch(() => toast('Applied locally but could not save to server', true));
 }
 
 function saveSettings() {
-  const path = document.getElementById('default-path-settings').value.trim();
-  if (path) { state.basePath = path; localStorage.setItem('af_base_path', path); document.getElementById('base-path').value = path; }
+  const pathEl = document.getElementById('default-path-settings');
+  const path = pathEl ? pathEl.value.trim() : '';
+  if (path) {
+    state.basePath = path;
+    localStorage.setItem('af_base_path', path);
+    const bp = document.getElementById('base-path');
+    if (bp) bp.value = path;
+  }
   localStorage.setItem('af_designs', JSON.stringify(state.designs));
   localStorage.setItem('af_formats', JSON.stringify(state.formats));
   localStorage.setItem('af_comp_names', JSON.stringify(state.compNames));
-  toast('✓ Settings saved');
+  fetch('/api/config', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      templater_designs: state.designs,
+      templater_formats: state.formats,
+      templater_comp_names: state.compNames,
+      base_output_path: path || state.basePath,
+    })
+  }).then(() => toast('✓ Settings saved'))
+    .catch(() => toast('Saved locally but could not save to server', true));
 }
 
 // ═══════════════════════════════════════════════════════════════
