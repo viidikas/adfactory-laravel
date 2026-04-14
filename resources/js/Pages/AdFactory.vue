@@ -28,6 +28,10 @@
           <div class="nav-item" id="nav-generate" @click="goView('generate')">
             <span class="ni">&#11015;</span> Generate
           </div>
+          <div class="nav-item" id="nav-preview" @click="goView('preview')">
+            <span class="ni">&#128065;</span> Preview
+            <span class="nav-badge" id="nb-preview">&mdash;</span>
+          </div>
         </nav>
 
         <div class="sidebar-footer">
@@ -242,8 +246,12 @@ export default {
       <div class="card"><div class="card-title">&#127991;&#65039; Filename Convention</div><div class="card-sub">Drag parts to reorder. Parts are joined with underscores.</div><div class="fn-builder" id="fn-builder"></div><div class="fn-part-pool" id="fn-pool"></div><div class="fn-preview" id="fn-preview"></div></div>
       <div class="card"><div class="card-title">&#127908; AE Composition Names</div><div class="card-sub">Map each design + format to an exact AE comp name.</div><div id="comp-name-fields"></div><button class="btn btn-secondary btn-sm" onclick="addCompNameRow()" style="margin-top:10px;">+ Add comp</button></div>
 
-      <div id="gen-preview-panel" class="card" style="margin-top:16px;">
-        <div class="card-title">Generation Preview</div>
+    </div>
+
+    <!-- VIEW: PREVIEW -->
+    <div class="view-panel" id="view-preview">
+      <div id="gen-preview-panel" class="card" style="margin-bottom:14px;">
+        <div class="card-title">Generation Summary</div>
         <div id="gen-preview-content" style="font-size:10px;color:var(--muted2);line-height:2.2;"></div>
       </div>
       <div class="card card-green"><div class="card-title">&#9889; Generate Templater Sheet</div><div class="card-sub" id="gen-summary">Ready to generate.</div><div class="btn-row"><button class="btn btn-primary" onclick="generateSheet()">&#9889; Generate</button><button class="btn btn-blue" onclick="exportCSV()" id="btn-export-csv" disabled>&#11015; Download CSV</button><button class="btn btn-green" onclick="exportGSheets()" id="btn-export-gs" disabled>&#8599; Open in Google Sheets</button></div></div>

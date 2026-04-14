@@ -71,13 +71,14 @@ function autoSaveState() {
 // ═══════════════════════════════════════════════════════════════
 //  NAVIGATION — view-based
 // ═══════════════════════════════════════════════════════════════
-const ALL_VIEWS = ['orders','projects','clips','copy','generate','settings'];
+const ALL_VIEWS = ['orders','projects','clips','copy','generate','preview','settings'];
 const VIEW_TITLES = {
   orders:   ['Orders',          'Incoming orders from growth leads'],
   projects: ['Projects',        'Manage footage projects — scan folders to index clips'],
   clips:    ['Clips',           'Browse and verify clip library'],
   copy:     ['Copy',            'Configure copy sheets and verify copy-to-clip matching'],
-  generate: ['Generate',        'Configure filters, preview rows, export Templater CSV'],
+  generate: ['Generate',        'Configure filters, output paths, AE comp names'],
+  preview:  ['Preview & Export', 'Review generation summary and export Templater CSV'],
   settings: ['Settings',        'Designs, formats, users, output configuration'],
 };
 
@@ -103,6 +104,8 @@ function goView(view) {
     syncCompNames(); updateFilterChips(); updateFilterSummary(); renderSlateFilter();
     renderCopySelector(); renderCopyOverrideFields(); renderCompNameFields();
     updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
+  }
+  if (view === 'preview') {
     if (typeof updateGenPreview === 'function') updateGenPreview();
     const hasRows = state.generatedRows?.length > 0;
     const csvBtn = document.getElementById('btn-export-csv'); if (csvBtn) csvBtn.disabled = !hasRows;
