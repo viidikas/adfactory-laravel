@@ -45,6 +45,8 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .content{padding:28px 32px;flex:1;}
 .step-panel{display:none;}
 .step-panel.active{display:block;}
+.view-panel{display:none;}
+.view-panel.active{display:block;}
 
 /* ── CARDS ── */
 .card{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:16px;}

@@ -414,10 +414,18 @@ async function loadAFOrders() {
 
 function renderAFOrders(orders) {
   const list = document.getElementById('af-orders-list');
+  const empty = document.getElementById('af-orders-empty');
+
+  // Apply status filter if set
+  const sf = (typeof adminOrderStatusFilter !== 'undefined') ? adminOrderStatusFilter : 'all';
+  if (sf && sf !== 'all') orders = orders.filter(o => o.status === sf);
+
   if (!orders.length) {
-    list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:10px;">No orders yet. Orders from growth leads will appear here.</div>';
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
     return;
   }
+  if (empty) empty.style.display = 'none';
   list.innerHTML = orders.map(o => {
     const date = new Date(o.created*1000).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
     const statusColors = {'pending':'var(--warn)','processing':'var(--blue)','ready':'var(--green)'};

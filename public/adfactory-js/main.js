@@ -40,20 +40,159 @@ function init() {
 
   renderSlateFilter();
 
-  // Load saved sheets, projects, and clips
-  loadSheetsMeta();
-  loadProjects();
-  loadClipsFromProxy().then(() => loadSlateData());
+  // Load clips and slate data, then show default view
+  loadClipsFromProxy().then(() => {
+    loadSlateData();
+    updateProjectNav();
+  });
+
+  // Default to Orders view
+  goView('orders');
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  NAVIGATION
+//  NAVIGATION — view-based
 // ═══════════════════════════════════════════════════════════════
-function goStep(n) {
-  state.currentStep = n;
-  document.querySelectorAll('.step-panel').forEach((p,i) => p.classList.toggle('active', i+1===n));
-  document.querySelectorAll('.nav-item').forEach((el,i) => el.classList.toggle('active', i===n-1));
+const ALL_VIEWS = ['orders','projects','clips','copy','generate','settings'];
+const VIEW_TITLES = {
+  orders:   ['Orders',          'Incoming orders from growth leads'],
+  projects: ['Projects',        'Manage footage projects — scan folders to index clips'],
+  clips:    ['Clips',           'Browse and verify clip library'],
+  copy:     ['Copy',            'Configure copy sheets and verify copy-to-clip matching'],
+  generate: ['Generate',        'Configure filters, preview rows, export Templater CSV'],
+  settings: ['Settings',        'Designs, formats, users, output configuration'],
+};
+
+function goView(view) {
+  ALL_VIEWS.forEach(v => {
+    const el = document.getElementById('view-' + v);
+    const nav = document.getElementById('nav-' + v);
+    if (el) el.classList.toggle('active', v === view);
+    if (nav) nav.classList.toggle('active', v === view);
+  });
+  const t = VIEW_TITLES[view] || ['',''];
+  document.getElementById('page-title').textContent = t[0];
+  document.getElementById('page-sub').textContent = t[1];
   window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Load data for each view
+  if (view === 'orders') loadAFOrders();
+  if (view === 'projects') loadProjectCards();
+  if (view === 'clips') { renderClipGrid(); loadProjects().then(updateProjectNav); }
+  if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); }
+  if (view === 'generate') {
+    syncCompNames(); updateFilterChips(); updateFilterSummary(); renderSlateFilter();
+    renderCopySelector(); renderCopyOverrideFields(); renderCompNameFields();
+    updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
+    if (typeof updateGenPreview === 'function') updateGenPreview();
+    const hasRows = state.generatedRows?.length > 0;
+    const csvBtn = document.getElementById('btn-export-csv'); if (csvBtn) csvBtn.disabled = !hasRows;
+    const gsBtn = document.getElementById('btn-export-gs'); if (gsBtn) gsBtn.disabled = !hasRows;
+  }
+  if (view === 'settings') { loadAdminConfig(); loadGrowthLeadUsers(); renderDesignsList(); renderFormatsList(); }
+}
+
+function updateProjectNav() {
+  const nameEl = document.getElementById('nav-project-name');
+  if (!nameEl) return;
+  // Find active project from last loadProjects call
+  fetch('/api/projects').then(r => r.json()).then(projects => {
+    const active = projects.find(p => p.is_active);
+    nameEl.textContent = active ? active.name : 'No active project';
+    const clipBadge = document.getElementById('nb-clips');
+    if (clipBadge && active) clipBadge.textContent = active.clips_count + ' clips';
+  }).catch(() => {});
+}
+
+function loadProjectCards() {
+  const el = document.getElementById('project-cards-list');
+  if (!el) return;
+  fetch('/api/projects').then(r => r.json()).then(projects => {
+    if (!projects.length) {
+      el.innerHTML = '<div class="empty" style="padding:40px;"><div class="empty-icon">&#128193;</div><div class="empty-title">No projects yet</div><div class="empty-sub">Create one below to get started</div></div>';
+      return;
+    }
+    el.innerHTML = projects.map(p => `
+      <div class="card" style="margin-bottom:10px;${p.is_active?'border-color:var(--accent);':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;">${esc(p.name)}${p.is_active?' <span style="font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-left:6px;">Active</span>':''}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">${p.clips_count} clips${p.scanned_at ? ' · Scanned '+new Date(p.scanned_at).toLocaleDateString() : ' · Not scanned'}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="scanProject(${p.id})">Scan</button>
+            ${p.is_active?'':`<button class="btn btn-primary btn-sm" onclick="activateProject(${p.id})">Activate</button>`}
+            <button class="btn btn-ghost btn-sm" style="color:var(--orange);" onclick="deleteProject(${p.id},'${esc(p.name)}')">Delete</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }).catch(() => { el.innerHTML = '<div style="color:var(--orange);font-size:10px;">Could not load projects</div>'; });
+}
+
+function scanActiveProject() {
+  fetch('/api/projects').then(r => r.json()).then(projects => {
+    const active = projects.find(p => p.is_active);
+    if (!active) { toast('No active project — activate one first', true); return; }
+    scanProject(active.id);
+  }).catch(() => toast('Could not load projects', true));
+}
+
+function renderCopyBrowser() {
+  const chipsEl = document.getElementById('copy-browser-cat-chips');
+  const listEl = document.getElementById('copy-browser-list');
+  if (!chipsEl || !listEl) return;
+
+  if (!adminCopyLines.length) {
+    fetch('/api/copy-lines').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) adminCopyLines = data;
+      renderCopyBrowser();
+    }).catch(() => {});
+    return;
+  }
+
+  const CATS = ['','Product Usage','Travel and Holiday','Home Renovation','Lifestyle and Events','Electronics and Devices','Financial Relief'];
+  chipsEl.innerHTML = CATS.map(c =>
+    `<span class="chip${adminCopyFilterCat===c?' sel':''}" style="padding:4px 10px;font-size:9px;cursor:pointer;border:1px solid var(--border);border-radius:4px;${adminCopyFilterCat===c?'background:var(--accent);color:#000;border-color:var(--accent);':'color:var(--muted2);'}" onclick="adminCopyFilterCat='${esc(c)}';renderCopyBrowser()">${c||'All'}</span>`
+  ).join('');
+
+  let lines = adminCopyLines;
+  if (adminCopyFilterCat) lines = lines.filter(r => r.category === adminCopyFilterCat);
+
+  if (!lines.length) {
+    listEl.innerHTML = '<div style="padding:14px;font-size:10px;color:var(--muted);">No copy lines. Sync a sheet first.</div>';
+    return;
+  }
+
+  // Count matching clips per copy line
+  listEl.innerHTML = lines.map((row, i) => {
+    const shotCodes = (row.shot||'').split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+    const matchCount = shotCodes.length
+      ? state.clipLibrary.filter(c => shotCodes.includes((c.slate||'').toUpperCase())).length
+      : state.clipLibrary.filter(c => (c.category||'').toLowerCase() === (row.category||'').toLowerCase()).length;
+    return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="goView('clips');selectCopyFilterLine(${adminCopyLines.indexOf(row)})">
+      <div style="font-size:11px;color:var(--text);margin-bottom:3px;">${esc(row.en)}</div>
+      <div style="display:flex;gap:8px;align-items:center;font-size:9px;">
+        <span style="color:var(--blue);">${esc(row.shot||'Category-wide')}</span>
+        <span style="color:var(--muted);">${matchCount} clips</span>
+        ${row.brand?`<span style="color:var(--muted2);">${esc(row.brand)}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Admin order status filter
+let adminOrderStatusFilter = 'all';
+function filterAdminOrders(status) {
+  adminOrderStatusFilter = status;
+  document.querySelectorAll('.status-tab').forEach(el => el.classList.toggle('active', el.textContent.toLowerCase() === status || (status === 'all' && el.textContent === 'All')));
+  loadAFOrders();
+}
+
+// Legacy step navigation — maps to views for backward compat
+function goStep(n) {
+  const stepToView = {1:'copy', 2:'clips', 3:'generate', 4:'copy', 5:'generate', 6:'generate', 7:'generate', 8:'orders', 9:'settings', 10:'settings'};
+  goView(stepToView[n] || 'orders');
+}
 
   const titles = [
     ['Step 1 — Data Sources',    'Link your copy Google Sheet — AI fetches and parses it'],
@@ -90,18 +229,8 @@ function goStep(n) {
     const gp = document.getElementById('gen-progress');    if (gp) gp.style.display = 'none';
     const pf = document.getElementById('pb-fill');         if (pf) pf.style.width = '0%';
     const pv = document.getElementById('pb-val');          if (pv) pv.textContent = '0%';
-    const hasRows = state.generatedRows?.length > 0;
-    const csvBtn = document.getElementById('btn-export-csv'); if (csvBtn) csvBtn.disabled = !hasRows;
-    const gsBtn  = document.getElementById('btn-export-gs');  if (gsBtn)  gsBtn.disabled  = !hasRows;
-  }
-  if (n === 8) { loadAFOrders(); }
-  if (n === 9) { renderDesignsList(); renderFormatsList(); }
-  if (n === 2) { loadProjects(); if (!state.clipLibrary.length) loadClipsFromProxy(); }
-  if (n === 10) { loadAdminConfig(); loadGrowthLeadUsers(); }
-}
-
 function nextStep() {
-  if (state.currentStep < 7) goStep(state.currentStep + 1);
+  // Legacy — no-op in view-based navigation
 }
 
 // ═══════════════════════════════════════════════════════════════
