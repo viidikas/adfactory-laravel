@@ -123,12 +123,16 @@ function renderCopyClipGrid() {
   }
   if (empty) empty.classList.add('hidden');
 
+  // Store filtered clips for modal navigation
+  window._copyClipList = clips;
+
   grid.innerHTML = clips.map(clip => {
     const selected = sharedState.selectedClips.includes(clip.id);
-    return `<div class="clip-card${selected?' selected':''}" onclick="toggleCopyClip('${esc(clip.id)}')">
+    return `<div class="clip-card${selected?' selected':''}" onclick="openCopyClipModal('${esc(clip.id)}')">
       <div class="clip-check">${selected ? '&#10003;' : ''}</div>
       <div class="clip-thumb">
         <img src="/api/thumb?path=${encodeURIComponent(clip.relativePath)}" loading="lazy" alt="">
+        <div class="clip-play"><div class="clip-play-icon">&#9654;</div></div>
       </div>
       <div class="clip-info">
         <div class="clip-name">${esc(clip.nameNoExt)}</div>
@@ -154,6 +158,104 @@ function toggleCopyClip(clipId) {
   if (idx >= 0) sharedState.selectedClips.splice(idx, 1);
   else sharedState.selectedClips.push(clipId);
   renderCopyClipGrid();
+}
+
+// ── Copy-browse clip preview modal ─────────────────────────────
+let _ccmClipIdx = 0;
+
+function openCopyClipModal(clipId) {
+  const clips = window._copyClipList || [];
+  const idx = clips.findIndex(c => c.id === clipId);
+  if (idx < 0) return;
+  _ccmClipIdx = idx;
+  renderCopyClipModal(clips[idx]);
+  document.getElementById('copy-clip-modal').classList.remove('hidden');
+  document.addEventListener('keydown', ccmKeyHandler);
+}
+
+function closeCopyClipModal() {
+  document.getElementById('copy-clip-modal').classList.add('hidden');
+  const vid = document.getElementById('ccm-video');
+  if (vid) { vid.pause(); vid.src = ''; }
+  document.removeEventListener('keydown', ccmKeyHandler);
+}
+
+function ccmKeyHandler(e) {
+  if (e.key === 'Escape') closeCopyClipModal();
+  if (e.key === 'ArrowLeft') copyClipModalNav(-1);
+  if (e.key === 'ArrowRight') copyClipModalNav(1);
+}
+
+function copyClipModalNav(dir) {
+  const clips = window._copyClipList || [];
+  const newIdx = _ccmClipIdx + dir;
+  if (newIdx < 0 || newIdx >= clips.length) return;
+  const vid = document.getElementById('ccm-video');
+  if (vid) { vid.pause(); vid.src = ''; }
+  _ccmClipIdx = newIdx;
+  renderCopyClipModal(clips[newIdx]);
+}
+
+function renderCopyClipModal(clip) {
+  const clips = window._copyClipList || [];
+  const copy = sharedState.selectedCopy;
+  const selected = sharedState.selectedClips.includes(clip.id);
+
+  // Video
+  const vid = document.getElementById('ccm-video');
+  vid.src = clip.url || '/api/video?path=' + encodeURIComponent(clip.relativePath);
+  vid.load();
+
+  // Nav
+  document.getElementById('ccm-nav-label').textContent =
+    `${_ccmClipIdx + 1} / ${clips.length}  ·  ${clip.category} · ${clip.actor}`;
+  document.getElementById('ccm-prev').disabled = _ccmClipIdx === 0;
+  document.getElementById('ccm-next').disabled = _ccmClipIdx === clips.length - 1;
+
+  // Info panel
+  document.getElementById('ccm-panel').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;">Clip Info</div>
+      <button onclick="closeCopyClipModal()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;">&times;</button>
+    </div>
+    <div class="cm-info-block">
+      <div class="cm-row"><span class="cm-label">Slate</span><span class="cm-val" style="color:var(--accent);">${esc(clip.slate)}</span></div>
+      <div class="cm-row"><span class="cm-label">Category</span><span class="cm-val">${esc(clip.category)}</span></div>
+      <div class="cm-row"><span class="cm-label">Actor</span><span class="cm-val">${esc(clip.actor)}${clip.version ? ' · v' + clip.version : ''}</span></div>
+      ${clip.description ? `<div class="cm-row"><span class="cm-label">Shot</span><span class="cm-val">${esc(clip.description)}</span></div>` : ''}
+      ${clip.markets ? `<div class="cm-row"><span class="cm-label">Markets</span><span class="cm-val">${esc(clip.markets)}</span></div>` : ''}
+    </div>
+    ${copy ? `<div style="margin-top:18px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;margin-bottom:6px;">Copy</div>
+      <div style="background:var(--s3);border-radius:6px;padding:12px;">
+        <div style="font-size:11px;color:var(--text);margin-bottom:8px;">${esc(copy.en)}</div>
+        ${['et','fr','de','es'].filter(l => copy[l]).map(l =>
+          `<div class="cm-copy-lang-row"><span class="cm-copy-lang-code">${l.toUpperCase()}</span><span class="cm-copy-lang-text">${esc(copy[l])}</span></div>`
+        ).join('')}
+      </div>
+    </div>` : ''}
+    <div style="margin-top:18px;font-size:10px;color:var(--muted);">
+      ${selected
+        ? `<span style="color:var(--green);">&#10003; This clip is included in your selection</span>`
+        : `<span>Click below to include this clip in your order</span>`}
+    </div>`;
+
+  // Actions
+  document.getElementById('ccm-actions').innerHTML = `
+    <div style="display:flex;gap:8px;">
+      ${selected
+        ? `<button class="btn btn-ghost" style="flex:1;" onclick="toggleCopyClipFromModal('${esc(clip.id)}')">&#10005; Remove from selection</button>`
+        : `<button class="btn btn-primary" style="flex:1;" onclick="toggleCopyClipFromModal('${esc(clip.id)}')">&#10003; Include this clip</button>`}
+      <button class="btn btn-ghost" onclick="closeCopyClipModal()">Close</button>
+    </div>`;
+}
+
+function toggleCopyClipFromModal(clipId) {
+  toggleCopyClip(clipId);
+  // Re-render modal to update button state
+  const clips = window._copyClipList || [];
+  const clip = clips[_ccmClipIdx];
+  if (clip) renderCopyClipModal(clip);
 }
 
 // ── Step 3: Languages + Designs ────────────────────────────────

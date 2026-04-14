@@ -145,6 +145,24 @@
       </div>
     </div>
 
+    <!-- Copy-browse clip preview modal -->
+    <div class="modal-overlay hidden" id="copy-clip-modal">
+      <div class="clip-modal">
+        <div class="clip-modal-video">
+          <video id="ccm-video" controls autoplay muted style="width:100%;border-radius:8px;background:#000;"></video>
+          <div class="cm-nav">
+            <button class="btn btn-ghost" id="ccm-prev" onclick="copyClipModalNav(-1)">&#8249; Prev</button>
+            <span id="ccm-nav-label" style="font-size:10px;color:var(--muted2);"></span>
+            <button class="btn btn-ghost" id="ccm-next" onclick="copyClipModalNav(1)">Next &#8250;</button>
+          </div>
+        </div>
+        <div class="clip-modal-panel">
+          <div class="clip-modal-panel-scroll" id="ccm-panel"></div>
+          <div class="cm-actions" id="ccm-actions"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Basket bar (shown when drawer is closed) -->
     <div class="basket-bar" id="basket-bar">
       <div class="basket-bar-clips" id="basket-bar-clips"></div>
