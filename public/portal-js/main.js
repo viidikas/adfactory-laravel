@@ -32,7 +32,7 @@ function toast(msg, err=false) {
 // ═══════════════════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════════════════
-const ALL_TABS = ['copy-browse','browse','orders','admin'];
+const ALL_TABS = ['copy-browse','browse','designs','orders','admin'];
 
 function showTab(tab) {
   ALL_TABS.forEach(t => {
@@ -45,6 +45,7 @@ function showTab(tab) {
   if (tab === 'admin')       loadAdminOrders();
   if (tab === 'copy-browse') initCopyBrowse();
   if (tab === 'browse')      { renderGrid(); closeDetailPanel(); }
+  if (tab === 'designs')     renderDesignsFullPage();
 }
 
 // ═══════════════════════════════════════════════════════════════

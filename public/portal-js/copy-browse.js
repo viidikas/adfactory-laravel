@@ -320,9 +320,12 @@ function renderCopyStep3() {
         const label = typeof d==='object' ? (d.label||key) : d;
         const img = typeof d==='object' ? (d.images?.['16x9']||'') : '';
         const sel = sharedState.selectedDesigns.includes(key);
-        return `<div class="cm-design-tile${sel?' sel':''}" onclick="toggleCopyDesign('${esc(key)}')" style="padding:0;overflow:hidden;min-width:100px;max-width:160px;">
-          ${img ? `<img src="${esc(img)}" style="width:100%;height:60px;object-fit:cover;display:block;">` : `<div style="height:60px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:20px;">&#127912;</div>`}
-          <div style="padding:6px 8px;font-size:9px;text-align:center;">${esc(label)}</div>
+        return `<div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="cm-design-tile${sel?' sel':''}" onclick="toggleCopyDesign('${esc(key)}')" style="padding:0;overflow:hidden;min-width:100px;max-width:160px;">
+            ${img ? `<img src="${esc(img)}" style="width:100%;height:60px;object-fit:cover;display:block;">` : `<div style="height:60px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:20px;">&#127912;</div>`}
+            <div style="padding:6px 8px;font-size:9px;text-align:center;">${esc(label)}</div>
+          </div>
+          ${img ? `<button onclick="event.stopPropagation();previewDesignImg('${esc(img)}')" style="background:none;border:none;font-size:9px;color:var(--blue);cursor:pointer;text-decoration:underline;padding:0;">View full</button>` : ''}
         </div>`;
       }).join('');
     }

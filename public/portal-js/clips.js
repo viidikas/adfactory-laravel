@@ -219,9 +219,12 @@ function renderDetailDesignsHtml() {
     const label = typeof d==='object' ? (d.label||key) : d;
     const img = typeof d==='object' ? (d.images?.['16x9']||'') : '';
     const sel = detailSelDesigns.includes(key);
-    return `<div class="cm-design-tile${sel?' sel':''}" onclick="toggleDetailDesign('${esc(key)}')" style="padding:0;overflow:hidden;min-width:80px;max-width:120px;">
-      ${img ? `<img src="${esc(img)}" style="width:100%;height:48px;object-fit:cover;display:block;">` : `<div style="height:48px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:16px;">&#127912;</div>`}
-      <div style="padding:4px 6px;font-size:8px;text-align:center;">${esc(label)}</div>
+    return `<div style="display:flex;flex-direction:column;gap:3px;">
+      <div class="cm-design-tile${sel?' sel':''}" onclick="toggleDetailDesign('${esc(key)}')" style="padding:0;overflow:hidden;min-width:80px;max-width:120px;">
+        ${img ? `<img src="${esc(img)}" style="width:100%;height:48px;object-fit:cover;display:block;">` : `<div style="height:48px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:16px;">&#127912;</div>`}
+        <div style="padding:4px 6px;font-size:8px;text-align:center;">${esc(label)}</div>
+      </div>
+      ${img ? `<button onclick="event.stopPropagation();previewDesignImg('${esc(img)}')" style="background:none;border:none;font-size:8px;color:var(--blue);cursor:pointer;text-decoration:underline;padding:0;">View</button>` : ''}
     </div>`;
   }).join('');
 }

@@ -15,6 +15,7 @@
       <div class="tab-bar">
         <div class="tab active" id="tab-copy-browse" @click="showTab('copy-browse')">Browse by Copy</div>
         <div class="tab" id="tab-browse" @click="showTab('browse')">Browse by Clips</div>
+        <div class="tab" id="tab-designs" @click="showTab('designs')">Designs</div>
         <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
         <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
       </div>
@@ -84,6 +85,16 @@
             </div>
             <!-- Slide-in detail panel -->
             <div id="clip-detail-panel" class="clip-detail-panel hidden"></div>
+          </div>
+        </div>
+
+        <!-- DESIGNS TAB -->
+        <div id="view-designs" class="hidden">
+          <div id="designs-full-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;"></div>
+          <div id="designs-full-empty" class="empty hidden">
+            <div class="empty-icon">&#127912;</div>
+            <div class="empty-title">No designs configured</div>
+            <div class="empty-sub">Ask admin to add designs in AD.FACTORY settings</div>
           </div>
         </div>
 
