@@ -176,41 +176,6 @@ function goStep(n) {
   goView(stepToView[n] || 'orders');
 }
 
-  const titles = [
-    ['Step 1 — Data Sources',    'Link your copy Google Sheet — AI fetches and parses it'],
-    ['Step 2 — Clip Library',    'Scan your source folder, preview clips and assign copy per language'],
-    ['Step 3 — Filters',         'Choose which slates, designs, formats and languages to include'],
-    ['Step 4 — Copy Mapping',    'Review and assign copy to each slate — slates without copy are excluded from export'],
-    ['Step 5 — Copy & Settings', 'Global overrides, output path and AE comp names'],
-    ['Step 6 — Preview Table',   'Live view of every row that will be generated'],
-    ['Step 7 — Generate',        'Generate and export your Templater-ready sheet'],
-    ['Orders',                   'Incoming orders from growth leads — review, export CSV, manage status'],
-    ['Settings',                 'Configure designs, formats, API key and defaults'],
-    ['Admin',                    'Manage users, designs and rendered files path'],
-  ];
-  document.getElementById('page-title').textContent = titles[n-1]?.[0] || '';
-  document.getElementById('page-sub').textContent   = titles[n-1]?.[1] || '';
-  document.getElementById('btn-next').style.display = n >= 7 ? 'none' : '';
-
-  if (n === 2) { renderClipGrid(); }
-  if (n === 3) { updateFilterChips(); updateFilterSummary(); renderSlateFilter(); renderCopySelector(); }
-  if (n === 4) { renderCopyMappingPage(); }
-  if (n === 5) { syncCompNames(); renderCopyOverrideFields(); renderCompNameFields(); updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder(); }
-  if (n === 6) {
-    previewRows = []; previewFiltered = [];
-    const wrap = document.getElementById('preview-table-wrap');
-    if (wrap) wrap.innerHTML = `<div class="empty" style="padding:48px 20px;"><div class="empty-icon">👁</div><div class="empty-title">No preview yet</div><div class="empty-sub">Click "Refresh Preview" to build the table from your current settings.</div></div>`;
-    const pag = document.getElementById('preview-pag'); if (pag) pag.innerHTML = '';
-    const cnt = document.getElementById('preview-count'); if (cnt) cnt.textContent = '—';
-  }
-  if (n === 7) {
-    syncCompNames(); updateGenSummary();
-    if (typeof updateGenPreview === 'function') updateGenPreview();
-    const ps = document.getElementById('preview-section'); if (ps) ps.style.display = 'none';
-    const pb = document.getElementById('preview-tbody');   if (pb) pb.innerHTML = '';
-    const gp = document.getElementById('gen-progress');    if (gp) gp.style.display = 'none';
-    const pf = document.getElementById('pb-fill');         if (pf) pf.style.width = '0%';
-    const pv = document.getElementById('pb-val');          if (pv) pv.textContent = '0%';
 function nextStep() {
   // Legacy — no-op in view-based navigation
 }
