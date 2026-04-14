@@ -602,6 +602,7 @@ function loadSlateData() {
     });
     localStorage.setItem('af_copy_assignments', JSON.stringify(state.copyAssignments));
     localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+    if (typeof autoSaveState === 'function') autoSaveState();
     if (typeof renderCopySelector === 'function') renderCopySelector();
   }
 }
@@ -738,6 +739,7 @@ function _saveCopyKey(clipId, key) {
     delete state.slateAssignments[clipId];
   }
   localStorage.setItem('af_slate_assignments', JSON.stringify(state.slateAssignments));
+  if (typeof autoSaveState === 'function') autoSaveState();
   const clip = state.clipLibrary.find(c => c.id === clipId);
   if (clip) clip.matchStatus = key ? 'matched' : (clip.sheetClip ? 'partial' : 'unmatched');
 }

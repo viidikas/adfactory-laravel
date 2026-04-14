@@ -23,12 +23,22 @@ class ConfigController extends Controller
             'templater_formats' => $this->getJson('templater_formats'),
             'templater_comp_names' => $this->getJson('templater_comp_names'),
             'base_output_path' => Setting::get('base_output_path', ''),
+            'filename_parts' => $this->getJson('filename_parts'),
+            'folder_parts' => $this->getJson('folder_parts'),
+            'slate_assignments' => $this->getJson('slate_assignments'),
+            'copy_selection' => $this->getJson('copy_selection'),
         ]);
     }
 
     public function store(Request $request)
     {
-        $allowed = ['sheet_url', 'rendered_path', 'designs', 'copy_rows', 'shot_descriptions', 'sheets_meta', 'slate_data', 'templater_designs', 'templater_formats', 'templater_comp_names', 'base_output_path'];
+        $allowed = [
+            'sheet_url', 'rendered_path', 'designs', 'copy_rows',
+            'shot_descriptions', 'sheets_meta', 'slate_data',
+            'templater_designs', 'templater_formats', 'templater_comp_names',
+            'base_output_path', 'filename_parts', 'folder_parts',
+            'slate_assignments', 'copy_selection',
+        ];
 
         foreach ($allowed as $field) {
             if ($request->has($field)) {

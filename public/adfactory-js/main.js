@@ -16,31 +16,19 @@ function toast(msg, err) {
 // ═══════════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════════
-function init() {
-  if (!state.filenameParts) {
-    state.filenameParts = JSON.parse(localStorage.getItem('af_filename_parts') || 'null')
-      || ['brand','slate','actor','design','format','lang'];
-  }
-
-  // Load config from server (designs, formats, comp names, paths)
-  fetch('/api/config').then(r => r.json()).then(cfg => {
-    if (cfg.templater_designs?.length) {
-      state.designs = cfg.templater_designs;
-      localStorage.setItem('af_designs', JSON.stringify(state.designs));
-    }
-    if (cfg.templater_formats?.length) {
-      state.formats = cfg.templater_formats;
-      localStorage.setItem('af_formats', JSON.stringify(state.formats));
-    }
-    if (cfg.templater_comp_names && Object.keys(cfg.templater_comp_names).length) {
-      state.compNames = cfg.templater_comp_names;
-      localStorage.setItem('af_comp_names', JSON.stringify(state.compNames));
-    }
-    if (cfg.base_output_path) {
-      state.basePath = cfg.base_output_path;
-      localStorage.setItem('af_base_path', state.basePath);
-    }
-  }).catch(() => {});
+async function init() {
+  // Load ALL settings from server
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    if (cfg.templater_designs?.length) state.designs = cfg.templater_designs;
+    if (cfg.templater_formats?.length) state.formats = cfg.templater_formats;
+    if (cfg.templater_comp_names && Object.keys(cfg.templater_comp_names).length) state.compNames = cfg.templater_comp_names;
+    if (cfg.base_output_path) state.basePath = cfg.base_output_path;
+    if (cfg.filename_parts?.length) state.filenameParts = cfg.filename_parts;
+    if (cfg.folder_parts?.length) state.folderParts = cfg.folder_parts;
+    if (cfg.slate_assignments && Object.keys(cfg.slate_assignments).length) state.slateAssignments = cfg.slate_assignments;
+    if (cfg.copy_selection && Object.keys(cfg.copy_selection).length) state.copySelection = cfg.copy_selection;
+  } catch(e) {}
 
   // Load clips in background
   loadClipsFromProxy().then(() => {
@@ -48,8 +36,36 @@ function init() {
     updateProjectNav();
   }).catch(() => {});
 
-  // Show Orders view (default landing)
-  goView('orders');
+  // Restore view from URL hash, or default to orders
+  const hash = window.location.hash.replace('#', '');
+  const view = ALL_VIEWS.includes(hash) ? hash : 'orders';
+  goView(view);
+}
+
+// Persist current view to URL hash
+function setViewHash(view) {
+  history.replaceState(null, '', '#' + view);
+}
+
+// Auto-save all mutable settings to server (debounced — runs 2s after last change)
+let _autoSaveTimer = null;
+function autoSaveState() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => {
+    fetch('/api/config', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        templater_designs: state.designs,
+        templater_formats: state.formats,
+        templater_comp_names: state.compNames,
+        base_output_path: state.basePath,
+        filename_parts: state.filenameParts,
+        folder_parts: state.folderParts,
+        slate_assignments: state.slateAssignments,
+        copy_selection: state.copySelection,
+      })
+    }).catch(() => {});
+  }, 2000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -76,6 +92,7 @@ function goView(view) {
   document.getElementById('page-title').textContent = t[0];
   document.getElementById('page-sub').textContent = t[1];
   window.scrollTo({ top: 0, behavior: 'instant' });
+  setViewHash(view);
 
   // Load data for each view
   if (view === 'orders') loadAFOrders();
@@ -426,7 +443,7 @@ function applySlateDataToClips(slateData) {
     }
   });
   localStorage.setItem('af_copy_assignments', JSON.stringify(state.copyAssignments));
-  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));autoSaveState();
 
   if (typeof renderClipGrid === 'function') renderClipGrid();
   if (typeof updateLibStats === 'function') updateLibStats();
@@ -747,19 +764,19 @@ function folderDrop(e,targetIdx) {
   const [moved]=parts.splice(folderDragSrc,1);
   parts.splice(targetIdx,0,moved);
   state.folderParts=parts;
-  localStorage.setItem('af_folder_parts',JSON.stringify(parts));
+  localStorage.setItem('af_folder_parts',JSON.stringify(parts));autoSaveState();
   folderDragSrc=null;
   renderFolderBuilder();
 }
 function folderRemovePart(idx) {
   state.folderParts.splice(idx,1);
-  localStorage.setItem('af_folder_parts',JSON.stringify(state.folderParts));
+  localStorage.setItem('af_folder_parts',JSON.stringify(state.folderParts));autoSaveState();
   renderFolderBuilder();
 }
 function folderAddPart(part) {
   if (!state.folderParts.includes(part)) {
     state.folderParts.push(part);
-    localStorage.setItem('af_folder_parts',JSON.stringify(state.folderParts));
+    localStorage.setItem('af_folder_parts',JSON.stringify(state.folderParts));autoSaveState();
     renderFolderBuilder();
   }
 }
@@ -832,7 +849,7 @@ function renderCopySelector() {
 
 function selectCopyOption(slate, idx) {
   state.copySelection[slate] = idx;
-  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));autoSaveState();
   renderCopySelector();
   renderClipGrid();
   updateLibStats();
@@ -889,21 +906,21 @@ function fnDrop(e, targetIdx) {
   const [moved] = parts.splice(fnDragSrc, 1);
   parts.splice(targetIdx, 0, moved);
   state.filenameParts = parts;
-  localStorage.setItem('af_filename_parts', JSON.stringify(parts));
+  localStorage.setItem('af_filename_parts', JSON.stringify(parts));autoSaveState();
   fnDragSrc = null;
   renderFilenameBuilder();
   updatePathPreview();
 }
 function fnRemovePart(idx) {
   state.filenameParts.splice(idx, 1);
-  localStorage.setItem('af_filename_parts', JSON.stringify(state.filenameParts));
+  localStorage.setItem('af_filename_parts', JSON.stringify(state.filenameParts));autoSaveState();
   renderFilenameBuilder();
   updatePathPreview();
 }
 function fnAddPart(part) {
   if (!state.filenameParts.includes(part)) {
     state.filenameParts.push(part);
-    localStorage.setItem('af_filename_parts', JSON.stringify(state.filenameParts));
+    localStorage.setItem('af_filename_parts', JSON.stringify(state.filenameParts));autoSaveState();
     renderFilenameBuilder();
     updatePathPreview();
   }
@@ -1058,7 +1075,7 @@ function hasCopyForSlate(slate) {
 
 function setCopySelection(slate, idx) {
   state.copySelection[slate] = idx;
-  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));
+  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));autoSaveState();
   renderCopyMappingPage();
   renderClipGrid();
 }
@@ -1069,7 +1086,7 @@ function setManualCopyKey(slate, key) {
   } else {
     delete state.slateAssignments[slate];
   }
-  localStorage.setItem('af_slate_assignments', JSON.stringify(state.slateAssignments));
+  localStorage.setItem('af_slate_assignments', JSON.stringify(state.slateAssignments));autoSaveState();
   renderCopyMappingPage();
   renderClipGrid();
   updateLibStats();
