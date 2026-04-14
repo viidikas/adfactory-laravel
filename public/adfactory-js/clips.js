@@ -569,6 +569,8 @@ function loadSlateData() {
   if (typeof SCENE_DATA !== 'undefined') {
     SCENE_DATA.length = 0;
     Object.values(slateMap).forEach(s => SCENE_DATA.push(s));
+    // Reset slate init flag so renderSlateFilter re-selects all slates
+    if (state.filters) state.filters._slateInitialised = false;
   }
 
   // Rebuild COPY_KEYS from clip copy data
