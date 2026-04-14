@@ -180,6 +180,16 @@ function nextStep() {
   // Legacy — no-op in view-based navigation
 }
 
+function showSettingsTab(tab) {
+  ['users','output','designs'].forEach(t => {
+    const el = document.getElementById('settings-tab-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  // Update tab styling
+  const tabs = document.querySelectorAll('#view-settings .status-tab');
+  tabs.forEach(el => el.classList.toggle('active', el.textContent.toLowerCase() === tab || (tab === 'designs' && el.textContent === 'Project Designs')));
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  SHEET MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
