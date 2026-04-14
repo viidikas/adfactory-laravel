@@ -199,7 +199,7 @@ function renderDetailPanel(clip) {
         </div>`).join('')}
       </div>` : ''}
 
-      <button class="btn btn-primary" style="width:100%;" onclick="addFromDetailPanel()">+ Add to order</button>
+      <button class="btn btn-primary" style="width:100%;" onclick="addFromDetailPanel()">${window._editingBasketIdx !== undefined ? 'Update item' : '+ Add to order'}</button>
     </div>`;
 }
 
@@ -261,6 +261,32 @@ function addFromDetailPanel() {
   if (!detailSelCopy) { toast('Select a copy first', true); return; }
   if (!detailSelDesigns.length && availableDesigns.length) { toast('Select a design', true); return; }
 
+  const clip = clipLibrary.find(c => c.id === detailClipId);
+  if (!clip) return;
+
+  const newItem = {
+    clipId: detailClipId,
+    clip: {name:clip.name,nameNoExt:clip.nameNoExt,slate:clip.slate,category:clip.category,actor:clip.actor,relativePath:clip.relativePath},
+    copyKey: detailSelCopy,
+    copyText: buildCopyText(detailSelCopy),
+    langs: [...detailSelLangs],
+    designs: [...detailSelDesigns],
+  };
+
+  // Check if editing existing basket item
+  const editIdx = window._editingBasketIdx;
+  if (editIdx !== undefined && editIdx !== null && basket[editIdx]) {
+    basket[editIdx] = newItem;
+    window._editingBasketIdx = undefined;
+    saveBasket();
+    updateBasketBar();
+    renderGrid();
+    toast('Order item updated');
+    renderDetailPanel(clip);
+    return;
+  }
+
+  // Check for duplicate
   const isDup = basket.some(b =>
     b.clipId === detailClipId &&
     b.copyKey === detailSelCopy &&
@@ -270,24 +296,11 @@ function addFromDetailPanel() {
   );
   if (isDup) { toast('This combination is already in your order', true); return; }
 
-  const clip = clipLibrary.find(c => c.id === detailClipId);
-  if (!clip) return;
-
-  basket.push({
-    clipId: detailClipId,
-    clip: {name:clip.name,nameNoExt:clip.nameNoExt,slate:clip.slate,category:clip.category,actor:clip.actor,relativePath:clip.relativePath},
-    copyKey: detailSelCopy,
-    copyText: buildCopyText(detailSelCopy),
-    langs: [...detailSelLangs],
-    designs: [...detailSelDesigns],
-  });
-
+  basket.push(newItem);
   saveBasket();
   updateBasketBar();
   renderGrid();
   toast('Added to order');
-
-  // Re-render panel to show variant
   renderDetailPanel(clip);
 }
 

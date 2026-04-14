@@ -145,35 +145,53 @@
       </div>
     </div>
 
-    <!-- Basket bar -->
+    <!-- Basket bar (shown when drawer is closed) -->
     <div class="basket-bar" id="basket-bar">
-      <div class="basket-count">
-        <b id="basket-count-num">0</b> items in order
-        <span style="font-size:9px;color:var(--muted);margin-left:8px;" id="basket-langs-summary"></span>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="clear-basket-btn" onclick="clearBasket()">Clear</button>
-        <button class="submit-order-btn" onclick="openSubmitModal()">Review &amp; Submit &rarr;</button>
+      <div class="basket-bar-clips" id="basket-bar-clips"></div>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <span id="basket-bar-rows" style="font-size:10px;color:var(--muted2);"></span>
+        <button class="submit-order-btn" onclick="toggleBasketDrawer()">Open Order &rarr;</button>
       </div>
     </div>
 
-    <!-- Submit modal -->
-    <div class="modal-overlay hidden" id="submit-modal">
-      <div class="modal-box" style="max-width:600px;">
-        <div class="modal-title">Review &amp; Submit Order</div>
-        <div class="modal-sub">Your order will be sent to production.</div>
-        <div id="order-summary-items" style="background:var(--s2);border-radius:6px;padding:12px;margin-top:10px;font-size:10px;max-height:300px;overflow-y:auto;"></div>
-        <div class="form-group" style="margin-top:16px;">
-          <label class="form-label">Market / Audience</label>
-          <input type="text" id="order-market" class="form-input" placeholder="e.g. FI, EE, DK...">
+    <!-- Basket drawer (slide-in from right) -->
+    <div class="basket-drawer" id="basket-drawer">
+      <div class="basket-drawer-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;">Your Order</div>
+          <span id="drawer-item-count" style="font-size:10px;color:var(--muted2);"></span>
         </div>
-        <div class="form-group">
-          <label class="form-label">Note (optional)</label>
-          <textarea id="order-note" class="form-input" placeholder="Any specific requirements..."></textarea>
+        <button onclick="toggleBasketDrawer()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;">&times;</button>
+      </div>
+      <div style="padding:0 20px 8px;"><a href="#" onclick="event.preventDefault();if(confirm('Clear all items from your order?')){clearBasket();renderBasketDrawer();}" style="font-size:10px;color:var(--orange);text-decoration:none;">Clear all</a></div>
+
+      <div class="basket-drawer-items" id="drawer-items"></div>
+
+      <div class="basket-drawer-footer">
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label">Market</label>
+            <input type="text" id="order-market" class="form-input" placeholder="e.g. FI, EE, DK...">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">Note (optional)</label>
+            <textarea id="order-note" class="form-input" placeholder="Any specific requirements..." style="min-height:50px;"></textarea>
+          </div>
+          <div id="drawer-total" style="font-size:10px;color:var(--muted2);margin-bottom:12px;"></div>
+          <button class="submit-order-btn" style="width:100%;" onclick="confirmSubmitOrder()">Submit Order &rarr;</button>
         </div>
+      </div>
+    </div>
+    <div class="basket-drawer-overlay hidden" id="basket-drawer-overlay" onclick="toggleBasketDrawer()"></div>
+
+    <!-- Submit confirm modal -->
+    <div class="modal-overlay hidden" id="submit-confirm-modal">
+      <div class="modal-box" style="max-width:400px;">
+        <div class="modal-title">Submit order to production?</div>
+        <div id="submit-confirm-body" style="font-size:11px;color:var(--muted2);margin:12px 0;line-height:1.8;"></div>
         <div class="modal-actions">
-          <button class="btn btn-ghost" onclick="closeSubmitModal()">Cancel</button>
-          <button class="btn btn-primary" onclick="submitOrder()">Submit Order</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('submit-confirm-modal').classList.add('hidden')">Cancel</button>
+          <button class="btn btn-primary" onclick="submitOrder()">Submit &rarr;</button>
         </div>
       </div>
     </div>
