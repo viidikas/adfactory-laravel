@@ -30,10 +30,17 @@ async function init() {
     if (cfg.copy_selection && Object.keys(cfg.copy_selection).length) state.copySelection = cfg.copy_selection;
   } catch(e) {}
 
-  // Load clips in background
+  // Load clips in background, then refresh current view
   loadClipsFromProxy().then(() => {
     loadSlateData();
     updateProjectNav();
+    // Re-trigger current view's data init now that clips are loaded
+    const currentView = window.location.hash.replace('#', '') || 'orders';
+    if (currentView === 'generate') {
+      syncFiltersFromDesigns(); updateFilterChips(); renderSlateFilter(); updateFilterSummary();
+    }
+    if (currentView === 'clips') renderClipGrid();
+    if (currentView === 'preview' && typeof updateGenPreview === 'function') updateGenPreview();
   }).catch(() => {});
 
   // Restore view from URL hash, or default to orders

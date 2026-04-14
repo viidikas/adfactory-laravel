@@ -38,7 +38,8 @@ function addDesign() {
   syncFiltersFromDesigns();
   updateFilterChips();
   renderCompNameFields();
-  toast(`✓ design${n} added — set its formats and comp names in Step 3`);
+  toast(`✓ design${n} added`);
+  if (typeof autoSaveState === 'function') autoSaveState();
 }
 
 function removeDesign(i) {
@@ -56,6 +57,7 @@ function removeDesign(i) {
   updateFilterChips();
   renderCompNameFields();
   updateFilterSummary();
+  if (typeof autoSaveState === 'function') autoSaveState();
 }
 
 function renameDesignKey(i, newKey) {
@@ -98,6 +100,7 @@ function toggleDesignFmt(designIndex, fmtKey, checkbox) {
     label.style.color       = 'var(--muted2)';
   }
   syncCompNames();
+  if (typeof autoSaveState === 'function') autoSaveState();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -128,7 +131,8 @@ function addFormat() {
   renderFormatsList();
   renderDesignsList();  // re-render so new format checkbox appears in designs
   updateFilterChips();
-  toast(`✓ Format added — set the key and label, then assign it to designs`);
+  toast(`✓ Format added`);
+  if (typeof autoSaveState === 'function') autoSaveState();
 }
 
 function removeFormat(i) {
@@ -147,6 +151,7 @@ function removeFormat(i) {
   renderDesignsList();
   updateFilterChips();
   renderCompNameFields();
+  if (typeof autoSaveState === 'function') autoSaveState();
 }
 
 function renameFormatKey(i, newKey) {
