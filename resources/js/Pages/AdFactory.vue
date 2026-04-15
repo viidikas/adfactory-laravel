@@ -6,6 +6,7 @@
       <aside class="sidebar">
         <div class="sidebar-logo">
           <div class="logo-text">AD<span>.</span>FACTORY</div>
+          <div id="app-version" style="font-size:8px;color:var(--muted,#4a5568);font-family:'DM Mono',monospace;margin-top:2px;"></div>
         </div>
 
         <nav class="nav">

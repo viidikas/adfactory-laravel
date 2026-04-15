@@ -567,10 +567,11 @@ function loadSlateData() {
   });
   // Replace SCENE_DATA entirely with DB data
   if (typeof SCENE_DATA !== 'undefined') {
+    const wasEmpty = SCENE_DATA.length === 0;
     SCENE_DATA.length = 0;
     Object.values(slateMap).forEach(s => SCENE_DATA.push(s));
-    // Reset slate init flag so renderSlateFilter re-selects all slates
-    if (state.filters) state.filters._slateInitialised = false;
+    // Only reset slate init on first population (not on every reload)
+    if (wasEmpty && state.filters) state.filters._slateInitialised = false;
   }
 
   // Rebuild COPY_KEYS from clip copy data

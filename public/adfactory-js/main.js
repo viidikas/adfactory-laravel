@@ -43,6 +43,12 @@ async function init() {
     if (currentView === 'preview' && typeof updateGenPreview === 'function') updateGenPreview();
   }).catch(() => {});
 
+  // Show version stamp
+  fetch('/version.json').then(r => r.json()).then(v => {
+    const el = document.getElementById('app-version');
+    if (el && v.built) el.textContent = 'v' + v.built;
+  }).catch(() => {});
+
   // Restore view from URL hash, or default to orders
   const hash = window.location.hash.replace('#', '');
   const view = ALL_VIEWS.includes(hash) ? hash : 'orders';
