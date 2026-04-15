@@ -511,22 +511,24 @@ function buildOrderRows(order) {
         designFmts.forEach(fmtKey => {
           const brand = order.brand || 'Creditstar';
           const compKey = `${designKey}_${fmtKey}`;
-          const target = (compNames[brand] && compNames[brand][compKey]) || '';
+          const PREFIX = { Creditstar:'CS', Monefit:'MF' };
+          const shortDesign = designKey.replace('design','d');
+          const fmtLabel = ({'16x9':'16x9','1x1':'1x1','9x16':'9x16','4x5v1':'4x5','4x5v2':'4x5'}[fmtKey]||fmtKey);
+          const target = (compNames[brand] && compNames[brand][compKey]) || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign}`;
           const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
-          const actorClean = (item.actor || '').replace(/\s+/g, '_');
-          const catSlug = (item.category || '').replace(/\s+/g, '_');
-          const copySlug = (typeof slugifyCopy === 'function') ? slugifyCopy(headline) : headline.replace(/\s+/g, '_').slice(0, 18);
+          const actorClean = (item.actor || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          const catSlug = (item.category || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          const copySlug = (typeof slugifyCopy === 'function') ? slugifyCopy(headline) : headline.replace(/[^\w\s]/g,'').replace(/\s+/g, '_').slice(0, 18);
           // Use persisted filename/folder convention from settings
-          const fnParts = (state.filenameParts || ['brand','slate','actor','design','format','lang']);
-          const fdParts = (state.folderParts || ['brand','category','copyslug','actor','format']);
+          const fnParts = (state.filenameParts || ['slate','actor','lang','design','format']);
+          const fdParts = (state.folderParts || ['brand','lang','category','copyslug','actor','design','format']);
           const partMap = { brand, slate: item.slate, actor: actorClean, design: designKey, format: fmtKey, lang, category: catSlug, copyslug: copySlug };
-          const filename = fnParts.map(p => partMap[p] || '').filter(Boolean).join('_');
-          const folderPath = fdParts.map(p => partMap[p] || '').filter(Boolean).join('/');
+          const filename = fnParts.map(p => partMap[p] || '').filter(Boolean).join('_').replace(/\./g, '_');
+          const folderPath = fdParts.map(p => partMap[p] || '').filter(Boolean).join('/').replace(/\./g, '_');
           rows.push({
             line_nr: lineNr++,
             target,
             output: `${folderPath}/${filename}`,
-            ae_output_path: state.basePath ? `${state.basePath}/${folderPath}/${filename}.mp4` : `${folderPath}/${filename}.mp4`,
             aef_footage: item.clipName + '.mov',
             design: designKey,
             format: fmtKey,
