@@ -222,6 +222,10 @@ export default {
         </div>
         <div id="copy-mapping-list"></div>
       </div>
+
+      <div class="card card-blue" style="margin-top:16px;"><div class="card-title">&#9997;&#65039; Copy Selection</div><div class="card-sub">When a slate has multiple copy options, select which one to use for generation.</div><div id="copy-selector-list"></div></div>
+
+      <div class="card" style="margin-top:16px;"><div class="card-title">&#9997;&#65039; Copy Override</div><div class="card-sub">Override per language. Leave blank to use sheet copy.</div><div class="copy-lang-grid" id="copy-override-fields"></div></div>
     </div>
 
     <!-- VIEW: GENERATE -->
@@ -239,9 +243,15 @@ export default {
       </div>
 
       <div class="card"><div class="card-title">&#128203; Filter Summary</div><div id="filter-summary" style="font-size:11px;color:var(--muted);line-height:1.9;"></div></div>
-      <div class="card card-blue" id="copy-selector-card" style="display:none;"><div class="card-title">&#9997;&#65039; Copy Selection</div><div class="card-sub">Some slates have multiple copy options. Select which one to use.</div><div id="copy-selector-list"></div></div>
-
-      <div class="card"><div class="card-title">&#9997;&#65039; Copy Override</div><div class="card-sub">Override per language here. Leave blank to use sheet copy.</div><div class="copy-lang-grid" id="copy-override-fields"></div></div>
+      <div id="copy-status-card" class="card" style="margin-bottom:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div class="card-title" style="margin-bottom:4px;">&#9997; Copy Status</div>
+            <div id="copy-status-summary" style="font-size:10px;color:var(--muted2);"></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="goView('copy')">Edit Copy &rarr;</button>
+        </div>
+      </div>
 
       <div class="card"><div class="card-title">&#128193; Output Path</div><div class="card-sub">Set this to match Templater's Destination folder.</div><div class="input-row" style="margin-bottom:10px;"><label>Base folder</label><input type="text" id="base-path" placeholder="/path/to/output" oninput="updatePathPreview()"></div><div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">Subfolder structure &mdash; drag to reorder</div><div class="fn-builder" id="folder-builder"></div><div class="fn-part-pool" id="folder-pool"></div><div class="fn-preview" id="path-preview" style="margin-top:10px;"></div></div>
       <div class="card"><div class="card-title">&#127991;&#65039; Filename Convention</div><div class="card-sub">Drag parts to reorder. Parts are joined with underscores.</div><div class="fn-builder" id="fn-builder"></div><div class="fn-part-pool" id="fn-pool"></div><div class="fn-preview" id="fn-preview"></div></div>

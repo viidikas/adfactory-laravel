@@ -114,7 +114,7 @@ function goView(view) {
   if (view === 'orders') loadAFOrders();
   if (view === 'projects') loadProjectCards();
   if (view === 'clips') { renderClipGrid(); loadProjects().then(updateProjectNav); }
-  if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); }
+  if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); renderCopySelector(); renderCopyOverrideFields(); }
   if (view === 'generate') {
     // Load copy lines if not yet loaded (needed for brand→slate filtering)
     if (typeof adminCopyLines !== 'undefined' && !adminCopyLines.length) {
@@ -124,8 +124,8 @@ function goView(view) {
       }).catch(() => {});
     }
     syncCompNames(); updateFilterChips(); updateFilterSummary(); renderSlateFilter();
-    renderCopySelector(); renderCopyOverrideFields(); renderCompNameFields();
-    updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
+    renderCompNameFields(); updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
+    updateCopyStatusSummary();
   }
   if (view === 'preview') {
     if (typeof updateGenPreview === 'function') updateGenPreview();
@@ -879,7 +879,23 @@ function buildOutputFilename(brand, slate, actorClean, design, fmt, lang, catego
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COPY SELECTOR — Step 3
+//  COPY STATUS SUMMARY (shown in Generate view)
+// ═══════════════════════════════════════════════════════════════
+function updateCopyStatusSummary() {
+  const el = document.getElementById('copy-status-summary');
+  if (!el) return;
+  const allSlates = [...new Set(state.clipLibrary.map(c => c.slate).filter(Boolean))];
+  const withCopy = allSlates.filter(s => state.copyAssignments[s]?.length > 0).length;
+  const missing = allSlates.length - withCopy;
+  if (missing > 0) {
+    el.innerHTML = `<span style="color:var(--green);">${withCopy}</span> slates have copy · <span style="color:var(--orange);">${missing} missing</span> — <a href="#" onclick="event.preventDefault();goView('copy')" style="color:var(--blue);text-decoration:underline;">configure in Copy page</a>`;
+  } else {
+    el.innerHTML = `<span style="color:var(--green);">All ${withCopy} slates have copy configured</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COPY SELECTOR
 // ═══════════════════════════════════════════════════════════════
 function renderCopySelector() {
   const card = document.getElementById('copy-selector-card');
