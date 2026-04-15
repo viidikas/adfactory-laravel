@@ -468,13 +468,14 @@ function toggleChip(el, group) {
   const chips = document.querySelectorAll(`#filter-${group} .chip`);
   state.filters[group] = [...chips].filter(c => c.classList.contains('sel')).map(c => c.dataset.val);
   updateFilterSummary();
-  if (group === 'brand') { syncCompNames(); renderCompNameFields(); }
+  if (group === 'brand') { syncCompNames(); renderCompNameFields(); renderSlateFilter(); }
   if (group === 'cat') {
     // Reset slate selection to match the new category set
     const newCats = state.filters.cat;
     const scenes = SCENE_DATA.filter(s => newCats.includes(s.category));
     state.filters.slate = [...new Set(scenes.map(s => s.slate))];
     renderSlateFilter();
+    updateFilterSummary();
   }
 }
 

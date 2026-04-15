@@ -21,8 +21,8 @@
           <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
         </div>
         <div id="brand-selector" style="display:flex;gap:0;">
-          <button class="brand-pill active" id="brand-btn-Creditstar" onclick="selectBrand('Creditstar')">Creditstar</button>
-          <button class="brand-pill" id="brand-btn-Monefit" onclick="selectBrand('Monefit')">Monefit</button>
+          <button class="brand-pill active" id="brand-btn-Creditstar" onclick="selectBrand('Creditstar')" style="padding:6px 16px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;border:1px solid #2a3040;background:#e8ff47;color:#000;border-radius:5px 0 0 5px;text-transform:uppercase;letter-spacing:.8px;">Creditstar</button>
+          <button class="brand-pill" id="brand-btn-Monefit" onclick="selectBrand('Monefit')" style="padding:6px 16px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;border:1px solid #2a3040;border-left:none;background:#161920;color:#718096;border-radius:0 5px 5px 0;text-transform:uppercase;letter-spacing:.8px;">Monefit</button>
         </div>
       </div>
 

@@ -94,9 +94,13 @@ async function loadCopyLines() {
 function selectBrand(brand) {
   selectedBrand = brand;
   localStorage.setItem('gp_brand', brand);
-  // Update pills
+  // Update pills (both class and inline styles for immediate effect)
   document.querySelectorAll('.brand-pill').forEach(el => {
-    el.classList.toggle('active', el.id === 'brand-btn-' + brand);
+    const isActive = el.id === 'brand-btn-' + brand;
+    el.classList.toggle('active', isActive);
+    el.style.background = isActive ? '#e8ff47' : '#161920';
+    el.style.color = isActive ? '#000' : '#718096';
+    el.style.borderColor = isActive ? '#e8ff47' : '#2a3040';
   });
   // Reload copy lines for new brand
   loadCopyLines().then(() => {
