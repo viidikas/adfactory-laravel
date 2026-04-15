@@ -13,20 +13,24 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role === 'admin') {
-            $orders = Order::with('items')->orderBy('created_at', 'desc')->get();
-        } else {
-            $orders = Order::with('items')
-                ->where('user_id', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
+        $query = Order::with('items');
+
+        if ($user->role !== 'admin') {
+            $query->where('user_id', $user->id);
         }
+
+        if ($request->filled('brand')) {
+            $query->where('brand', $request->input('brand'));
+        }
+
+        $orders = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json($orders->map(function ($order) {
             return [
                 'id' => $order->id,
                 'user_id' => $order->user_id,
                 'user_name' => $order->user->name ?? '',
+                'brand' => $order->brand ?? 'Creditstar',
                 'status' => $order->status,
                 'market' => $order->market,
                 'note' => $order->note,
@@ -54,6 +58,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'user_id' => 'sometimes|exists:users,id',
             'user_name' => 'sometimes|string',
+            'brand' => 'sometimes|string|in:Creditstar,Monefit',
             'market' => 'nullable|string|max:100',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
@@ -70,6 +75,7 @@ class OrderController extends Controller
 
         $order = Order::create([
             'user_id' => $validated['user_id'] ?? $request->user()->id,
+            'brand' => $validated['brand'] ?? 'Creditstar',
             'status' => 'pending',
             'market' => $validated['market'] ?? null,
             'note' => $validated['note'] ?? null,

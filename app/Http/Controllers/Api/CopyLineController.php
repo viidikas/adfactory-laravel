@@ -45,9 +45,25 @@ class CopyLineController extends Controller
     /**
      * GET /api/copy-lines — returns all copy lines from the configured sheet
      */
-    public function index()
+    public function index(Request $request)
     {
         $lines = $this->getParsedCopyLines();
+
+        // Brand filter: Creditstar includes "Either", Monefit includes "Either"
+        if ($request->filled('brand')) {
+            $brand = $request->input('brand');
+            $lines = array_values(array_filter($lines, function ($row) use ($brand) {
+                $rowBrand = strtolower(trim($row['brand'] ?? ''));
+                if ($rowBrand === 'smartsaver') {
+                    return false;
+                }
+                if ($rowBrand === '' || $rowBrand === 'either') {
+                    return true;
+                }
+
+                return strtolower($brand) === $rowBrand;
+            }));
+        }
 
         return response()->json($lines);
     }
