@@ -702,47 +702,14 @@ function generateOrderCSV(orderId) {
   const order = _afOrdersCache.find(o => o.id === orderId);
   if (!order) { toast('Order not found', true); return; }
 
-  const designs = (typeof state !== 'undefined') ? state.designs : [];
-  const formats = (typeof state !== 'undefined') ? state.formats : [];
-  const compNames = (typeof state !== 'undefined') ? state.compNames : {};
-
-  const rows = [];
-  order.items.forEach(item => {
-    const langs = item.langs || ['EN'];
-    const itemDesigns = (item.designs && item.designs.length) ? item.designs : designs.map(d => d.key);
-    langs.forEach(lang => {
-      itemDesigns.forEach(designKey => {
-        const design = designs.find(d => d.key === designKey);
-        const designFmts = design ? design.fmts : formats.map(f => f.key);
-        designFmts.forEach(fmtKey => {
-          const brand = order.brand || 'Creditstar';
-          const compKey = `${designKey}_${fmtKey}`;
-          const target = (compNames[brand] && compNames[brand][compKey]) || '';
-          const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
-          const filename = [brand, item.slate, item.actor||'', designKey, fmtKey, lang].filter(Boolean).join('_');
-          const output = [lang, item.category, item.slate, item.actor, item.clipName].filter(Boolean).join('/');
-          rows.push({
-            target,
-            output,
-            aef_footage: item.clipName + '.mov',
-            headline,
-            brand,
-            lang,
-            design: designKey,
-            format: fmtKey,
-            slate: item.slate,
-            actor: item.actor || '',
-            filename,
-          });
-        });
-      });
-    });
-  });
+  // Use the same buildOrderRows function that renders the preview table
+  const rows = buildOrderRows(order);
 
   if (!rows.length) { toast('No rows to export', true); return; }
-  const headers = Object.keys(rows[0]);
+  // Export columns that Templater needs
+  const exportCols = ['target','output','aef_footage','headline','brand','lang','design','format','slate','actor','filename'];
   const csvEsc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
-  const csv = [headers.join(','), ...rows.map(r => headers.map(h => csvEsc(r[h])).join(','))].join('\n');
+  const csv = [exportCols.join(','), ...rows.map(r => exportCols.map(h => csvEsc(r[h])).join(','))].join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
