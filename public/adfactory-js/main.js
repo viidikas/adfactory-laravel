@@ -781,8 +781,8 @@ function buildFolderPath(brand, slate, actorClean, design, fmt, lang, category, 
   const catFolder = (category||'').replace(/\s+/g,'_');
   const copySlug  = slugifyCopy(copy);
   const vals = { lang, brand, category:catFolder, slate, design, format:fmt, actor:actorClean, copyslug:copySlug };
-  return (state.folderParts||['brand','category','copyslug','actor','format'])
-    .map(p => vals[p]||'').filter(Boolean).join('/');
+  return (state.folderParts||['brand','lang','category','copyslug','actor','design','format'])
+    .map(p => (vals[p]||'').replace(/\s+/g,'_')).filter(Boolean).join('/');
 }
 
 // Folder builder drag-drop

@@ -496,9 +496,13 @@ let _orderVisCols = ['line_nr','target','aef_footage','design','format','lang','
 let _orderColWidths = {};
 
 function buildOrderRows(order) {
-  const designs = (typeof state !== 'undefined') ? state.designs : [];
-  const formats = (typeof state !== 'undefined') ? state.formats : [];
+  const designs = (typeof state !== 'undefined' && state.designs?.length) ? state.designs : [];
+  const formats = (typeof state !== 'undefined' && state.formats?.length) ? state.formats : [];
   const compNames = (typeof state !== 'undefined') ? state.compNames : {};
+  // Warn if settings not loaded
+  if (!state.folderParts?.length || !state.filenameParts?.length) {
+    console.warn('buildOrderRows: folder_parts or filename_parts not loaded from settings — using defaults');
+  }
   const rows = [];
   let lineNr = 1;
   order.items.forEach(item => {
@@ -520,11 +524,11 @@ function buildOrderRows(order) {
           const catSlug = (item.category || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
           const copySlug = (typeof slugifyCopy === 'function') ? slugifyCopy(headline) : headline.replace(/[^\w\s]/g,'').replace(/\s+/g, '_').slice(0, 18);
           // Use persisted filename/folder convention from settings
-          const fnParts = (state.filenameParts || ['slate','actor','lang','design','format']);
-          const fdParts = (state.folderParts || ['brand','lang','category','copyslug','actor','design','format']);
+          const fnParts = (state.filenameParts?.length) ? state.filenameParts : ['slate','actor','lang','design','format'];
+          const fdParts = (state.folderParts?.length) ? state.folderParts : ['brand','lang','category','copyslug','actor','design','format'];
           const partMap = { brand, slate: item.slate, actor: actorClean, design: designKey, format: fmtKey, lang, category: catSlug, copyslug: copySlug };
-          const filename = fnParts.map(p => partMap[p] || '').filter(Boolean).join('_').replace(/\./g, '_');
-          const folderPath = fdParts.map(p => partMap[p] || '').filter(Boolean).join('/').replace(/\./g, '_');
+          const filename = fnParts.map(p => partMap[p] || '').filter(Boolean).join('_').replace(/[\.\s]+/g, '_');
+          const folderPath = fdParts.map(p => partMap[p] || '').filter(Boolean).join('/').replace(/[\.\s]+/g, '_');
           rows.push({
             line_nr: lineNr++,
             target,
