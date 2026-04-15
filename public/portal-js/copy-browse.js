@@ -379,6 +379,7 @@ function addCopyBrowseToBasket() {
     basket.push({
       clipId,
       clip: {name:clip.name,nameNoExt:clip.nameNoExt,slate:clip.slate,category:clip.category,actor:clip.actor,relativePath:clip.relativePath},
+      brand: selectedBrand,
       copyKey: copy.key,
       copyText,
       langs: [...sharedState.selectedLangs],

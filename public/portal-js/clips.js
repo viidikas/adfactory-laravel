@@ -270,6 +270,7 @@ function addFromDetailPanel() {
   const newItem = {
     clipId: detailClipId,
     clip: {name:clip.name,nameNoExt:clip.nameNoExt,slate:clip.slate,category:clip.category,actor:clip.actor,relativePath:clip.relativePath},
+    brand: selectedBrand,
     copyKey: detailSelCopy,
     copyText: buildCopyText(detailSelCopy),
     langs: [...detailSelLangs],

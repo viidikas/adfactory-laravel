@@ -12,12 +12,18 @@
         </div>
       </div>
 
-      <div class="tab-bar">
-        <div class="tab active" id="tab-copy-browse" @click="showTab('copy-browse')">Browse by Copy</div>
-        <div class="tab" id="tab-browse" @click="showTab('browse')">Browse by Clips</div>
-        <div class="tab" id="tab-designs" @click="showTab('designs')">Designs</div>
-        <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
-        <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--s1);border-bottom:1px solid var(--border);padding:0 28px;">
+        <div class="tab-bar" style="border-bottom:none;">
+          <div class="tab active" id="tab-copy-browse" @click="showTab('copy-browse')">Browse by Copy</div>
+          <div class="tab" id="tab-browse" @click="showTab('browse')">Browse by Clips</div>
+          <div class="tab" id="tab-designs" @click="showTab('designs')">Designs</div>
+          <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
+          <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
+        </div>
+        <div id="brand-selector" style="display:flex;gap:0;">
+          <button class="brand-pill active" id="brand-btn-Creditstar" onclick="selectBrand('Creditstar')">Creditstar</button>
+          <button class="brand-pill" id="brand-btn-Monefit" onclick="selectBrand('Monefit')">Monefit</button>
+        </div>
       </div>
 
       <div class="content">

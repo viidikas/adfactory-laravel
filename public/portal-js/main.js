@@ -8,6 +8,7 @@ let clipLibrary  = [];
 let copyLines    = [];   // from /api/copy-lines
 let copyRows     = [];   // legacy compat — alias for copyLines
 let basket       = JSON.parse(localStorage.getItem('gp_basket') || '[]');
+let selectedBrand = localStorage.getItem('gp_brand') || 'Creditstar';
 
 // Shared filter state between modes
 let sharedState = {
@@ -57,6 +58,10 @@ async function login(user) {
   if (user.role === 'admin') {
     document.getElementById('tab-admin').classList.remove('hidden');
   }
+  // Restore brand selection
+  document.querySelectorAll('.brand-pill').forEach(el => {
+    el.classList.toggle('active', el.id === 'brand-btn-' + selectedBrand);
+  });
   updateBasketBar();
 
   // Load data in parallel
@@ -75,15 +80,30 @@ async function login(user) {
 // ═══════════════════════════════════════════════════════════════
 async function loadCopyLines() {
   try {
-    const r = await fetch('/api/copy-lines');
+    const r = await fetch('/api/copy-lines?brand=' + encodeURIComponent(selectedBrand));
     if (!r.ok) throw new Error();
     const data = await r.json();
     copyLines = Array.isArray(data) ? data : (data.lines || []);
-    copyRows = copyLines; // legacy compat
+    copyRows = copyLines;
   } catch(e) {
     copyLines = [];
     copyRows = [];
   }
+}
+
+function selectBrand(brand) {
+  selectedBrand = brand;
+  localStorage.setItem('gp_brand', brand);
+  // Update pills
+  document.querySelectorAll('.brand-pill').forEach(el => {
+    el.classList.toggle('active', el.id === 'brand-btn-' + brand);
+  });
+  // Reload copy lines for new brand
+  loadCopyLines().then(() => {
+    if (typeof initCopyBrowse === 'function') initCopyBrowse();
+    if (typeof renderGrid === 'function') renderGrid();
+  });
+  toast('Switched to ' + brand);
 }
 
 function getCopyForClip(clip) {

@@ -178,7 +178,7 @@ async function submitOrder() {
     const r = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, user_name: currentUser.name, market, note, items })
+      body: JSON.stringify({ user_id: currentUser.id, user_name: currentUser.name, brand: selectedBrand, market, note, items })
     });
     if (!r.ok) throw new Error('Server error');
     clearBasket();
