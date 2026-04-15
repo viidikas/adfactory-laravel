@@ -216,8 +216,8 @@ async function scanFolder() {
     const clips = [];
 
     // Show scanning indicator
-    document.getElementById('nb-2').textContent = 'scanning…';
-    document.getElementById('nb-2').className = 'nav-badge';
+    (document.getElementById('nb-2')||{}).textContent = 'scanning…';
+    (document.getElementById('nb-2')||{}).className = 'nav-badge';
 
     // Recursive walk — collects all video files under any depth of subdirectory
     async function walk(dirH, pathPrefix) {
@@ -233,7 +233,7 @@ async function scanFolder() {
           clips.push(clip);
           // Live counter update every 10 files so user sees progress
           if (clips.length % 10 === 0) {
-            document.getElementById('nb-2').textContent = `${clips.length} found…`;
+            (document.getElementById('nb-2')||{}).textContent = `${clips.length} found…`;
             await new Promise(r => setTimeout(r, 0)); // yield to UI
           }
         }
@@ -250,8 +250,8 @@ async function scanFolder() {
     document.getElementById('btn-clear-lib').style.display = '';
     document.getElementById('lib-toolbar').style.display = '';
     document.getElementById('lib-stats-bar').style.display = '';
-    document.getElementById('nb-2').textContent = clips.length + ' clips';
-    document.getElementById('nb-2').className = 'nav-badge ok';
+    (document.getElementById('nb-2')||{}).textContent = clips.length + ' clips';
+    (document.getElementById('nb-2')||{}).className = 'nav-badge ok';
     toast(`✓ Scanned ${clips.length} clips across folder tree`);
 
     // Sync clip metadata to proxy so Growth Portal can load them without scanning
@@ -283,7 +283,7 @@ async function scanFolder() {
     }).catch(() => {});
   } catch(e) {
     if (e.name !== 'AbortError') toast('Folder scan failed: ' + e.message, true);
-    document.getElementById('nb-2').textContent = '—';
+    (document.getElementById('nb-2')||{}).textContent = '—';
   }
 }
 
@@ -618,8 +618,8 @@ function clearLibrary() {
   document.getElementById('btn-clear-lib').style.display = 'none';
   document.getElementById('lib-toolbar').style.display = 'none';
   document.getElementById('lib-stats-bar').style.display = 'none';
-  document.getElementById('nb-2').textContent = '—';
-  document.getElementById('nb-2').className = 'nav-badge';
+  (document.getElementById('nb-2')||{}).textContent = '—';
+  (document.getElementById('nb-2')||{}).className = 'nav-badge';
   // Clear footage path
   const el = document.getElementById('footage-base-path');
   if (el) el.value = '';

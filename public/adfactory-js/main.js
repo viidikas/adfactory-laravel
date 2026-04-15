@@ -3,6 +3,8 @@
 // ═══════════════════════════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+// Safe DOM setter — no-ops if element missing (old step badges removed)
+function setEl(id, prop, val) { const e = document.getElementById(id); if (e) e[prop] = val; }
 
 let toastT;
 function toast(msg, err) {
@@ -397,8 +399,8 @@ async function analyseAllSheets() {
       </div>`;
 
     toast(`✓ Analysis complete — ${data.slates} slates, ${data.copy_rows} copy rows`);
-    document.getElementById('nb-1').textContent = data.slates + ' slates';
-    document.getElementById('nb-1').className = 'nav-badge ok';
+    setEl('nb-1', 'textContent', data.slates + ' slates');
+    setEl('nb-1', 'className', 'nav-badge ok');
   } catch(e) {
     toast('Analysis failed: ' + e.message, true);
     document.getElementById('analysis-card').style.display = 'block';
@@ -593,7 +595,7 @@ function updateFilterSummary() {
       <span style="color:var(--muted)"> (${filteredClips} clips × ${fmtCounts} variants × ${f.lang.length} lang)</span>
     </div>`;
 
-  document.getElementById('nb-3').textContent = selectedSlates + ' slates';
+  setEl('nb-3', 'textContent', selectedSlates + ' slates');
 }
 
 // ═══════════════════════════════════════════════════════════════

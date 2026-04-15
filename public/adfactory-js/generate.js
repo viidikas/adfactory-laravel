@@ -132,9 +132,8 @@ function buildPreviewTable() {
   // Column toggles
   renderColToggles();
 
-  document.getElementById('preview-row-count').textContent = `${rows.length} rows total`;
-  document.getElementById('nb-5').textContent = rows.length;
-  document.getElementById('nb-5').className = 'nav-badge ok';
+  const prc = document.getElementById('preview-row-count'); if (prc) prc.textContent = `${rows.length} rows total`;
+  const nb5 = document.getElementById('nb-5'); if (nb5) { nb5.textContent = rows.length; nb5.className = 'nav-badge ok'; }
 
   renderPreviewTablePage();
 }
@@ -494,8 +493,8 @@ async function generateSheet() {
   document.getElementById('btn-export-csv').disabled = false;
   document.getElementById('btn-export-gs').disabled = false;
 
-  document.getElementById('nb-6').textContent = rows.length + ' rows';
-  document.getElementById('nb-6').className = 'nav-badge ok';
+  const nb6 = document.getElementById('nb-6'); if (nb6) { nb6.textContent = rows.length + ' rows'; nb6.className = 'nav-badge ok'; }
+  const nbp = document.getElementById('nb-preview'); if (nbp) { nbp.textContent = rows.length + ' rows'; nbp.className = 'nav-badge ok'; }
 
   toast(`✓ Generated ${rows.length} rows`);
 }
