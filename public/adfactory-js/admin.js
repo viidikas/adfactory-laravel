@@ -442,7 +442,10 @@ function renderAFOrders(orders) {
         <div style="display:flex;align-items:center;gap:10px;">
           <span id="afchev-${esc(o.id)}" style="transition:transform .2s;display:inline-block;font-size:12px;color:var(--muted);">&#9654;</span>
           <div>
-            <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;">${esc(o.user_name)} ${o.market?'&middot; '+esc(o.market):''}</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;">
+              <span style="font-size:9px;padding:2px 6px;border-radius:3px;margin-right:6px;${o.brand==='Monefit'?'background:rgba(71,200,255,.15);color:var(--blue);':'background:rgba(232,255,71,.15);color:var(--accent);'}">${o.brand==='Monefit'?'MF':'CS'}</span>
+              ${esc(o.user_name)} ${o.market?'&middot; '+esc(o.market):''}
+            </div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(o.id)} &middot; ${date} &middot; ${o.items.length} clip${o.items.length!==1?'s':''}</div>
             ${o.note ? `<div style="font-size:10px;color:var(--muted2);margin-top:3px;">${esc(o.note)}</div>` : ''}
           </div>
