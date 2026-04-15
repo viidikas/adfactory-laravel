@@ -144,11 +144,52 @@ class OrderController extends Controller
 
         $validated = $request->validate([
             'status' => 'sometimes|in:pending,processing,ready',
+            'market' => 'sometimes|nullable|string|max:100',
             'note' => 'sometimes|nullable|string|max:2000',
             'rendered_clips' => 'sometimes|nullable|array',
+            'items' => 'sometimes|array|min:1',
+            'items.*.clipId' => 'required_with:items|string',
+            'items.*.clipName' => 'required_with:items|string',
+            'items.*.slate' => 'required_with:items|string',
+            'items.*.category' => 'required_with:items|string',
+            'items.*.actor' => 'sometimes|string',
+            'items.*.copyKey' => 'sometimes|string',
+            'items.*.copyText' => 'sometimes|array',
+            'items.*.langs' => 'required_with:items|array|min:1',
+            'items.*.designs' => 'sometimes|array',
         ]);
 
-        $order->update($validated);
+        // Only allow item edits when not 'ready'
+        if ($request->has('items') && $order->status === 'ready') {
+            return response()->json(['message' => 'Cannot edit items on a ready order.'], 422);
+        }
+
+        \DB::transaction(function () use ($order, $validated) {
+            // Update order fields (exclude items)
+            $orderFields = collect($validated)->except('items')->toArray();
+            if (! empty($orderFields)) {
+                $order->update($orderFields);
+            }
+
+            // Replace items if provided
+            if (isset($validated['items'])) {
+                $order->items()->delete();
+                foreach ($validated['items'] as $itemData) {
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'clip_id' => $itemData['clipId'],
+                        'clip_name' => $itemData['clipName'],
+                        'slate' => $itemData['slate'],
+                        'category' => $itemData['category'],
+                        'actor' => $itemData['actor'] ?? '',
+                        'copy_key' => $itemData['copyKey'] ?? '',
+                        'copy_text' => $itemData['copyText'] ?? [],
+                        'langs' => $itemData['langs'],
+                        'designs' => $itemData['designs'] ?? [],
+                    ]);
+                }
+            }
+        });
 
         return response()->json($order->fresh()->load('items'));
     }

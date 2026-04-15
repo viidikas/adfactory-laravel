@@ -509,18 +509,24 @@ function buildOrderRows(order) {
         const design = designs.find(d => d.key === designKey);
         const designFmts = design ? design.fmts : formats.map(f => f.key);
         designFmts.forEach(fmtKey => {
-          const brand = item.copyText?.brand || 'Creditstar';
+          const brand = order.brand || 'Creditstar';
           const compKey = `${designKey}_${fmtKey}`;
           const target = (compNames[brand] && compNames[brand][compKey]) || '';
           const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
           const actorClean = (item.actor || '').replace(/\s+/g, '_');
           const catSlug = (item.category || '').replace(/\s+/g, '_');
-          const filename = [brand, item.slate, actorClean, designKey, fmtKey, lang].filter(Boolean).join('_');
-          const folderPath = [lang, brand, catSlug, actorClean, fmtKey].filter(Boolean).join('/');
+          const copySlug = (typeof slugifyCopy === 'function') ? slugifyCopy(headline) : headline.replace(/\s+/g, '_').slice(0, 18);
+          // Use persisted filename/folder convention from settings
+          const fnParts = (state.filenameParts || ['brand','slate','actor','design','format','lang']);
+          const fdParts = (state.folderParts || ['brand','category','copyslug','actor','format']);
+          const partMap = { brand, slate: item.slate, actor: actorClean, design: designKey, format: fmtKey, lang, category: catSlug, copyslug: copySlug };
+          const filename = fnParts.map(p => partMap[p] || '').filter(Boolean).join('_');
+          const folderPath = fdParts.map(p => partMap[p] || '').filter(Boolean).join('/');
           rows.push({
             line_nr: lineNr++,
             target,
             output: `${folderPath}/${filename}`,
+            ae_output_path: state.basePath ? `${state.basePath}/${folderPath}/${filename}.mp4` : `${folderPath}/${filename}.mp4`,
             aef_footage: item.clipName + '.mov',
             design: designKey,
             format: fmtKey,
@@ -575,6 +581,9 @@ function renderAFOrderDetail(order) {
 
   // Action buttons
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">`;
+  if (order.status !== 'ready') {
+    html += `<button class="btn btn-secondary btn-sm" onclick="editAFOrder('${esc(oid)}')">&#9998; Edit Order</button>`;
+  }
   if (order.status === 'pending') {
     html += `<button class="btn btn-blue btn-sm" onclick="setAFOrderStatus('${esc(oid)}','processing')">&#9654; Mark Processing</button>`;
   }
@@ -585,6 +594,9 @@ function renderAFOrderDetail(order) {
     html += `<button class="btn btn-ghost btn-sm" onclick="setAFOrderStatus('${esc(oid)}','processing')">&#8617; Reopen</button>`;
   }
   html += '</div>';
+
+  // Edit order panel (hidden by default)
+  html += `<div id="afo-edit-${esc(oid)}" style="display:none;"></div>`;
 
   // Stash rows for filtering/export
   if (!window._orderRowsCache) window._orderRowsCache = {};
@@ -697,7 +709,7 @@ function generateOrderCSV(orderId) {
         const design = designs.find(d => d.key === designKey);
         const designFmts = design ? design.fmts : formats.map(f => f.key);
         designFmts.forEach(fmtKey => {
-          const brand = item.copyText?.brand || 'Creditstar';
+          const brand = order.brand || 'Creditstar';
           const compKey = `${designKey}_${fmtKey}`;
           const target = (compNames[brand] && compNames[brand][compKey]) || '';
           const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
@@ -790,4 +802,153 @@ async function submitAFOrderReady(oid) {
     if (detail) detail.dataset.rendered = '';
     loadAFOrders();
   } catch(e) { toast('Failed: ' + e.message, true); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EDIT ORDER — inline editing of order items
+// ═══════════════════════════════════════════════════════════════
+let _editingOrder = null;
+let _editingItems = [];
+
+function editAFOrder(oid) {
+  const order = _afOrdersCache.find(o => o.id === oid);
+  if (!order) return;
+  _editingOrder = order;
+  _editingItems = JSON.parse(JSON.stringify(order.items)); // deep clone
+
+  const el = document.getElementById('afo-edit-' + oid);
+  if (!el) return;
+  el.style.display = 'block';
+  renderEditOrderPanel(oid);
+}
+
+function cancelEditOrder(oid) {
+  _editingOrder = null;
+  _editingItems = [];
+  const el = document.getElementById('afo-edit-' + oid);
+  if (el) el.style.display = 'none';
+}
+
+function renderEditOrderPanel(oid) {
+  const el = document.getElementById('afo-edit-' + oid);
+  if (!el) return;
+
+  const LANGS = ['EN','ET','DE','FR','ES'];
+  const designs = (typeof state !== 'undefined') ? state.designs : [];
+
+  // Calculate render rows
+  let totalRows = 0;
+  _editingItems.forEach(item => {
+    const itemDesigns = item.designs || [];
+    let fmtSlots = 0;
+    itemDesigns.forEach(dk => {
+      const d = designs.find(x => x.key === dk);
+      fmtSlots += d ? d.fmts.length : 4;
+    });
+    totalRows += fmtSlots * (item.langs || []).length;
+  });
+
+  let html = `<div style="margin-top:16px;padding:16px;background:var(--s2);border:1px solid var(--accent);border-radius:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;">Edit Order Items</div>
+      <span style="font-size:10px;color:var(--muted2);">${_editingItems.length} items · ${totalRows} render rows</span>
+    </div>`;
+
+  _editingItems.forEach((item, i) => {
+    html += `<div style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div><span style="color:var(--accent);font-weight:500;">${esc(item.slate)}</span> <span style="color:var(--text);">${esc(item.clipName)}</span> <span style="color:var(--muted);">· ${esc(item.actor||'')}</span></div>
+        <button style="background:none;border:none;color:var(--orange);cursor:pointer;font-size:11px;" onclick="removeEditItem(${i},'${esc(oid)}')">&#10005; Remove</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted2);margin-bottom:6px;">${esc(item.copyText?.en || item.copyKey || '—')}</div>
+      <div style="margin-bottom:6px;">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Languages</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          ${LANGS.map(l => {
+            const checked = (item.langs||[]).includes(l);
+            return `<label style="display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:3px;border:1px solid ${checked?'var(--blue)':'var(--border)'};background:${checked?'rgba(71,200,255,.1)':'var(--s2)'};color:${checked?'var(--blue)':'var(--muted2)'};font-size:9px;cursor:pointer;">
+              <input type="checkbox" ${checked?'checked':''} onchange="toggleEditLang(${i},'${l}','${esc(oid)}')" style="display:none;">
+              ${l}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Designs</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          ${designs.map(d => {
+            const checked = (item.designs||[]).includes(d.key);
+            return `<label style="display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:3px;border:1px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'rgba(232,255,71,.08)':'var(--s2)'};color:${checked?'var(--accent)':'var(--muted2)'};font-size:9px;cursor:pointer;">
+              <input type="checkbox" ${checked?'checked':''} onchange="toggleEditDesign(${i},'${esc(d.key)}','${esc(oid)}')" style="display:none;">
+              ${esc(d.key)}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += `<div style="display:flex;gap:8px;margin-top:12px;">
+    <button class="btn btn-primary btn-sm" onclick="saveEditOrder('${esc(oid)}')">Save Changes</button>
+    <button class="btn btn-ghost btn-sm" onclick="cancelEditOrder('${esc(oid)}')">Cancel</button>
+  </div></div>`;
+
+  el.innerHTML = html;
+}
+
+function toggleEditLang(itemIdx, lang, oid) {
+  const item = _editingItems[itemIdx];
+  if (!item) return;
+  const idx = (item.langs||[]).indexOf(lang);
+  if (idx >= 0) {
+    if (item.langs.length <= 1) { toast('At least one language required', true); return; }
+    item.langs.splice(idx, 1);
+  } else {
+    if (!item.langs) item.langs = [];
+    item.langs.push(lang);
+  }
+  renderEditOrderPanel(oid);
+}
+
+function toggleEditDesign(itemIdx, designKey, oid) {
+  const item = _editingItems[itemIdx];
+  if (!item) return;
+  if (!item.designs) item.designs = [];
+  const idx = item.designs.indexOf(designKey);
+  if (idx >= 0) {
+    item.designs.splice(idx, 1);
+  } else {
+    item.designs.push(designKey);
+  }
+  renderEditOrderPanel(oid);
+}
+
+function removeEditItem(itemIdx, oid) {
+  if (_editingItems.length <= 1) { toast('Order must have at least one item', true); return; }
+  _editingItems.splice(itemIdx, 1);
+  renderEditOrderPanel(oid);
+}
+
+async function saveEditOrder(oid) {
+  const order = _afOrdersCache.find(o => o.id === oid);
+  if (!order) return;
+
+  try {
+    const r = await fetch('/api/orders/' + oid, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ items: _editingItems })
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.message || 'Server error');
+    }
+    toast('Order updated');
+    cancelEditOrder(oid);
+    const detail = document.getElementById('afod-' + oid);
+    if (detail) detail.dataset.rendered = '';
+    loadAFOrders();
+  } catch(e) {
+    toast('Failed to save: ' + e.message, true);
+  }
 }
