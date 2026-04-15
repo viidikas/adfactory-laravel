@@ -60,6 +60,10 @@ class CopyLineController extends Controller
                 if ($brand === 'monefit') {
                     return $rowBrand === 'monefit' || $rowBrand === 'smartsaver';
                 }
+                // "Credistar" is a typo in the sheet — treat as Creditstar
+                if ($brand === 'creditstar') {
+                    return $rowBrand === 'creditstar' || $rowBrand === 'credistar';
+                }
 
                 return $brand === $rowBrand;
             }));
