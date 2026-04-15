@@ -116,6 +116,13 @@ function goView(view) {
   if (view === 'clips') { renderClipGrid(); loadProjects().then(updateProjectNav); }
   if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); }
   if (view === 'generate') {
+    // Load copy lines if not yet loaded (needed for brand→slate filtering)
+    if (typeof adminCopyLines !== 'undefined' && !adminCopyLines.length) {
+      fetch('/api/copy-lines').then(r => r.json()).then(data => {
+        if (Array.isArray(data)) adminCopyLines = data;
+        renderSlateFilter(); updateFilterSummary();
+      }).catch(() => {});
+    }
     syncCompNames(); updateFilterChips(); updateFilterSummary(); renderSlateFilter();
     renderCopySelector(); renderCopyOverrideFields(); renderCompNameFields();
     updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
@@ -491,15 +498,54 @@ function renderSlateFilter() {
   const el = document.getElementById('filter-slate');
   if (!el) return;
 
-  // Group SCENE_DATA by category, only show selected categories
-  const activeCats = state.filters.cat;
-  const scenes = SCENE_DATA.filter(s => activeCats.includes(s.category));
+  // Build allowed brand values from selected brands
+  const selectedBrands = state.filters.brand || [];
+  const allowedBrandValues = new Set();
+  selectedBrands.forEach(b => {
+    if (b === 'Creditstar') { allowedBrandValues.add('creditstar'); allowedBrandValues.add('credistar'); allowedBrandValues.add('either'); allowedBrandValues.add(''); }
+    if (b === 'Monefit') { allowedBrandValues.add('smartsaver'); allowedBrandValues.add('monefit'); allowedBrandValues.add('either'); allowedBrandValues.add(''); }
+  });
 
-  // On first render only (null-ish), default to all slates selected
+  // Get copy lines (from adminCopyLines or state.copyAssignments)
+  const copyLines = (typeof adminCopyLines !== 'undefined' && adminCopyLines.length) ? adminCopyLines : [];
+
+  // Determine which slates have copy for the selected brand(s)
+  const slatesWithBrandCopy = new Set();
+  const catsWithBrandCopy = new Set();
+  copyLines.forEach(row => {
+    const rowBrand = (row.brand || '').toLowerCase().trim();
+    if (!allowedBrandValues.has(rowBrand)) return;
+    const shot = (row.shot || '').trim();
+    if (shot) {
+      shot.split(/[\s,;]+/).forEach(s => { if (s) slatesWithBrandCopy.add(s.toUpperCase()); });
+    } else if (row.category) {
+      catsWithBrandCopy.add(row.category);
+    }
+  });
+
+  // Filter SCENE_DATA by active categories
+  const activeCats = state.filters.cat;
+  let scenes = SCENE_DATA.filter(s => activeCats.includes(s.category));
+
+  // Filter by brand: only show slates that have matching copy
+  if (selectedBrands.length && copyLines.length) {
+    scenes = scenes.filter(s =>
+      slatesWithBrandCopy.has(s.slate) || catsWithBrandCopy.has(s.category)
+    );
+  }
+
+  // If no brands selected, show no slates
+  if (!selectedBrands.length) scenes = [];
+
+  // On first render only, default to all visible slates selected
   if (state.filters._slateInitialised !== true) {
     state.filters.slate = scenes.map(s => s.slate);
     state.filters._slateInitialised = true;
   }
+
+  // Remove stale slates from selection that are no longer visible
+  const visibleSlates = new Set(scenes.map(s => s.slate));
+  state.filters.slate = state.filters.slate.filter(s => visibleSlates.has(s));
 
   // Group by category for visual separation
   const byCat = {};
