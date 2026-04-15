@@ -124,7 +124,11 @@ function goView(view) {
       }).catch(() => {});
     }
     syncCompNames(); updateFilterChips(); updateFilterSummary(); renderSlateFilter();
-    renderCompNameFields(); updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
+    renderCompNameFields();
+    // Populate input fields from persisted state
+    const bp = document.getElementById('base-path'); if (bp && state.basePath) bp.value = state.basePath;
+    const dps = document.getElementById('default-path-settings'); if (dps && state.basePath) dps.value = state.basePath;
+    updatePathPreview(); renderFilenameBuilder(); renderFolderBuilder();
     updateCopyStatusSummary();
   }
   if (view === 'preview') {
