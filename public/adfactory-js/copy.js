@@ -222,7 +222,7 @@ function formatAnalysis(parsed) {
 //  Matching rules:
 //  1. Shot column has slate codes (e.g. "PU1, PU7") → row applies to those slates only
 //  2. Shot column blank → row applies to entire category (fallback)
-//  3. Brand = "SmartSaver" → excluded entirely
+//  3. Brand = "SmartSaver" = Monefit (legacy name, included)
 //  4. Multiple rows can match the same slate — store ALL, user picks which to use
 // ═══════════════════════════════════════════════════════════════
 function slugifyCopy(en) {
@@ -254,8 +254,7 @@ function autoMapCopyToClips(copyRows) {
     const shot  = (row.shot || '').trim();
     const brand = (row.brand || '').toLowerCase();
 
-    // Rule 3: exclude SmartSaver
-    if (brand === 'smartsaver') return;
+    // SmartSaver = Monefit (legacy name in Google Sheet)
 
     const rowEntry = {
       key:      slugifyCopy(row.en) || row.key || '',

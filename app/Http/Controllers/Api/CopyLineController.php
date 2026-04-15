@@ -49,19 +49,19 @@ class CopyLineController extends Controller
     {
         $lines = $this->getParsedCopyLines();
 
-        // Brand filter: Creditstar includes "Either", Monefit includes "Either"
+        // Brand filter: SmartSaver = Monefit (legacy name, same product)
         if ($request->filled('brand')) {
-            $brand = $request->input('brand');
+            $brand = strtolower($request->input('brand'));
             $lines = array_values(array_filter($lines, function ($row) use ($brand) {
                 $rowBrand = strtolower(trim($row['brand'] ?? ''));
-                if ($rowBrand === 'smartsaver') {
-                    return false;
-                }
                 if ($rowBrand === '' || $rowBrand === 'either') {
                     return true;
                 }
+                if ($brand === 'monefit') {
+                    return $rowBrand === 'monefit' || $rowBrand === 'smartsaver';
+                }
 
-                return strtolower($brand) === $rowBrand;
+                return $brand === $rowBrand;
             }));
         }
 

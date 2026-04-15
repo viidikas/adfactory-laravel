@@ -85,7 +85,7 @@ CATEGORY SLUG MAPPING for slate codes:
 COPY MATCHING RULES:
 1. If a copy row's Shot column contains slate codes (e.g. "PU1, PU7, PU8") → that copy applies ONLY to those slates
 2. If Shot column is blank → copy applies to the entire category (fallback for any slate in that category without slate-specific copy)
-3. Rows where Brand = "SmartSaver" → EXCLUDE entirely
+3. "SmartSaver" brand = Monefit (legacy name) — include these rows
 4. Multiple copy rows can match the same slate — include ALL of them
 
 Respond ONLY with valid JSON (no preamble, no markdown fences):

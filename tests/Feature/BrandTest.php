@@ -57,11 +57,11 @@ class BrandTest extends TestCase
         $keys = collect($response->json())->pluck('key')->toArray();
         $this->assertContains('mf_only', $keys);
         $this->assertContains('either_copy', $keys);
+        $this->assertContains('ss_copy', $keys); // SmartSaver = Monefit
         $this->assertNotContains('cs_only', $keys);
-        $this->assertNotContains('ss_copy', $keys);
     }
 
-    public function test_copy_lines_no_brand_returns_all_except_smartsaver(): void
+    public function test_copy_lines_no_brand_returns_all(): void
     {
         $user = $this->createGrowthLead();
         $this->seedCopyLines();
@@ -73,8 +73,7 @@ class BrandTest extends TestCase
         $this->assertContains('cs_only', $keys);
         $this->assertContains('mf_only', $keys);
         $this->assertContains('either_copy', $keys);
-        // SmartSaver may or may not be in raw copy_lines — depends on whether sync excluded it
-        // The brand filter only applies when ?brand= is specified
+        $this->assertContains('ss_copy', $keys); // SmartSaver = Monefit, included
     }
 
     public function test_order_stores_brand(): void
