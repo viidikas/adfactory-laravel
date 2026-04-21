@@ -369,7 +369,8 @@ async function addAdminDesign() {
   for (const ratio of RATIOS) {
     const inp = document.getElementById(`new-design-img-${ratio}`);
     if (inp?.files?.[0]) {
-      images[ratio] = await fileToBase64(inp.files[0]);
+      const url = await uploadDesignImageFile(inp.files[0]);
+      if (url) images[ratio] = url;
     }
   }
 
@@ -395,31 +396,67 @@ async function replaceDesignImage(designIdx, ratio) {
   input.type = 'file'; input.accept = 'image/*';
   input.onchange = async () => {
     if (!input.files?.[0]) return;
-    const b64 = await fileToBase64(input.files[0]);
     if (!adminDesigns[designIdx]) return;
+    const url = await uploadDesignImageFile(input.files[0]);
+    if (!url) return;
+    const prevUrl = adminDesigns[designIdx].images?.[ratio];
     if (!adminDesigns[designIdx].images) adminDesigns[designIdx].images = {};
-    adminDesigns[designIdx].images[ratio] = b64;
+    adminDesigns[designIdx].images[ratio] = url;
     renderAdminDesigns(adminDesigns);
     toast(`✓ ${ratio} image updated`);
     if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
+    else if (prevUrl && prevUrl !== url) deleteDesignImage(prevUrl);
   };
   input.click();
 }
 
-function fileToBase64(file) {
-  return new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload  = e => res(e.target.result);
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
-  });
+// Upload a single image file to the active project; returns the public URL or null.
+async function uploadDesignImageFile(file) {
+  if (!activeProjectId) { toast('No active project', true); return null; }
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await fetch(`/api/projects/${activeProjectId}/designs/upload`, { method: 'POST', body: fd });
+    if (!r.ok) {
+      const text = await r.text();
+      console.error('Upload failed:', r.status, text);
+      toast(`Upload failed (${r.status})`, true);
+      return null;
+    }
+    const j = await r.json();
+    return j.url || null;
+  } catch (e) {
+    console.error('Upload error:', e);
+    toast('Upload error', true);
+    return null;
+  }
+}
+
+// Remove a previously-uploaded file from the server. Best-effort; ignores failures.
+async function deleteDesignImage(url) {
+  if (!activeProjectId || !url || !url.startsWith('/storage/')) return;
+  try {
+    await fetch(`/api/projects/${activeProjectId}/designs/image`, {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url })
+    });
+  } catch (e) { /* ignore */ }
 }
 
 async function removeAdminDesign(idx) {
+  const removed = adminDesigns[idx];
   adminDesigns.splice(idx, 1);
   renderAdminDesigns(adminDesigns);
   toast('✓ Design removed');
-  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
+  if (!await saveProjectDesigns()) {
+    toast('Warning: could not save to server', true);
+    return;
+  }
+  // Clean up the files that backed the removed design's images.
+  if (removed && removed.images) {
+    Object.values(removed.images).forEach(url => deleteDesignImage(url));
+  }
 }
 
 async function saveAdminConfig() {

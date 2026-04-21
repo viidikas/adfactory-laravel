@@ -54,6 +54,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
         Route::put('/projects/{project}/activate', [ProjectController::class, 'activate']);
         Route::put('/projects/{project}/designs', [ProjectController::class, 'updateDesigns']);
+        Route::post('/projects/{project}/designs/upload', [ProjectController::class, 'uploadDesignImage']);
+        Route::delete('/projects/{project}/designs/image', [ProjectController::class, 'deleteDesignImage']);
         Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
 
         Route::get('/users', [UserController::class, 'index']);

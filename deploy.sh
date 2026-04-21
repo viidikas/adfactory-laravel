@@ -10,6 +10,7 @@ ssh $SERVER "cd $REMOTE_DIR && \
   git pull origin main && \
   npm run build && \
   echo '{\"built\":\"'$(date +%Y-%m-%d_%H:%M:%S)'\"}' > public/version.json && \
+  php artisan storage:link --force && \
   php artisan config:cache && \
   php artisan route:cache && \
   echo 'Deployed: '$(cat public/version.json)"

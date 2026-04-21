@@ -7,6 +7,8 @@ use App\Models\Clip;
 use App\Models\Project;
 use App\Services\ClipParser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -125,6 +127,42 @@ class ProjectController extends Controller
         $project->update(['designs' => $request->input('designs', [])]);
 
         return response()->json(['ok' => true, 'count' => count($project->designs ?? [])]);
+    }
+
+    public function uploadDesignImage(Request $request, Project $project)
+    {
+        $request->validate([
+            'image' => 'required|image|max:10240',
+        ]);
+
+        $file = $request->file('image');
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'png');
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+        $filename = Str::random(16) . '.' . $ext;
+        $path = "designs/{$project->id}/{$filename}";
+
+        Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
+
+        return response()->json([
+            'url' => '/storage/' . $path,
+        ]);
+    }
+
+    public function deleteDesignImage(Request $request, Project $project)
+    {
+        $url = (string) $request->input('url', '');
+        // Only allow deletion of files we own: must match /storage/designs/{project_id}/<filename>
+        $prefix = "/storage/designs/{$project->id}/";
+        if (!str_starts_with($url, $prefix)) {
+            return response()->json(['ok' => false, 'error' => 'invalid url'], 422);
+        }
+        $relative = substr($url, strlen('/storage/'));
+        if (Storage::disk('public')->exists($relative)) {
+            Storage::disk('public')->delete($relative);
+        }
+        return response()->json(['ok' => true]);
     }
 
     public function destroy(Project $project)
