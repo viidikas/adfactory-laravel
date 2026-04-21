@@ -888,6 +888,29 @@ function _orderResizeEnd() {
   document.removeEventListener('mouseup', _orderResizeEnd);
 }
 
+// Per-day export counter (browser-local). Returns the next sequence number for
+// today and persists it, resetting automatically at midnight.
+function nextCsvExportSeq(dateKey) {
+  const raw = localStorage.getItem('csv_export_seq') || '';
+  const [storedDate, storedN] = raw.split('|');
+  const n = (storedDate === dateKey) ? (parseInt(storedN, 10) || 0) + 1 : 1;
+  localStorage.setItem('csv_export_seq', `${dateKey}|${n}`);
+  return n;
+}
+
+function buildCsvExportFilename(now = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const mm   = pad(now.getMonth() + 1);
+  const dd   = pad(now.getDate());
+  const HH   = pad(now.getHours());
+  const MM   = pad(now.getMinutes());
+  const SS   = pad(now.getSeconds());
+  const dateKey = `${yyyy}_${mm}_${dd}`;
+  const seq = nextCsvExportSeq(dateKey);
+  return `${dateKey}_${HH}:${MM}:${SS}_${seq}.csv`;
+}
+
 function generateOrderCSV(orderId) {
   const order = _afOrdersCache.find(o => o.id === orderId);
   if (!order) { toast('Order not found', true); return; }
@@ -903,9 +926,10 @@ function generateOrderCSV(orderId) {
   const blob = new Blob([csv], {type:'text/csv'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href = url; a.download = `order_${orderId}_templater.csv`;
+  const filename = buildCsvExportFilename();
+  a.href = url; a.download = filename;
   a.click(); URL.revokeObjectURL(url);
-  toast(`Downloaded Templater CSV for order ${orderId} (${rows.length} rows)`);
+  toast(`Downloaded ${filename} (${rows.length} rows)`);
 }
 
 async function setAFOrderStatus(oid, status) {
