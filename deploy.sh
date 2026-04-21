@@ -11,6 +11,7 @@ ssh $SERVER "cd $REMOTE_DIR && \
   npm run build && \
   echo '{\"built\":\"'$(date +%Y-%m-%d_%H:%M:%S)'\"}' > public/version.json && \
   php artisan storage:link --force && \
+  sudo chown -R www-data:www-data storage bootstrap/cache && \
   php artisan config:cache && \
   php artisan route:cache && \
   echo 'Deployed: '$(cat public/version.json)"

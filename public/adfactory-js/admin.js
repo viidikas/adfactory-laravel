@@ -308,12 +308,28 @@ function renderAdminDesignCard(d, i) {
           return `<div style="text-align:center;">
             <div style="font-size:8px;color:var(--muted);margin-bottom:3px;">${ratio}</div>
             ${img
-              ? `<img src="${img}" style="width:100%;border-radius:4px;border:1px solid var(--border);object-fit:cover;aspect-ratio:${ratio.replace('x','/')};cursor:pointer;" title="Click to replace" onclick="replaceDesignImage(${i},'${ratio}')">`
-              : `<div style="aspect-ratio:${ratio.replace('x','/')};background:var(--s3);border:1px dashed var(--border2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;color:var(--muted);" onclick="replaceDesignImage(${i},'${ratio}')">+ Add</div>`}
+              ? `<img src="${esc(img)}" title="Click to preview" onclick="previewAdminImg('${esc(img)}')"
+                    style="width:100%;border-radius:4px;border:1px solid var(--border);object-fit:cover;aspect-ratio:${ratio.replace('x','/')};cursor:zoom-in;display:block;">
+                 <button onclick="replaceDesignImage(${i},'${ratio}')" title="Replace image"
+                    style="margin-top:4px;width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:3px;color:var(--muted);padding:3px 4px;font-size:8px;cursor:pointer;">&#8593; Replace</button>`
+              : `<div onclick="replaceDesignImage(${i},'${ratio}')"
+                    style="aspect-ratio:${ratio.replace('x','/')};background:var(--s3);border:1px dashed var(--border2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;color:var(--muted);">+ Add</div>`}
           </div>`;
         }).join('')}
       </div>
     </div>`;
+}
+
+function previewAdminImg(src) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:20px;';
+  ov.innerHTML = `<img src="${src}" style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);">`;
+  const close = () => { if (ov.parentNode) document.body.removeChild(ov); };
+  ov.onclick = close;
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+  document.body.appendChild(ov);
 }
 
 function toggleAdminDesignAccordion(brand) {

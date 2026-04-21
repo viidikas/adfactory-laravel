@@ -160,8 +160,14 @@ class ProjectController extends Controller
         $filename = Str::random(16) . '.' . $ext;
         $dir = "designs/{$project->id}";
 
-        // Streamed move from the tmp upload to the public disk — no full load into memory.
-        $file->storeAs($dir, $filename, 'public');
+        // Streamed move from the tmp upload to the public disk.
+        $stored = $file->storeAs($dir, $filename, 'public');
+        if ($stored === false || !Storage::disk('public')->exists("{$dir}/{$filename}")) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Storage write failed — check ownership/permissions on storage/app/public.',
+            ], 500);
+        }
 
         return response()->json([
             'url' => '/storage/' . $dir . '/' . $filename,
