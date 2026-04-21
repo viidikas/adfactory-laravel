@@ -255,7 +255,7 @@ export default {
 
       <div class="card"><div class="card-title">&#128193; Output Path</div><div class="card-sub">Set this to match Templater's Destination folder.</div><div class="input-row" style="margin-bottom:10px;"><label>Base folder</label><input type="text" id="base-path" placeholder="/path/to/output" oninput="updatePathPreview()" onblur="state.basePath=this.value.trim();autoSaveState();"></div><div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">Subfolder structure &mdash; drag to reorder</div><div class="fn-builder" id="folder-builder"></div><div class="fn-part-pool" id="folder-pool"></div><div class="fn-preview" id="path-preview" style="margin-top:10px;"></div></div>
       <div class="card"><div class="card-title">&#127991;&#65039; Filename Convention</div><div class="card-sub">Drag parts to reorder. Parts are joined with underscores.</div><div class="fn-builder" id="fn-builder"></div><div class="fn-part-pool" id="fn-pool"></div><div class="fn-preview" id="fn-preview"></div></div>
-      <div class="card"><div class="card-title">&#127908; AE Composition Names</div><div class="card-sub">Map each design + format to an exact AE comp name.</div><div id="comp-name-fields"></div><button class="btn btn-secondary btn-sm" onclick="addCompNameRow()" style="margin-top:10px;">+ Add comp</button></div>
+      <div class="card"><div class="card-title">&#127908; AE Composition Names</div><div class="card-sub">Map each design + format to an exact AE comp name. Pick a language tab per brand — the language you select when generating picks the matching comp.</div><div id="comp-name-fields"></div></div>
 
     </div>
 

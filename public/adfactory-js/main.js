@@ -25,6 +25,7 @@ async function init() {
     if (cfg.templater_designs?.length) state.designs = cfg.templater_designs;
     if (cfg.templater_formats?.length) state.formats = cfg.templater_formats;
     if (cfg.templater_comp_names && Object.keys(cfg.templater_comp_names).length) state.compNames = cfg.templater_comp_names;
+    migrateCompNames();
     if (cfg.base_output_path) state.basePath = cfg.base_output_path;
     if (cfg.filename_parts?.length) state.filenameParts = cfg.filename_parts;
     if (cfg.folder_parts?.length) state.folderParts = cfg.folder_parts;
@@ -664,14 +665,23 @@ function renderCopyOverrideFields() {
 //  COMP NAME FIELDS — dynamic add/remove
 // ═══════════════════════════════════════════════════════════════
 function renderCompNameFields() {
-  const activeBrands = state.filters.brand.length ? state.filters.brand : ['Creditstar'];
+  migrateCompNames();
   const PREFIX = { Creditstar:'CS', Monefit:'MF' };
 
-  // Build tab UI — one section per selected brand
-  const sections = activeBrands.map(brand => {
-    const brandComps = state.compNames[brand] || {};
+  const sections = COMP_BRANDS.map(brand => {
+    const activeLang = state.compNameLang[brand] || 'EN';
+    const brandComps = (state.compNames[brand] && state.compNames[brand][activeLang]) || {};
     const entries = Object.entries(brandComps);
     const color = brand === 'Creditstar' ? 'var(--orange)' : 'var(--blue)';
+
+    const langTabs = COMP_LANGS.map(lg => {
+      const active = lg === activeLang;
+      const bg = active ? color : 'transparent';
+      const fg = active ? '#0e1117' : 'var(--muted)';
+      const bd = active ? color : 'var(--border)';
+      return `<button type="button" onclick="setCompNameLang('${esc(brand)}','${lg}')"
+        style="background:${bg};border:1px solid ${bd};color:${fg};padding:4px 10px;border-radius:5px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;letter-spacing:.5px;transition:all .15s;">${lg}</button>`;
+    }).join('');
 
     const rows = entries.map(([k, v]) => `
       <div style="display:grid;grid-template-columns:9px 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:5px;" class="comp-row">
@@ -682,7 +692,7 @@ function renderCompNameFields() {
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         <input type="text" value="${esc(v)}"
           style="background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 10px;font-family:'DM Mono',monospace;font-size:10px;outline:none;"
-          oninput="state.compNames['${esc(brand)}']['${esc(k)}']=this.value"
+          oninput="state.compNames['${esc(brand)}']['${activeLang}']['${esc(k)}']=this.value"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         <button onclick="removeCompNameRow('${esc(brand)}','${esc(k)}')"
           style="width:26px;height:26px;border-radius:4px;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;"
@@ -690,60 +700,78 @@ function renderCompNameFields() {
           onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">−</button>
       </div>`).join('');
 
+    const emptyHint = entries.length ? '' : `
+      <div style="font-size:10px;color:var(--muted);padding:8px 0;">No comps for ${activeLang} yet — use + Add Comp below.</div>`;
+
     return `
       <div style="margin-bottom:18px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
           <div style="width:8px;height:8px;border-radius:50%;background:${color};"></div>
           <span style="font-size:10px;font-weight:500;color:${color};text-transform:uppercase;letter-spacing:.8px;">${brand}</span>
           <span style="font-size:9px;color:var(--muted);">— prefix: TEMPLATE_${PREFIX[brand]}_</span>
+          <div style="flex:1;"></div>
+          <div style="display:flex;gap:4px;">${langTabs}</div>
         </div>
         <div style="display:grid;grid-template-columns:9px 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:5px;">
           <div></div>
           <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">Key (design_format)</div>
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">AE Comp Name</div>
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">AE Comp Name (${activeLang})</div>
           <div></div>
         </div>
         ${rows}
+        ${emptyHint}
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addCompNameRow('${esc(brand)}')" style="margin-top:8px;">+ Add ${brand} ${activeLang} comp</button>
       </div>`;
   }).join('<div style="height:1px;background:var(--border);margin:14px 0;"></div>');
 
   document.getElementById('comp-name-fields').innerHTML = sections;
 }
 
-function addCompNameRow() {
-  const activeBrands = state.filters.brand.length ? state.filters.brand : ['Creditstar'];
-  activeBrands.forEach(brand => {
-    if (!state.compNames[brand]) state.compNames[brand] = {};
+function setCompNameLang(brand, lang) {
+  if (!COMP_LANGS.includes(lang)) return;
+  state.compNameLang[brand] = lang;
+  renderCompNameFields();
+}
+
+function addCompNameRow(brand) {
+  migrateCompNames();
+  // If called without brand (legacy button), add to whichever brand is active in filters (or both)
+  const brands = brand ? [brand] : (state.filters.brand.length ? state.filters.brand : ['Creditstar']);
+  brands.forEach(b => {
+    const lang = state.compNameLang[b] || 'EN';
+    if (!state.compNames[b][lang]) state.compNames[b][lang] = {};
     let newKey = null;
     for (const d of state.designs) {
       for (const fmt of state.formats.map(f => f.key)) {
         const k = `${d.key}_${fmt}`;
-        if (!state.compNames[brand].hasOwnProperty(k)) { newKey = k; break; }
+        if (!state.compNames[b][lang].hasOwnProperty(k)) { newKey = k; break; }
       }
       if (newKey) break;
     }
     if (!newKey) newKey = `custom_${Date.now()}`;
-    state.compNames[brand][newKey] = '';
+    state.compNames[b][lang][newKey] = '';
   });
   renderCompNameFields();
 }
 
 function removeCompNameRow(brand, key) {
-  if (state.compNames[brand]) delete state.compNames[brand][key];
+  const lang = state.compNameLang[brand] || 'EN';
+  if (state.compNames[brand] && state.compNames[brand][lang]) delete state.compNames[brand][lang][key];
   renderCompNameFields();
 }
 
 function renameCompKey(brand, oldKey, newKey) {
   newKey = newKey.trim();
-  if (!newKey || newKey === oldKey || !state.compNames[brand]) return;
-  if (state.compNames[brand][newKey] !== undefined) {
-    toast('Key already exists for ' + brand, true);
+  const lang = state.compNameLang[brand] || 'EN';
+  const bucket = state.compNames[brand] && state.compNames[brand][lang];
+  if (!newKey || newKey === oldKey || !bucket) return;
+  if (bucket[newKey] !== undefined) {
+    toast('Key already exists for ' + brand + ' ' + lang, true);
     renderCompNameFields();
     return;
   }
-  const val = state.compNames[brand][oldKey];
-  delete state.compNames[brand][oldKey];
-  state.compNames[brand][newKey] = val;
+  bucket[newKey] = bucket[oldKey];
+  delete bucket[oldKey];
   renderCompNameFields();
 }
 
@@ -1269,7 +1297,7 @@ function syncFiltersFromDesigns() {
 }
 
 function syncCompNames() {
-  const BRANDS = ['Creditstar','Monefit'];
+  migrateCompNames();
   const PREFIX = { Creditstar:'CS', Monefit:'MF' };
 
   // Format key → AE label mapping (must match exactly what's in AE)
@@ -1281,20 +1309,25 @@ function syncCompNames() {
     '4x5v2': '4x5',
   };
 
-  BRANDS.forEach(brand => {
-    if (!state.compNames[brand]) state.compNames[brand] = {};
-    state.designs.forEach(d => {
-      d.fmts.forEach(fmt => {
-        const key = `${d.key}_${fmt}`;
-        // Always overwrite with correct format — ensures AE names stay accurate
-        const shortDesign = d.key.replace('design','d');
-        const fmtLabel = FMT_LABEL[fmt] || fmt;
-        state.compNames[brand][key] = `TEMPLATE_${PREFIX[brand]}_${fmtLabel} ${shortDesign}`;
+  const validKeys = new Set(state.designs.flatMap(d => d.fmts.map(f => `${d.key}_${f}`)));
+
+  COMP_BRANDS.forEach(brand => {
+    COMP_LANGS.forEach(lang => {
+      if (!state.compNames[brand][lang]) state.compNames[brand][lang] = {};
+      state.designs.forEach(d => {
+        d.fmts.forEach(fmt => {
+          const key = `${d.key}_${fmt}`;
+          if (state.compNames[brand][lang][key]) return; // preserve user edits
+          const shortDesign = d.key.replace('design','d');
+          const fmtLabel = FMT_LABEL[fmt] || fmt;
+          state.compNames[brand][lang][key] = `TEMPLATE_${PREFIX[brand]}_${fmtLabel} ${shortDesign} ${lang}`;
+        });
+      });
+      // Remove orphaned entries (design/format deleted)
+      Object.keys(state.compNames[brand][lang]).forEach(k => {
+        if (!validKeys.has(k)) delete state.compNames[brand][lang][k];
       });
     });
-    // Remove orphaned entries
-    const validKeys = new Set(state.designs.flatMap(d => d.fmts.map(f => `${d.key}_${f}`)));
-    Object.keys(state.compNames[brand]).forEach(k => { if (!validKeys.has(k)) delete state.compNames[brand][k]; });
   });
 }
 

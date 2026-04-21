@@ -70,9 +70,11 @@ function buildPreviewTable() {
           for (const brand of f.brand) {
             const compKey   = `${design}_${fmt}`;
             const brandComps = state.compNames[brand] || {};
+            const langBucket = (brandComps && typeof brandComps === 'object') ? (brandComps[lang] || brandComps.EN) : null;
+            const legacyVal  = (brandComps && typeof brandComps[compKey] === 'string') ? brandComps[compKey] : null;
             const shortDesign = design.replace('design','d');
             const fmtLabel  = ({'16x9':'16x9','1x1':'1x1','9x16':'9x16','4x5v1':'4x5','4x5v2':'4x5'}[fmt]||fmt);
-            const compName  = brandComps[compKey] || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign}`;
+            const compName  = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign} ${lang}`;
             const copy      = getCopy(clip, brand, lang);
             if (!copy) continue; // omit rows with no copy assigned
             const actorClean = (clip.actor||'').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
@@ -406,10 +408,12 @@ async function generateSheet() {
           for (const brand of f.brand) {
             const compKey = `${design}_${fmt}`;
             const brandComps = state.compNames[brand] || {};
+            const langBucket = (brandComps && typeof brandComps === 'object') ? (brandComps[lang] || brandComps.EN) : null;
+            const legacyVal  = (brandComps && typeof brandComps[compKey] === 'string') ? brandComps[compKey] : null;
             const shortDesign = design.replace('design','d');
             const fmtLabel = ({'16x9':'16x9','1x1':'1x1','9x16':'9x16','4x5v1':'4x5','4x5v2':'4x5'}[fmt]||fmt);
             const PREFIX = { Creditstar:'CS', Monefit:'MF' };
-            const compName = brandComps[compKey] || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign}`;
+            const compName = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign} ${lang}`;
 
             // Get copy: copy filter override > slate assignment > sheet copy > empty
             let copy;

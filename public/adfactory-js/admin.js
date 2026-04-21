@@ -45,11 +45,15 @@ function addDesign() {
 function removeDesign(i) {
   const key = state.designs[i].key;
   state.designs.splice(i, 1);
-  // Remove compNames for this design across all brands
+  // Remove compNames for this design across all brands × languages
   Object.keys(state.compNames).forEach(brand => {
-    if (typeof state.compNames[brand] === 'object') {
-      Object.keys(state.compNames[brand]).forEach(k => { if (k.startsWith(key + '_')) delete state.compNames[brand][k]; });
-    }
+    const brandBucket = state.compNames[brand];
+    if (!brandBucket || typeof brandBucket !== 'object') return;
+    Object.keys(brandBucket).forEach(lang => {
+      const langBucket = brandBucket[lang];
+      if (!langBucket || typeof langBucket !== 'object') return;
+      Object.keys(langBucket).forEach(k => { if (k.startsWith(key + '_')) delete langBucket[k]; });
+    });
   });
   state.filters.design = state.filters.design.filter(d => d !== key);
   syncFiltersFromDesigns();
@@ -64,14 +68,19 @@ function renameDesignKey(i, newKey) {
   newKey = newKey.trim();
   const oldKey = state.designs[i].key;
   if (!newKey || newKey === oldKey) return;
-  // Rename in compNames across all brands
+  // Rename in compNames across all brands × languages
   Object.keys(state.compNames).forEach(brand => {
-    if (typeof state.compNames[brand] !== 'object') return;
-    const renames = {};
-    Object.entries(state.compNames[brand]).forEach(([k, v]) => {
-      renames[k.startsWith(oldKey + '_') ? newKey + k.slice(oldKey.length) : k] = v;
+    const brandBucket = state.compNames[brand];
+    if (!brandBucket || typeof brandBucket !== 'object') return;
+    Object.keys(brandBucket).forEach(lang => {
+      const langBucket = brandBucket[lang];
+      if (!langBucket || typeof langBucket !== 'object') return;
+      const renames = {};
+      Object.entries(langBucket).forEach(([k, v]) => {
+        renames[k.startsWith(oldKey + '_') ? newKey + k.slice(oldKey.length) : k] = v;
+      });
+      brandBucket[lang] = renames;
     });
-    state.compNames[brand] = renames;
   });
   // Rename in filters
   state.filters.design = state.filters.design.map(d => d === oldKey ? newKey : d);
@@ -140,11 +149,15 @@ function removeFormat(i) {
   state.formats.splice(i, 1);
   // Remove from all designs
   state.designs.forEach(d => { d.fmts = d.fmts.filter(f => f !== key); });
-  // Remove from compNames across all brands
+  // Remove from compNames across all brands × languages
   Object.keys(state.compNames).forEach(brand => {
-    if (typeof state.compNames[brand] === 'object') {
-      Object.keys(state.compNames[brand]).forEach(k => { if (k.endsWith('_' + key)) delete state.compNames[brand][k]; });
-    }
+    const brandBucket = state.compNames[brand];
+    if (!brandBucket || typeof brandBucket !== 'object') return;
+    Object.keys(brandBucket).forEach(lang => {
+      const langBucket = brandBucket[lang];
+      if (!langBucket || typeof langBucket !== 'object') return;
+      Object.keys(langBucket).forEach(k => { if (k.endsWith('_' + key)) delete langBucket[k]; });
+    });
   });
   state.filters.fmt = state.filters.fmt.filter(f => f !== key);
   renderFormatsList();
@@ -160,14 +173,19 @@ function renameFormatKey(i, newKey) {
   if (!newKey || newKey === oldKey) return;
   // Rename in designs
   state.designs.forEach(d => { d.fmts = d.fmts.map(f => f === oldKey ? newKey : f); });
-  // Rename in compNames across all brands
+  // Rename in compNames across all brands × languages
   Object.keys(state.compNames).forEach(brand => {
-    if (typeof state.compNames[brand] !== 'object') return;
-    const renames = {};
-    Object.entries(state.compNames[brand]).forEach(([k, v]) => {
-      renames[k.endsWith('_' + oldKey) ? k.slice(0, -(oldKey.length)) + newKey : k] = v;
+    const brandBucket = state.compNames[brand];
+    if (!brandBucket || typeof brandBucket !== 'object') return;
+    Object.keys(brandBucket).forEach(lang => {
+      const langBucket = brandBucket[lang];
+      if (!langBucket || typeof langBucket !== 'object') return;
+      const renames = {};
+      Object.entries(langBucket).forEach(([k, v]) => {
+        renames[k.endsWith('_' + oldKey) ? k.slice(0, -(oldKey.length)) + newKey : k] = v;
+      });
+      brandBucket[lang] = renames;
     });
-    state.compNames[brand] = renames;
   });
   state.filters.fmt = state.filters.fmt.map(f => f === oldKey ? newKey : f);
   state.formats[i].key = newKey;
@@ -518,7 +536,10 @@ function buildOrderRows(order) {
           const PREFIX = { Creditstar:'CS', Monefit:'MF' };
           const shortDesign = designKey.replace('design','d');
           const fmtLabel = ({'16x9':'16x9','1x1':'1x1','9x16':'9x16','4x5v1':'4x5','4x5v2':'4x5'}[fmtKey]||fmtKey);
-          const target = (compNames[brand] && compNames[brand][compKey]) || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign}`;
+          const brandBucket = compNames[brand];
+          const langBucket  = (brandBucket && typeof brandBucket === 'object') ? (brandBucket[lang] || brandBucket.EN) : null;
+          const legacyVal   = (brandBucket && typeof brandBucket[compKey] === 'string') ? brandBucket[compKey] : null; // pre-migration shape
+          const target = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign} ${lang}`;
           const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
           const actorClean = (item.actor || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
           const catSlug = (item.category || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');

@@ -37,10 +37,37 @@ let state = {
   ],
   copyOverride: { EN:'', ET:'', DE:'', FR:'', ES:'' },
   basePath: '',
+  // compNames: { Creditstar: { EN: { 'design1_16x9': 'TEMPLATE_CS_16x9 d1 EN', ... }, ET: {...}, ... }, Monefit: {...} }
   compNames: {},
+  // Which language tab is active in the Comp Names editor, per brand (UI only — not persisted)
+  compNameLang: { Creditstar: 'EN', Monefit: 'EN' },
   generatedRows: [],
   currentView: 'orders',
 };
+
+const COMP_LANGS = ['EN','ET','DE','FR','ES'];
+const COMP_BRANDS = ['Creditstar','Monefit'];
+
+// Migrate legacy flat shape { brand: { key: val } } → { brand: { EN: { key: val } } }
+function migrateCompNames() {
+  COMP_BRANDS.forEach(brand => {
+    const b = state.compNames[brand];
+    if (!b || typeof b !== 'object') { state.compNames[brand] = {}; return; }
+    const keys = Object.keys(b);
+    const alreadyNested = keys.length && keys.every(k => COMP_LANGS.includes(k));
+    if (alreadyNested) return;
+    // Flat shape — wrap under EN
+    const flat = { ...b };
+    state.compNames[brand] = { EN: flat };
+  });
+  // Ensure every brand/lang bucket exists
+  COMP_BRANDS.forEach(brand => {
+    if (!state.compNames[brand]) state.compNames[brand] = {};
+    COMP_LANGS.forEach(lang => {
+      if (!state.compNames[brand][lang]) state.compNames[brand][lang] = {};
+    });
+  });
+}
 
 function getDesignFmts(designKey) {
   const d = state.designs.find(x => x.key === designKey);
