@@ -250,29 +250,57 @@ async function saveProjectDesigns() {
 function renderAdminDesigns(designs) {
   const el = document.getElementById('admin-designs-list');
   if (!el) return;
-  if (!designs.length) {
-    el.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px 0;">No designs added yet.</div>';
-    return;
-  }
-  const RATIOS = ['16x9','1x1','9x16','4x5'];
-  const brandStyle = brand => brand === 'Monefit'
-    ? 'background:rgba(71,200,255,.15);color:var(--blue);border:1px solid rgba(71,200,255,.35);'
-    : 'background:rgba(232,255,71,.15);color:var(--accent);border:1px solid rgba(232,255,71,.35);';
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,360px));gap:12px;">` + designs.map((d, i) => {
+
+  // Group designs by brand, preserving original indices so edits target the right object.
+  const groups = { Creditstar: [], Monefit: [] };
+  (designs || []).forEach((d, i) => {
     const brand = d.brand || 'Creditstar';
-    const otherBrand = brand === 'Monefit' ? 'Creditstar' : 'Monefit';
+    if (!groups[brand]) groups[brand] = [];
+    groups[brand].push({ d, i });
+  });
+
+  const openState = (() => {
+    try { return JSON.parse(localStorage.getItem('admin_design_accordion') || '{"Creditstar":true,"Monefit":true}'); }
+    catch { return { Creditstar: true, Monefit: true }; }
+  })();
+
+  el.innerHTML = ['Creditstar', 'Monefit'].map(brand => {
+    const items = groups[brand] || [];
+    const open = openState[brand] !== false;
+    const accent = brand === 'Monefit' ? 'var(--blue)' : 'var(--accent)';
+    const badgeStyle = brand === 'Monefit'
+      ? 'background:rgba(71,200,255,.15);color:var(--blue);border:1px solid rgba(71,200,255,.35);'
+      : 'background:rgba(232,255,71,.15);color:var(--accent);border:1px solid rgba(232,255,71,.35);';
+    const body = items.length
+      ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,360px));gap:12px;">${items.map(({d, i}) => renderAdminDesignCard(d, i)).join('')}</div>`
+      : `<div style="font-size:10px;color:var(--muted);padding:6px 0;">No ${brand} designs yet.</div>`;
     return `
+      <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div onclick="toggleAdminDesignAccordion('${brand}')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--s2);user-select:none;">
+          <span style="font-size:10px;color:var(--muted);display:inline-block;transition:transform .2s;transform:rotate(${open?90:0}deg);">&#9654;</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:${accent};letter-spacing:.6px;">${brand.toUpperCase()}</span>
+          <span style="font-size:9px;padding:2px 7px;border-radius:3px;font-weight:600;${badgeStyle}">${items.length} design${items.length!==1?'s':''}</span>
+        </div>
+        <div style="display:${open?'block':'none'};padding:12px;background:var(--s1,transparent);">${body}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderAdminDesignCard(d, i) {
+  const RATIOS = ['16x9','1x1','9x16','4x5'];
+  const brand = d.brand || 'Creditstar';
+  const otherBrand = brand === 'Monefit' ? 'Creditstar' : 'Monefit';
+  return `
     <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">
-          <span style="font-size:9px;padding:2px 7px;border-radius:3px;font-weight:600;letter-spacing:.4px;${brandStyle(brand)}">${esc(brand)}</span>
-          <span style="font-size:11px;color:var(--accent);font-weight:500;">${esc(d.key||d)}</span>
-          ${d.label?`<span style="font-size:10px;color:var(--muted2);">${esc(d.label)}</span>`:''}
-        </div>
-        <div style="display:flex;gap:4px;">
-          <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:9px;color:var(--muted);" title="Switch brand" onclick="setAdminDesignBrand(${i},'${otherBrand}')">&#8644; ${esc(otherBrand)}</button>
-          <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:9px;color:var(--orange);" onclick="removeAdminDesign(${i})">&#10005;</button>
-        </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <input type="text" value="${esc(d.key||'')}" title="Key" placeholder="key"
+          onchange="updateAdminDesignKey(${i}, this.value)"
+          style="background:var(--s3);border:1px solid var(--border2);border-radius:4px;color:var(--accent);padding:4px 8px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:110px;">
+        <input type="text" value="${esc(d.label||'')}" title="Label" placeholder="label"
+          onchange="updateAdminDesignLabel(${i}, this.value)"
+          style="background:var(--s3);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:4px 8px;font-size:10px;outline:none;flex:1;min-width:0;">
+        <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:9px;color:var(--muted);white-space:nowrap;" title="Move to ${otherBrand}" onclick="setAdminDesignBrand(${i},'${otherBrand}')">&#8644; ${esc(otherBrand)}</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:11px;color:var(--orange);" title="Remove design" onclick="removeAdminDesign(${i})">&#10005;</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
         ${RATIOS.map(ratio => {
@@ -286,7 +314,15 @@ function renderAdminDesigns(designs) {
         }).join('')}
       </div>
     </div>`;
-  }).join('') + `</div>`;
+}
+
+function toggleAdminDesignAccordion(brand) {
+  let s;
+  try { s = JSON.parse(localStorage.getItem('admin_design_accordion') || '{}'); }
+  catch { s = {}; }
+  s[brand] = s[brand] === false ? true : false;
+  localStorage.setItem('admin_design_accordion', JSON.stringify(s));
+  renderAdminDesigns(adminDesigns);
 }
 
 async function setAdminDesignBrand(idx, brand) {
@@ -294,6 +330,29 @@ async function setAdminDesignBrand(idx, brand) {
   adminDesigns[idx].brand = brand;
   renderAdminDesigns(adminDesigns);
   toast(`✓ Brand set to ${brand}`);
+  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
+}
+
+async function updateAdminDesignKey(idx, newKey) {
+  newKey = (newKey || '').trim();
+  if (!adminDesigns[idx]) return;
+  if (!newKey) { toast('Key cannot be empty', true); renderAdminDesigns(adminDesigns); return; }
+  if (newKey === adminDesigns[idx].key) return;
+  if (adminDesigns.some((d, i) => i !== idx && (d.key || d) === newKey)) {
+    toast('Design key already exists', true);
+    renderAdminDesigns(adminDesigns);
+    return;
+  }
+  adminDesigns[idx].key = newKey;
+  toast(`✓ Key updated to "${newKey}"`);
+  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
+}
+
+async function updateAdminDesignLabel(idx, newLabel) {
+  if (!adminDesigns[idx]) return;
+  const trimmed = (newLabel || '').trim();
+  if (trimmed === (adminDesigns[idx].label || '')) return;
+  adminDesigns[idx].label = trimmed;
   if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
 }
 
