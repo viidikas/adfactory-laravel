@@ -898,7 +898,7 @@ function nextCsvExportSeq(dateKey) {
   return n;
 }
 
-function buildCsvExportFilename(now = new Date()) {
+function buildCsvExportFilename(userName = '', now = new Date()) {
   const pad = n => String(n).padStart(2, '0');
   const yyyy = now.getFullYear();
   const mm   = pad(now.getMonth() + 1);
@@ -908,7 +908,13 @@ function buildCsvExportFilename(now = new Date()) {
   const SS   = pad(now.getSeconds());
   const dateKey = `${yyyy}_${mm}_${dd}`;
   const seq = nextCsvExportSeq(dateKey);
-  return `${dateKey}_${HH}-${MM}-${SS}_${seq}.csv`;
+  // Sanitize the name to be filesystem-safe across macOS / Linux / Windows.
+  const nameSlug = String(userName || 'unknown')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_.-]/g, '')
+    .slice(0, 40) || 'unknown';
+  return `order_${nameSlug}_${dateKey}_${HH}-${MM}-${SS}_${seq}.csv`;
 }
 
 function generateOrderCSV(orderId) {
@@ -926,7 +932,7 @@ function generateOrderCSV(orderId) {
   const blob = new Blob([csv], {type:'text/csv'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  const filename = buildCsvExportFilename();
+  const filename = buildCsvExportFilename(order.user_name);
   a.href = url; a.download = filename;
   a.click(); URL.revokeObjectURL(url);
   toast(`Downloaded ${filename} (${rows.length} rows)`);
