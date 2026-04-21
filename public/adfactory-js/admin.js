@@ -908,7 +908,7 @@ function buildCsvExportFilename(now = new Date()) {
   const SS   = pad(now.getSeconds());
   const dateKey = `${yyyy}_${mm}_${dd}`;
   const seq = nextCsvExportSeq(dateKey);
-  return `${dateKey}_${HH}:${MM}:${SS}_${seq}.csv`;
+  return `${dateKey}_${HH}-${MM}-${SS}_${seq}.csv`;
 }
 
 function generateOrderCSV(orderId) {
