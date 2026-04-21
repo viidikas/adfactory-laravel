@@ -81,7 +81,15 @@ export default {
       '/adfactory-js/main.js',
     ];
 
-    this.loadScriptsSequential(scripts, 0);
+    // Cache-bust by appending the deploy timestamp so each deploy forces a re-fetch.
+    fetch('/version.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : {})
+      .catch(() => ({}))
+      .then(v => {
+        const key = (v && v.built ? String(v.built) : String(Date.now())).replace(/[^\w-]/g, '_');
+        const versioned = scripts.map(s => `${s}?v=${key}`);
+        this.loadScriptsSequential(versioned, 0);
+      });
   },
   methods: {
     goView(v) {

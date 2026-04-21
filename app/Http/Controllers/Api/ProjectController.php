@@ -124,7 +124,24 @@ class ProjectController extends Controller
 
     public function updateDesigns(Request $request, Project $project)
     {
-        $project->update(['designs' => $request->input('designs', [])]);
+        $designs = $request->input('designs', []);
+
+        // Defensive: reject any inline base64 payloads. Images must be uploaded
+        // via /designs/upload first and stored as /storage/... URLs.
+        foreach ($designs as $design) {
+            $images = $design['images'] ?? [];
+            if (!is_array($images)) continue;
+            foreach ($images as $value) {
+                if (is_string($value) && str_starts_with($value, 'data:')) {
+                    return response()->json([
+                        'ok' => false,
+                        'error' => 'Inline base64 images are not accepted. Upload via /designs/upload first. You may be running a cached old version of the admin JS — hard-refresh the page.',
+                    ], 422);
+                }
+            }
+        }
+
+        $project->update(['designs' => $designs]);
 
         return response()->json(['ok' => true, 'count' => count($project->designs ?? [])]);
     }
@@ -141,12 +158,13 @@ class ProjectController extends Controller
             $ext = 'jpg';
         }
         $filename = Str::random(16) . '.' . $ext;
-        $path = "designs/{$project->id}/{$filename}";
+        $dir = "designs/{$project->id}";
 
-        Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
+        // Streamed move from the tmp upload to the public disk — no full load into memory.
+        $file->storeAs($dir, $filename, 'public');
 
         return response()->json([
-            'url' => '/storage/' . $path,
+            'url' => '/storage/' . $dir . '/' . $filename,
         ]);
     }
 
