@@ -701,7 +701,7 @@ function buildOrderRows(order) {
           const brandBucket = compNames[brand];
           const langBucket  = (brandBucket && typeof brandBucket === 'object') ? (brandBucket[lang] || brandBucket.EN) : null;
           const legacyVal   = (brandBucket && typeof brandBucket[compKey] === 'string') ? brandBucket[compKey] : null; // pre-migration shape
-          const target = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand]||'CS'}_${fmtLabel} ${shortDesign} ${lang}`;
+          const target = (langBucket && langBucket[compKey]) || legacyVal || `${PREFIX[brand]||'CS'}_TEMPLATE_${fmtLabel} ${shortDesign} ${lang}`;
           const headline = item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '';
           const actorClean = (item.actor || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
           const catSlug = (item.category || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
