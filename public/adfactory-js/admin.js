@@ -696,7 +696,14 @@ function buildOrderRows(order) {
           const brand = order.brand || 'Creditstar';
           const compKey = `${designKey}_${fmtKey}`;
           const PREFIX = { Creditstar:'CS', Monefit:'MF' };
-          const shortDesign = designKey.replace('design','d');
+          // Strip a redundant leading brand prefix from the key so
+          // "MF design1" → "design1" → "d1" instead of "MF d1" (prevents
+          // MF_TEMPLATE_16x9 MF d1 EN double-brand in the target comp).
+          const bp = PREFIX[brand];
+          const keyForTarget = (bp && designKey.toUpperCase().startsWith(bp + ' '))
+            ? designKey.slice(bp.length + 1)
+            : designKey;
+          const shortDesign = keyForTarget.replace('design','d');
           const fmtLabel = ({'16x9':'16x9','1x1':'1x1','9x16':'9x16','4x5v1':'4x5','4x5v2':'4x5'}[fmtKey]||fmtKey);
           const brandBucket = compNames[brand];
           const langBucket  = (brandBucket && typeof brandBucket === 'object') ? (brandBucket[lang] || brandBucket.EN) : null;
