@@ -141,7 +141,12 @@ function goView(view) {
     const csvBtn = document.getElementById('btn-export-csv'); if (csvBtn) csvBtn.disabled = !hasRows;
     const gsBtn = document.getElementById('btn-export-gs'); if (gsBtn) gsBtn.disabled = !hasRows;
   }
-  if (view === 'settings') { loadAdminConfig(); loadGrowthLeadUsers(); renderDesignsList(); renderFormatsList(); }
+  if (view === 'settings') {
+    loadAdminConfig(); loadGrowthLeadUsers(); renderDesignsList(); renderFormatsList();
+    // Hydrate the Output Path / Filename / AE Comp Names builders (moved from Generate view)
+    const bp = document.getElementById('base-path'); if (bp && state.basePath) bp.value = state.basePath;
+    renderFolderBuilder(); renderFilenameBuilder(); renderCompNameFields(); updatePathPreview();
+  }
 }
 
 function updateProjectNav() {
@@ -258,6 +263,14 @@ function showSettingsTab(tab) {
   // Update tab styling
   const tabs = document.querySelectorAll('#view-settings .status-tab');
   tabs.forEach(el => el.classList.toggle('active', el.textContent.toLowerCase() === tab || (tab === 'designs' && el.textContent === 'Project Designs')));
+  // Re-render builders whenever the Output tab becomes visible
+  if (tab === 'output') {
+    const bp = document.getElementById('base-path'); if (bp && state.basePath) bp.value = state.basePath;
+    if (typeof renderFolderBuilder === 'function') renderFolderBuilder();
+    if (typeof renderFilenameBuilder === 'function') renderFilenameBuilder();
+    if (typeof renderCompNameFields === 'function') renderCompNameFields();
+    if (typeof updatePathPreview === 'function') updatePathPreview();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
