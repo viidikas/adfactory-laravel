@@ -61,6 +61,7 @@ class LoginController extends Controller
 
         return Inertia::render('Verify', [
             'userName' => $user->name,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -78,6 +79,7 @@ class LoginController extends Controller
 
         return Inertia::render('Verify', [
             'userName' => $user->name,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -108,6 +110,7 @@ class LoginController extends Controller
             session()->flash('error', 'Invalid or expired code. Please try again.');
             return Inertia::render('Verify', [
                 'userName' => $user->name,
+                'userEmail' => $user->email,
             ]);
         }
 

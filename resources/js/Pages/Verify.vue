@@ -13,7 +13,9 @@
 
       <h2 class="verify-title">Check your email</h2>
       <p class="verify-desc">
-        A 6-digit code was sent to <strong>{{ userName }}</strong>'s email
+        A 6-digit code was sent to <strong>{{ userName }}</strong>
+        <br />
+        <span class="verify-email">{{ userEmail }}</span>
       </p>
 
       <form @submit.prevent="submitCode" class="code-form">
@@ -58,7 +60,9 @@
         <a href="/login/resend" class="resend-link" @click.prevent="resendCode">Resend</a>
       </div>
 
-      <a href="/login" class="back-link" @click.prevent="goBack">&larr; Back to login</a>
+      <button type="button" class="change-email-btn" @click="goBack">
+        &larr; Use a different email
+      </button>
     </div>
   </div>
 </template>
@@ -69,6 +73,7 @@ import { useForm, router } from '@inertiajs/vue3';
 
 const props = defineProps({
   userName: String,
+  userEmail: String,
 });
 
 const digits = ref(['', '', '', '', '', '']);
@@ -229,6 +234,14 @@ function goBack() {
   color: #c9d1d9;
 }
 
+.verify-email {
+  display: inline-block;
+  margin-top: 4px;
+  color: #e8ff47;
+  font-weight: 500;
+  word-break: break-all;
+}
+
 .code-form {
   display: flex;
   flex-direction: column;
@@ -349,17 +362,22 @@ function goBack() {
   text-decoration: underline;
 }
 
-.back-link {
+.change-email-btn {
   display: inline-block;
-  margin-top: 16px;
+  margin-top: 20px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid #2d333b;
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-family: 'DM Mono', monospace;
   font-size: 11px;
-  color: #484f58;
-  text-decoration: none;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: all 0.15s ease;
 }
 
-.back-link:hover {
-  color: #7a8399;
+.change-email-btn:hover {
+  border-color: #e8ff47;
+  color: #e8ff47;
 }
 </style>
