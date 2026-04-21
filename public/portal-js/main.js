@@ -102,10 +102,17 @@ function selectBrand(brand) {
     el.style.color = isActive ? '#000' : '#718096';
     el.style.borderColor = isActive ? '#e8ff47' : '#2a3040';
   });
-  // Reload copy lines for new brand
+  // Drop any in-flight design selections — the new brand has its own set
+  if (typeof detailSelDesigns !== 'undefined') detailSelDesigns = [];
+  // Reload copy lines for new brand + refresh design views
   loadCopyLines().then(() => {
     if (typeof initCopyBrowse === 'function') initCopyBrowse();
     if (typeof renderGrid === 'function') renderGrid();
+    if (typeof renderDesignsFullPage === 'function') renderDesignsFullPage();
+    if (typeof detailClipId !== 'undefined' && detailClipId) {
+      const clip = clipLibrary.find(c => c.id === detailClipId);
+      if (clip && typeof renderDetailPanel === 'function') renderDetailPanel(clip);
+    }
   });
   toast('Switched to ' + brand);
 }

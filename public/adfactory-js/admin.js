@@ -255,32 +255,53 @@ function renderAdminDesigns(designs) {
     return;
   }
   const RATIOS = ['16x9','1x1','9x16','4x5'];
-  el.innerHTML = designs.map((d, i) => `
-    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <span style="font-size:12px;color:var(--accent);font-weight:500;">${esc(d.key||d)}</span>
-          ${d.label?`<span style="font-size:10px;color:var(--muted2);margin-left:8px;">${esc(d.label)}</span>`:''}
+  const brandStyle = brand => brand === 'Monefit'
+    ? 'background:rgba(71,200,255,.15);color:var(--blue);border:1px solid rgba(71,200,255,.35);'
+    : 'background:rgba(232,255,71,.15);color:var(--accent);border:1px solid rgba(232,255,71,.35);';
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,360px));gap:12px;">` + designs.map((d, i) => {
+    const brand = d.brand || 'Creditstar';
+    const otherBrand = brand === 'Monefit' ? 'Creditstar' : 'Monefit';
+    return `
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">
+          <span style="font-size:9px;padding:2px 7px;border-radius:3px;font-weight:600;letter-spacing:.4px;${brandStyle(brand)}">${esc(brand)}</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:500;">${esc(d.key||d)}</span>
+          ${d.label?`<span style="font-size:10px;color:var(--muted2);">${esc(d.label)}</span>`:''}
         </div>
-        <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:9px;color:var(--orange);" onclick="removeAdminDesign(${i})">✕ Remove</button>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:9px;color:var(--muted);" title="Switch brand" onclick="setAdminDesignBrand(${i},'${otherBrand}')">&#8644; ${esc(otherBrand)}</button>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:9px;color:var(--orange);" onclick="removeAdminDesign(${i})">&#10005;</button>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
         ${RATIOS.map(ratio => {
           const img = d.images?.[ratio];
           return `<div style="text-align:center;">
-            <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">${ratio}</div>
+            <div style="font-size:8px;color:var(--muted);margin-bottom:3px;">${ratio}</div>
             ${img
               ? `<img src="${img}" style="width:100%;border-radius:4px;border:1px solid var(--border);object-fit:cover;aspect-ratio:${ratio.replace('x','/')};cursor:pointer;" title="Click to replace" onclick="replaceDesignImage(${i},'${ratio}')">`
               : `<div style="aspect-ratio:${ratio.replace('x','/')};background:var(--s3);border:1px dashed var(--border2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9px;color:var(--muted);" onclick="replaceDesignImage(${i},'${ratio}')">+ Add</div>`}
           </div>`;
         }).join('')}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+async function setAdminDesignBrand(idx, brand) {
+  if (!adminDesigns[idx]) return;
+  adminDesigns[idx].brand = brand;
+  renderAdminDesigns(adminDesigns);
+  toast(`✓ Brand set to ${brand}`);
+  if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
 }
 
 async function addAdminDesign() {
   const key   = document.getElementById('new-design-key').value.trim();
   const label = document.getElementById('new-design-label').value.trim();
+  const brandEl = document.querySelector('input[name="new-design-brand"]:checked');
+  const brand = brandEl ? brandEl.value : 'Creditstar';
   if (!key) { toast('Enter a design key (e.g. design1)', true); return; }
   if (adminDesigns.find(d => (d.key||d) === key)) { toast('Design key already exists', true); return; }
 
@@ -293,18 +314,20 @@ async function addAdminDesign() {
     }
   }
 
-  adminDesigns.push({ key, label, images });
+  adminDesigns.push({ key, label, brand, images });
   renderAdminDesigns(adminDesigns);
 
   // Clear inputs
   document.getElementById('new-design-key').value = '';
   document.getElementById('new-design-label').value = '';
+  const csRadio = document.querySelector('input[name="new-design-brand"][value="Creditstar"]');
+  if (csRadio) csRadio.checked = true;
   RATIOS.forEach(r => {
     const inp = document.getElementById(`new-design-img-${r}`);
     if (inp) inp.value = '';
   });
 
-  toast(`✓ Design "${key}" added`);
+  toast(`✓ Design "${key}" added (${brand})`);
   if (!await saveProjectDesigns()) toast('Warning: could not save to server', true);
 }
 

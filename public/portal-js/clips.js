@@ -127,9 +127,10 @@ function openDetailPanel(clipId) {
 
   // Reset selections
   const bi = basket.find(b => b.clipId === clipId);
+  const brandDesigns = (typeof designsForBrand === 'function') ? designsForBrand() : availableDesigns;
   detailSelCopy = bi?.copyKey || '';
   detailSelLangs = bi?.langs ? [...bi.langs] : ['EN'];
-  detailSelDesigns = bi?.designs ? [...bi.designs] : (availableDesigns.length ? [typeof availableDesigns[0]==='object' ? availableDesigns[0].key : availableDesigns[0]] : []);
+  detailSelDesigns = bi?.designs ? [...bi.designs] : (brandDesigns.length ? [typeof brandDesigns[0]==='object' ? brandDesigns[0].key : brandDesigns[0]] : []);
 
   renderDetailPanel(clip);
   document.getElementById('clip-detail-panel').classList.remove('hidden');
@@ -213,8 +214,9 @@ function renderCopyLangsHtml(copyKey) {
 }
 
 function renderDetailDesignsHtml() {
-  if (!availableDesigns.length) return '<div style="font-size:10px;color:var(--muted);">No designs configured</div>';
-  return availableDesigns.map(d => {
+  const brandDesigns = (typeof designsForBrand === 'function') ? designsForBrand() : availableDesigns;
+  if (!brandDesigns.length) return `<div style="font-size:10px;color:var(--muted);">No ${esc(selectedBrand)} designs configured</div>`;
+  return brandDesigns.map(d => {
     const key = typeof d==='object' ? (d.key||'') : d;
     const label = typeof d==='object' ? (d.label||key) : d;
     const img = typeof d==='object' ? (d.images?.['16x9']||'') : '';

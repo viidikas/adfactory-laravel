@@ -4,6 +4,15 @@
 
 let availableDesigns = [];
 
+// Filter designs by the currently selected brand.
+// Legacy designs without a brand field default to 'Creditstar'.
+function designsForBrand() {
+  return availableDesigns.filter(d => {
+    const b = (typeof d === 'object' ? d.brand : null) || 'Creditstar';
+    return b === selectedBrand;
+  });
+}
+
 async function loadDesigns() {
   try {
     const pr = await fetch('/api/projects');
@@ -20,7 +29,8 @@ function renderDesignsFullPage() {
   const empty = document.getElementById('designs-full-empty');
   if (!grid) return;
 
-  if (!availableDesigns.length) {
+  const brandDesigns = designsForBrand();
+  if (!brandDesigns.length) {
     grid.innerHTML = '';
     if (empty) empty.classList.remove('hidden');
     return;
@@ -29,7 +39,7 @@ function renderDesignsFullPage() {
 
   const RATIOS = ['16x9', '9x16', '1x1', '4x5'];
 
-  grid.innerHTML = availableDesigns.map(d => {
+  grid.innerHTML = brandDesigns.map(d => {
     const key   = typeof d === 'object' ? (d.key   || '') : d;
     const label = typeof d === 'object' ? (d.label || key) : d;
     const imgs  = typeof d === 'object' ? (d.images || {}) : {};
