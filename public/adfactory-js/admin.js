@@ -200,6 +200,22 @@ function renameFormatKey(i, newKey) {
 let adminDesigns = [];
 let activeProjectId = null;
 
+// Lightweight loader for just the active project's designs. Called on init so
+// buildOrderRows can filter CSV rows by which ratios actually have an image,
+// even if the Settings tab hasn't been opened yet.
+async function loadActiveProjectDesigns() {
+  try {
+    const r = await fetch('/api/projects');
+    if (!r.ok) return;
+    const projects = await r.json();
+    const active = projects.find(p => p.is_active);
+    if (active) {
+      activeProjectId = active.id;
+      adminDesigns = active.designs || [];
+    }
+  } catch (e) { /* ignore */ }
+}
+
 async function loadAdminConfig() {
   try {
     // Load rendered path from config
@@ -658,6 +674,9 @@ function buildOrderRows(order) {
   }
   const rows = [];
   let lineNr = 1;
+  // Helper: fmt keys like "4x5v1"/"4x5v2" both map to the "4x5" image slot.
+  const fmtToRatio = fmt => (typeof fmt === 'string' && fmt.startsWith('4x5')) ? '4x5' : fmt;
+
   order.items.forEach(item => {
     const langs = item.langs || ['EN'];
     const itemDesigns = (item.designs && item.designs.length) ? item.designs : designs.map(d => d.key);
@@ -665,7 +684,15 @@ function buildOrderRows(order) {
       itemDesigns.forEach(designKey => {
         const design = designs.find(d => d.key === designKey);
         const designFmts = design ? design.fmts : formats.map(f => f.key);
+        // If the active project has this design with an images map, restrict emission
+        // to ratios that actually have an uploaded image. Prevents CSV rows for
+        // compositions that don't exist in After Effects.
+        const adminDesign = (typeof adminDesigns !== 'undefined') ? adminDesigns.find(d => d.key === designKey) : null;
+        const uploadedRatios = (adminDesign && adminDesign.images)
+          ? new Set(Object.keys(adminDesign.images).filter(k => !!adminDesign.images[k]))
+          : null;
         designFmts.forEach(fmtKey => {
+          if (uploadedRatios && !uploadedRatios.has(fmtToRatio(fmtKey))) return;
           const brand = order.brand || 'Creditstar';
           const compKey = `${designKey}_${fmtKey}`;
           const PREFIX = { Creditstar:'CS', Monefit:'MF' };

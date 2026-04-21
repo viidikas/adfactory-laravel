@@ -46,6 +46,9 @@ async function init() {
     if (currentView === 'preview' && typeof updateGenPreview === 'function') updateGenPreview();
   }).catch(() => {});
 
+  // Load active project's designs so CSV export knows which ratios are valid per design
+  if (typeof loadActiveProjectDesigns === 'function') loadActiveProjectDesigns();
+
   // Show version stamp
   fetch('/version.json').then(r => r.json()).then(v => {
     const el = document.getElementById('app-version');
