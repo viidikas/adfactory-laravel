@@ -723,7 +723,7 @@ function buildOrderRows(order) {
             line_nr: lineNr++,
             target,
             output: `${folderPath}/${filename}`,
-            aef_footage: item.clipName + '.mov',
+            aef_footage: (item.category ? item.category + '/' : '') + item.clipName + '.mov',
             design: designKey,
             format: fmtKey,
             lang,
