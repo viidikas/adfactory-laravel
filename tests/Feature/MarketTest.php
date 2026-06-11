@@ -134,12 +134,16 @@ class MarketTest extends TestCase
         $this->assertFalse($market->fresh()->active);
     }
 
-    public function test_enable_succeeds_when_review_ready(): void
+    public function test_enable_succeeds_when_review_ready_and_confirmed(): void
     {
         $market = $this->market(['code' => 'EE', 'active' => false, 'has_disclaimer' => true]);
         $this->copy($market, ['copy_key' => 'k']);
+        $admin = $this->admin();
 
-        $this->asUser($this->admin())
+        // Enabling now also requires confirmation.
+        $this->asUser($admin)->postJson('/api/markets/'.$market->id.'/confirm')->assertStatus(200);
+
+        $this->asUser($admin)
             ->putJson('/api/markets/'.$market->id.'/enable')
             ->assertStatus(200);
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Market extends Model
@@ -14,6 +15,10 @@ class Market extends Model
         'brand',
         'sheet_tab',
         'has_disclaimer',
+        'content_hash',
+        'confirmed_at',
+        'confirmed_by',
+        'confirmed_hash',
         'active',
         'activated_at',
         'last_synced_at',
@@ -26,6 +31,7 @@ class Market extends Model
             'active' => 'boolean',
             'activated_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'confirmed_at' => 'datetime',
         ];
     }
 
@@ -62,17 +68,65 @@ class Market extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function confirmations(): HasMany
+    {
+        return $this->hasMany(MarketConfirmation::class);
+    }
+
+    public function confirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('active', true);
     }
 
     /**
+     * Deterministic hash of the market's current copy set: the legally-reviewed
+     * content. Built from copies ordered by copy_key, each contributing its
+     * copy_key, language-sorted copy_text, and per-copy disclaimer flag. Any
+     * change to copy text, keys, or disclaimer flags changes the hash.
+     */
+    public function computeContentHash(): string
+    {
+        $payload = $this->copies()
+            ->orderBy('copy_key')
+            ->get(['copy_key', 'copy_text', 'requires_disclaimer'])
+            ->map(function (Copy $c) {
+                $text = $c->copy_text ?? [];
+                ksort($text);
+
+                return [
+                    'copy_key' => $c->copy_key,
+                    'copy_text' => $text,
+                    'disclaimer' => (bool) $c->requires_disclaimer,
+                ];
+            })
+            ->all();
+
+        return hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
      * Whether the market is review-ready and may be enabled: it must have at
-     * least one synced copy and a Disclaimer column in its tab.
+     * least one synced copy and a Disclaimer column in its tab. (Confirmation
+     * is a separate, additional gate — see isConfirmed().)
      */
     public function isReviewReady(): bool
     {
         return $this->has_disclaimer && $this->copies()->exists();
+    }
+
+    /**
+     * Whether the market's copies are currently confirmed: a confirmation
+     * exists and the confirmed hash still matches the current content hash.
+     */
+    public function isConfirmed(): bool
+    {
+        return $this->confirmed_at !== null
+            && $this->confirmed_hash !== null
+            && $this->confirmed_hash === $this->content_hash;
     }
 }

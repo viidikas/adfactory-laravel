@@ -79,5 +79,9 @@ Route::middleware('auth')->group(function () {
         Route::put('/markets/{market}/enable', [MarketController::class, 'enable']);
         Route::put('/markets/{market}/disable', [MarketController::class, 'disable']);
         Route::post('/markets/{market}/sync', [MarketController::class, 'sync']);
+        // Copy review & confirmation (read-only copies + legal confirmation trail).
+        Route::get('/markets/{market}/copies', [MarketController::class, 'copies']);
+        Route::post('/markets/{market}/confirm', [MarketController::class, 'confirm']);
+        Route::post('/markets/{market}/revoke', [MarketController::class, 'revoke']);
     });
 });
