@@ -42,7 +42,7 @@ function renderAdminMarketsList(markets) {
   if (!el) return;
   if (!markets.length) { el.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:8px 0;">No markets yet.</div>'; return; }
 
-  const head = ['Market','Brand','Tab','Copies','Disclaimer','Last synced','Status','Actions'];
+  const head = ['Market','Brand','Tab','Copies','Disclaimer','Confirmed','Last synced','Status','Actions'];
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10px;">
     <thead><tr>${head.map(h=>`<th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">${h}</th>`).join('')}</tr></thead>
     <tbody>${markets.map(m => {
@@ -52,21 +52,123 @@ function renderAdminMarketsList(markets) {
         ? '<span style="color:var(--green);font-size:9px;border:1px solid var(--green);border-radius:4px;padding:1px 6px;">active</span>'
         : '<span style="color:var(--muted2);font-size:9px;border:1px solid var(--border2);border-radius:4px;padding:1px 6px;">inactive</span>';
       const disc = m.has_disclaimer ? '<span style="color:var(--green);">yes</span>' : '<span style="color:var(--orange);">missing</span>';
+      const conf = m.confirmed
+        ? `<span style="color:var(--green);">&#10003; ${esc(m.confirmed_by||'')}</span>`
+        : '<span style="color:var(--muted2);">not confirmed</span>';
+      // Enabling requires synced copies + a Disclaimer column + a confirmation.
+      const canEnable = m.review_ready && m.confirmed;
       const toggleBtn = m.active
         ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="setMarketActive(${m.id}, false)">Disable</button>`
-        : `<button class="btn btn-green" style="padding:3px 10px;font-size:9px;${m.review_ready ? '' : 'opacity:.6;'}" onclick="setMarketActive(${m.id}, true)" title="${m.review_ready ? 'Enable' : 'Needs synced copies + a Disclaimer column first'}">Enable</button>`;
+        : `<button class="btn btn-green" style="padding:3px 10px;font-size:9px;${canEnable ? '' : 'opacity:.6;'}" onclick="setMarketActive(${m.id}, true)" title="${canEnable ? 'Enable' : 'Needs synced copies + a Disclaimer column + confirmation'}">Enable</button>`;
       return `<tr style="border-bottom:1px solid var(--border);${dim}">
         <td style="padding:8px 10px;color:var(--text);"><strong>${esc(m.code)}</strong> · ${esc(m.name)}</td>
         <td style="padding:8px 10px;color:var(--blue);">${esc(m.brand)}</td>
         <td style="padding:8px 10px;color:var(--muted);">${esc(m.sheet_tab)} <button class="btn-edit" style="font-size:9px;" onclick="editMarketTab(${m.id})">edit</button></td>
         <td style="padding:8px 10px;color:var(--muted);">${m.copy_count ?? 0}</td>
         <td style="padding:8px 10px;">${disc}</td>
+        <td style="padding:8px 10px;">${conf}</td>
         <td style="padding:8px 10px;color:var(--muted);">${esc(fmtSynced(m.last_synced_at))}</td>
         <td style="padding:8px 10px;">${badge}</td>
-        <td style="padding:8px 10px;white-space:nowrap;"><button class="btn btn-blue" style="padding:3px 10px;font-size:9px;" onclick="syncMarketNow(${m.id})">&#10227; Sync</button> ${toggleBtn}</td>
+        <td style="padding:8px 10px;white-space:nowrap;"><button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="openMarketCopies(${m.id})">Copies</button> <button class="btn btn-blue" style="padding:3px 10px;font-size:9px;" onclick="syncMarketNow(${m.id})">&#10227; Sync</button> ${toggleBtn}</td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
+}
+
+// ── Markets → [market] → Copies (read-only review + confirmation) ──
+let _copiesMarket = null;
+
+async function openMarketCopies(id) {
+  try {
+    const r = await fetch(`/api/markets/${id}/copies`);
+    if (!r.ok) { toast('Could not load copies', true); return; }
+    _copiesMarket = await r.json();
+    renderMarketCopies(_copiesMarket);
+    document.getElementById('market-copies-modal').classList.remove('hidden');
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+function closeMarketCopies() {
+  document.getElementById('market-copies-modal').classList.add('hidden');
+  _copiesMarket = null;
+}
+
+function confirmationBadge(c) {
+  if (c.confirmed) return `<span class="conf-badge conf-ok">&#10003; Confirmed by ${esc(c.confirmed_by||'—')} · ${esc(fmtSynced(c.confirmed_at))}</span>`;
+  if (c.last_action === 'invalidated_by_sync') return `<span class="conf-badge conf-warn">&#9888; Invalidated by sync · ${esc(fmtSynced(c.last_action_at))}</span>`;
+  if (c.last_action === 'manually_revoked') return `<span class="conf-badge conf-warn">&#9888; Revoked by ${esc(c.last_action_by||'—')} · ${esc(fmtSynced(c.last_action_at))}</span>`;
+  return `<span class="conf-badge conf-none">Not confirmed</span>`;
+}
+
+function renderMarketCopies(d) {
+  const el = document.getElementById('market-copies-body');
+  if (!el) return;
+  const c = d.confirmation || {};
+  const reqCount = (d.copies || []).filter(x => x.requires_disclaimer).length;
+  const langs = ['en','et','de','fr','es'];
+
+  el.innerHTML = `
+    <div class="copies-head">
+      <div class="copies-title">${esc(d.code)} — ${esc(d.name)} <span class="copies-brand">${esc(d.brand)}</span></div>
+      <button class="btn btn-ghost" onclick="closeMarketCopies()">Close</button>
+    </div>
+
+    <div class="copies-meta">
+      <span>Copies: <strong>${d.copy_count}</strong></span>
+      <span>Disclaimer column: <strong>${d.has_disclaimer ? 'present' : 'missing'}</strong> (${reqCount} require it)</span>
+      <span>Last synced: <strong>${esc(fmtSynced(d.last_synced_at))}</strong></span>
+      <span>Status: <strong>${d.active ? 'active' : 'inactive'}</strong></span>
+    </div>
+
+    <div class="confirm-panel">
+      <div class="confirm-status">${confirmationBadge(c)}</div>
+      <div class="confirm-actions">
+        ${c.confirmed
+          ? `<button class="btn btn-ghost" onclick="revokeMarket(${d.id})">Revoke confirmation</button>`
+          : `<label class="confirm-check"><input type="checkbox" id="confirm-ack"> <span>I confirm the copies and disclaimer for <strong>${esc(d.code)}</strong> match the legally approved sheet.</span></label>
+             <button class="btn btn-green" onclick="confirmMarket(${d.id})">Confirm copies</button>`}
+      </div>
+      <div class="confirm-note">Google Sheets is the single source of truth — copies are read-only here. Confirming records who approved this exact content; any later sync that changes the content resets the confirmation and deactivates the market.</div>
+    </div>
+
+    <table class="copies-table">
+      <thead><tr><th>Copy key</th><th>Category</th><th>Disclaimer</th><th>Copy (per language)</th></tr></thead>
+      <tbody>${(d.copies || []).map(row => {
+        const txt = row.copy_text || {};
+        const langRows = langs.filter(l => txt[l]).map(l => `<div class="copy-lang"><span class="copy-lang-code">${l.toUpperCase()}</span> ${esc(txt[l])}</div>`).join('');
+        return `<tr>
+          <td class="mono">${esc(row.copy_key)}</td>
+          <td><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(row.category||'—')}</td>
+          <td>${row.requires_disclaimer ? '<span class="disc-yes">yes</span>' : 'no'}</td>
+          <td>${langRows || '<span class="muted">—</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+async function confirmMarket(id) {
+  const ack = document.getElementById('confirm-ack');
+  if (!ack || !ack.checked) { toast('Tick the confirmation checkbox first', true); return; }
+  try {
+    const r = await fetch(`/api/markets/${id}/confirm`, { method:'POST', headers:{'Content-Type':'application/json'} });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(data.message || 'Confirm failed', true); return; }
+    toast('Copies confirmed');
+    _copiesMarket = data; renderMarketCopies(data);
+    loadAdminMarkets();
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+async function revokeMarket(id) {
+  if (!confirm('Revoke confirmation? This deactivates the market (existing orders are kept).')) return;
+  try {
+    const r = await fetch(`/api/markets/${id}/revoke`, { method:'POST', headers:{'Content-Type':'application/json'} });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(data.message || 'Revoke failed', true); return; }
+    toast('Confirmation revoked — market deactivated');
+    _copiesMarket = data; renderMarketCopies(data);
+    loadAdminMarkets();
+  } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
 async function setMarketActive(id, makeActive) {

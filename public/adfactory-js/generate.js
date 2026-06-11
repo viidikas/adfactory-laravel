@@ -230,7 +230,9 @@ function renderPreviewTablePage() {
         else if (c.key === 'headline') color = 'var(--text)';
         else if (c.key === 'brand')   color = bColor;
         else if (c.key === 'output' || c.key === 'ae_output_path') color = 'var(--muted)';
-        return `<td style="color:${color}${c.key==='output'||c.key==='ae_output_path'?';font-size:9px':''}" title="${val.replace(/"/g,'&quot;')}">${val||'—'}</td>`;
+        // Code-like values (comp names, paths, filenames, footage) stay monospace.
+        const mono = ['target','aef_output_name','filename','output','ae_output_path','aef_footage'].includes(c.key);
+        return `<td style="color:${color}${c.key==='output'||c.key==='ae_output_path'?';font-size:9px':''}${mono?';font-family:var(--font-mono)':''}" title="${val.replace(/"/g,'&quot;')}">${val||'—'}</td>`;
       }).join('')}
     </tr>`;
   }).join('')}</tbody>`;

@@ -254,6 +254,13 @@
       </div>
     </div>
 
+    <!-- Markets → [market] → Copies: read-only copy review + legal confirmation (admin) -->
+    <div class="modal-overlay hidden" id="market-copies-modal">
+      <div class="modal-box copies-modal-box">
+        <div id="market-copies-body"></div>
+      </div>
+    </div>
+
     <div id="toast"></div>
   </div>
 </template>

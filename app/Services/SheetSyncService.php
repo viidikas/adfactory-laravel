@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Copy;
 use App\Models\Market;
+use App\Models\MarketConfirmation;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -106,8 +107,11 @@ class SheetSyncService
         }
 
         // Replace the market's copy set with the freshly synced rows so the
-        // approved set always matches the sheet (stale copies are removed).
-        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn) {
+        // approved set always matches the sheet (stale copies are removed), then
+        // recompute the content hash and, if the content changed since it was
+        // confirmed, reset the confirmation and deactivate the market.
+        $confirmationReset = false;
+        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn, &$confirmationReset) {
             $seen = [];
             foreach ($rows as $row) {
                 Copy::updateOrCreate(
@@ -126,11 +130,37 @@ class SheetSyncService
 
             $market->copies()->whereNotIn('copy_key', $seen ?: [''])->delete();
 
-            $market->forceFill([
+            $newHash = $market->computeContentHash();
+
+            $attrs = [
                 'has_disclaimer' => $hasDisclaimerColumn,
                 'last_synced_at' => Carbon::now(),
-            ])->save();
+                'content_hash' => $newHash,
+            ];
+
+            // A confirmed market whose content has changed loses its confirmation
+            // and is deactivated — same effect as a manual disable. If the hash is
+            // identical (no-change sync), the confirmation is left intact.
+            if ($market->confirmed_at !== null && $market->confirmed_hash !== $newHash) {
+                $attrs['confirmed_at'] = null;
+                $attrs['confirmed_by'] = null;
+                $attrs['confirmed_hash'] = null;
+                $attrs['active'] = false;
+
+                $market->confirmations()->create([
+                    'user_id' => null,
+                    'action' => MarketConfirmation::ACTION_INVALIDATED_BY_SYNC,
+                    'content_hash' => $newHash,
+                ]);
+                $confirmationReset = true;
+            }
+
+            $market->forceFill($attrs)->save();
         });
+
+        if ($confirmationReset) {
+            $issues[] = 'Content changed — confirmation reset, market deactivated.';
+        }
 
         return $this->result($market, true, count($rows), $hasDisclaimerColumn, $issues);
     }
