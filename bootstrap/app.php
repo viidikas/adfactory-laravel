@@ -15,9 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
 
-        $middleware->validateCsrfTokens(except: [
-            'api/*',
-        ]);
+        // No CSRF exclusions: the /api/* routes are session-cookie authenticated
+        // (loaded inside the web group), so they must be CSRF-protected. The
+        // frontend sends the X-XSRF-TOKEN header (see resources/js/app.js).
 
         $middleware->alias([
             'auth' => \App\Http\Middleware\Authenticate::class,
