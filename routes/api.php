@@ -20,9 +20,6 @@ Route::middleware('auth')->group(function () {
     // Sheets
     Route::get('/sheets', [SheetController::class, 'show']);
 
-    // Claude proxy
-    Route::post('/proxy', [ProxyController::class, 'forward']);
-
     // Projects
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{project}/designs', [ProjectController::class, 'designs']);
@@ -49,6 +46,10 @@ Route::middleware('auth')->group(function () {
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {
+        // Claude proxy forwards to the Anthropic API using the server's key, so it
+        // must never be reachable by non-admin users.
+        Route::post('/proxy', [ProxyController::class, 'forward']);
+
         Route::post('/analyse-sheets', [AnalyseController::class, 'analyse']);
         Route::post('/projects', [ProjectController::class, 'store']);
         Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
