@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\AnalyseController;
 use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
+use App\Http\Controllers\Api\CopyController;
 use App\Http\Controllers\Api\CopyLineController;
+use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProxyController;
@@ -24,9 +26,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{project}/designs', [ProjectController::class, 'designs']);
 
-    // Copy lines
+    // Copy lines (legacy AD.FACTORY generate flow — global single-sheet cache)
     Route::get('/copy-lines', [CopyLineController::class, 'index']);
     Route::post('/copy-lines/sync', [CopyLineController::class, 'sync'])->middleware('admin');
+
+    // Markets — growth leads see ACTIVE markets only (the selector); admins see all.
+    Route::get('/markets', [MarketController::class, 'index']);
+    // Market-scoped copies — inactive markets' copies are never returned to leads.
+    Route::get('/copies', [CopyController::class, 'index']);
 
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
@@ -63,5 +70,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
         Route::put('/users/{id}', [UserController::class, 'update']);
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+        // Markets admin — prepare/review a market while inactive, then enable it.
+        // `sync-all` is declared before the {market} routes to avoid any clash.
+        Route::post('/markets/sync-all', [MarketController::class, 'syncAll']);
+        Route::post('/markets', [MarketController::class, 'store']);
+        Route::put('/markets/{market}', [MarketController::class, 'update']);
+        Route::put('/markets/{market}/enable', [MarketController::class, 'enable']);
+        Route::put('/markets/{market}/disable', [MarketController::class, 'disable']);
+        Route::post('/markets/{market}/sync', [MarketController::class, 'sync']);
     });
 });

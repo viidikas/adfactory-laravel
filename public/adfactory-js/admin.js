@@ -657,11 +657,13 @@ const ORDER_COLS = [
   { key:'slate',       label:'Slate',       w:60  },
   { key:'actor',       label:'Actor',       w:100 },
   { key:'category',    label:'Category',    w:130 },
+  { key:'market',      label:'Market',      w:70  },
+  { key:'disclaimer',  label:'Disclaimer',  w:80  },
   { key:'filename',    label:'Filename',    w:200 },
 ];
 
 // Per-order visible columns (default)
-let _orderVisCols = ['line_nr','target','aef_footage','design','format','lang','brand','headline','slate','actor'];
+let _orderVisCols = ['line_nr','target','aef_footage','design','format','lang','brand','market','disclaimer','headline','slate','actor'];
 let _orderColWidths = {};
 
 function buildOrderRows(order) {
@@ -732,6 +734,9 @@ function buildOrderRows(order) {
             slate: item.slate,
             actor: item.actor || '',
             category: item.category || '',
+            market: order.market || '',
+            // yes/no — After Effects fetches the per-market disclaimer image.
+            disclaimer: item.requiresDisclaimer ? 'yes' : 'no',
             filename,
           });
         });
@@ -925,14 +930,15 @@ function generateOrderCSV(orderId) {
   const rows = buildOrderRows(order);
 
   if (!rows.length) { toast('No rows to export', true); return; }
-  // Export columns that Templater needs
-  const exportCols = ['target','output','aef_footage','headline','brand','lang','design','format','slate','actor','filename'];
+  // Export columns that Templater needs — market + disclaimer let AE pick the
+  // right per-market disclaimer image and keep batches traceable to a market.
+  const exportCols = ['target','output','aef_footage','headline','brand','market','disclaimer','lang','design','format','slate','actor','filename'];
   const csvEsc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   const csv = [exportCols.join(','), ...rows.map(r => exportCols.map(h => csvEsc(r[h])).join(','))].join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  const filename = buildCsvExportFilename(order.user_name);
+  const filename = buildCsvExportFilename((order.market ? order.market + '_' : '') + order.user_name);
   a.href = url; a.download = filename;
   a.click(); URL.revokeObjectURL(url);
   toast(`Downloaded ${filename} (${rows.length} rows)`);

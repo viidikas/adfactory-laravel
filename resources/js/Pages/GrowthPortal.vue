@@ -20,9 +20,14 @@
           <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
           <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
         </div>
-        <div id="brand-selector" style="display:flex;gap:0;">
-          <button class="brand-pill active" id="brand-btn-Creditstar" onclick="selectBrand('Creditstar')" style="padding:6px 16px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;border:1px solid #2a3040;background:#e8ff47;color:#000;border-radius:5px 0 0 5px;text-transform:uppercase;letter-spacing:.8px;">Creditstar</button>
-          <button class="brand-pill" id="brand-btn-Monefit" onclick="selectBrand('Monefit')" style="padding:6px 16px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;border:1px solid #2a3040;border-left:none;background:#161920;color:#718096;border-radius:0 5px 5px 0;text-transform:uppercase;letter-spacing:.8px;">Monefit</button>
+        <!-- Market selector — always visible. Lists ACTIVE markets only; the
+             brand badge is derived from the chosen market. -->
+        <div id="market-selector" style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;">Market</span>
+          <select id="market-select" onchange="onMarketChange(this.value)" style="background:#161920;border:1px solid #2a3040;border-radius:5px;color:#e8ff47;padding:6px 12px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.8px;">
+            <option value="">Loading…</option>
+          </select>
+          <span id="market-brand-badge" style="font-size:9px;color:var(--muted2);padding:3px 8px;border:1px solid #2a3040;border-radius:4px;"></span>
         </div>
       </div>
 
@@ -116,6 +121,23 @@
 
         <!-- ADMIN TAB -->
         <div id="view-admin" class="hidden">
+          <div class="card" style="margin-bottom:32px;border-color:var(--border2);">
+            <div class="card-title">Markets</div>
+            <div class="card-sub">Prepare a market while inactive (set its tab, sync, review its copies), then enable it. Inactive markets are hidden from growth leads.</div>
+            <div style="display:flex;gap:8px;margin:12px 0;">
+              <button class="btn btn-blue" onclick="syncAllMarkets()">&#10227; Sync all</button>
+              <button class="btn btn-ghost" onclick="loadAdminMarkets()">Refresh</button>
+            </div>
+            <div id="admin-markets-report"></div>
+            <div id="admin-markets-list"></div>
+            <div style="font-size:10px;color:var(--muted2);margin:14px 0 6px;font-weight:500;">Add a market (created inactive):</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="new-market-code" class="form-input" placeholder="Code = tab name, e.g. NO" style="width:170px;">
+              <input type="text" id="new-market-name" class="form-input" placeholder="Name, e.g. Norway" style="flex:1;min-width:140px;">
+              <select id="new-market-brand" class="form-input" style="width:140px;"><option>Creditstar</option><option>Monefit</option></select>
+              <button class="btn btn-primary" onclick="createMarket()">+ Add</button>
+            </div>
+          </div>
           <div class="card">
             <div class="card-title">All Orders</div>
             <div class="card-sub">Review incoming orders from growth leads.</div>
@@ -206,7 +228,8 @@
         <div style="border-top:1px solid var(--border);padding-top:14px;">
           <div class="form-group" style="margin-bottom:10px;">
             <label class="form-label">Market</label>
-            <input type="text" id="order-market" class="form-input" placeholder="e.g. FI, EE, DK...">
+            <div id="order-market-display" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);padding:9px 12px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;">&mdash;</div>
+            <div id="order-disclaimer-note" style="font-size:9px;color:var(--muted2);margin-top:6px;"></div>
           </div>
           <div class="form-group" style="margin-bottom:12px;">
             <label class="form-label">Note (optional)</label>

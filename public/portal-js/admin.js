@@ -12,6 +12,138 @@ async function loadAdminOrders() {
   } catch(e) {
     document.getElementById('admin-orders-list').innerHTML = '<div style="color:var(--orange);font-size:10px;padding:20px;">Could not load data</div>';
   }
+  loadAdminMarkets();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MARKETS MANAGEMENT (admin) — staged rollout controls
+// ═══════════════════════════════════════════════════════════════
+let _adminMarkets = [];
+
+async function loadAdminMarkets() {
+  try {
+    const r = await fetch('/api/markets');
+    _adminMarkets = await r.json();
+    renderAdminMarketsList(_adminMarkets);
+  } catch (e) {
+    const el = document.getElementById('admin-markets-list');
+    if (el) el.innerHTML = '<div style="color:var(--orange);font-size:10px;padding:8px 0;">Could not load markets</div>';
+  }
+}
+
+function fmtSynced(iso) {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', {day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+}
+
+function renderAdminMarketsList(markets) {
+  const el = document.getElementById('admin-markets-list');
+  if (!el) return;
+  if (!markets.length) { el.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:8px 0;">No markets yet.</div>'; return; }
+
+  const head = ['Market','Brand','Tab','Copies','Disclaimer','Last synced','Status','Actions'];
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10px;">
+    <thead><tr>${head.map(h=>`<th style="background:var(--s3);padding:7px 10px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.8px;">${h}</th>`).join('')}</tr></thead>
+    <tbody>${markets.map(m => {
+      // Inactive markets are visually distinct: dimmed with an "inactive" badge.
+      const dim = m.active ? '' : 'opacity:0.55;';
+      const badge = m.active
+        ? '<span style="color:var(--green);font-size:9px;border:1px solid var(--green);border-radius:4px;padding:1px 6px;">active</span>'
+        : '<span style="color:var(--muted2);font-size:9px;border:1px solid var(--border2);border-radius:4px;padding:1px 6px;">inactive</span>';
+      const disc = m.has_disclaimer ? '<span style="color:var(--green);">yes</span>' : '<span style="color:var(--orange);">missing</span>';
+      const toggleBtn = m.active
+        ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="setMarketActive(${m.id}, false)">Disable</button>`
+        : `<button class="btn btn-green" style="padding:3px 10px;font-size:9px;${m.review_ready ? '' : 'opacity:.6;'}" onclick="setMarketActive(${m.id}, true)" title="${m.review_ready ? 'Enable' : 'Needs synced copies + a Disclaimer column first'}">Enable</button>`;
+      return `<tr style="border-bottom:1px solid var(--border);${dim}">
+        <td style="padding:8px 10px;color:var(--text);"><strong>${esc(m.code)}</strong> · ${esc(m.name)}</td>
+        <td style="padding:8px 10px;color:var(--blue);">${esc(m.brand)}</td>
+        <td style="padding:8px 10px;color:var(--muted);">${esc(m.sheet_tab)} <button class="btn-edit" style="font-size:9px;" onclick="editMarketTab(${m.id})">edit</button></td>
+        <td style="padding:8px 10px;color:var(--muted);">${m.copy_count ?? 0}</td>
+        <td style="padding:8px 10px;">${disc}</td>
+        <td style="padding:8px 10px;color:var(--muted);">${esc(fmtSynced(m.last_synced_at))}</td>
+        <td style="padding:8px 10px;">${badge}</td>
+        <td style="padding:8px 10px;white-space:nowrap;"><button class="btn btn-blue" style="padding:3px 10px;font-size:9px;" onclick="syncMarketNow(${m.id})">&#10227; Sync</button> ${toggleBtn}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+async function setMarketActive(id, makeActive) {
+  try {
+    const r = await fetch(`/api/markets/${id}/${makeActive ? 'enable' : 'disable'}`, { method: 'PUT', headers: {'Content-Type':'application/json'} });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(data.message || 'Failed', true); return; }
+    toast(makeActive ? 'Market enabled' : 'Market disabled');
+    loadAdminMarkets();
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+async function syncMarketNow(id) {
+  toast('Syncing…');
+  try {
+    const r = await fetch(`/api/markets/${id}/sync`, { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const data = await r.json().catch(() => ({}));
+    const issues = (data && data.issues) || [];
+    if (!r.ok || data.ok === false) {
+      toast(issues.join('; ') || data.message || 'Sync failed', true);
+    } else {
+      toast(`Synced ${data.copy_count} copies` + (issues.length ? ' · ' + issues.join('; ') : ''), issues.length > 0);
+    }
+    loadAdminMarkets();
+  } catch (e) { toast('Sync failed: ' + e.message, true); }
+}
+
+async function syncAllMarkets() {
+  toast('Syncing all markets…');
+  try {
+    const r = await fetch('/api/markets/sync-all', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const report = await r.json().catch(() => ({}));
+    renderSyncReport(report);
+    loadAdminMarkets();
+  } catch (e) { toast('Sync failed: ' + e.message, true); }
+}
+
+function renderSyncReport(report) {
+  const el = document.getElementById('admin-markets-report');
+  if (!el) return;
+  const issues = (report && report.issues) || [];
+  if (!issues.length) {
+    el.innerHTML = `<div style="font-size:10px;color:var(--green);padding:8px 10px;background:var(--s3);border-radius:6px;margin-bottom:10px;">&#10003; Synced ${report.synced ?? 0} market(s) — no issues.</div>`;
+    return;
+  }
+  el.innerHTML = `<div style="font-size:10px;color:var(--orange);padding:8px 10px;background:var(--s3);border:1px solid var(--orange);border-radius:6px;margin-bottom:10px;">
+    <div style="font-weight:600;margin-bottom:4px;">Validation report (${issues.length} issue${issues.length>1?'s':''}):</div>
+    ${issues.map(i => `<div>• ${esc(i)}</div>`).join('')}
+  </div>`;
+}
+
+async function createMarket() {
+  const code = document.getElementById('new-market-code').value.trim();
+  const name = document.getElementById('new-market-name').value.trim();
+  const brand = document.getElementById('new-market-brand').value;
+  if (!code || !name) { toast('Enter a code and name', true); return; }
+  try {
+    const r = await fetch('/api/markets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code, name, brand }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(data.message || 'Failed to add market', true); return; }
+    document.getElementById('new-market-code').value = '';
+    document.getElementById('new-market-name').value = '';
+    toast(`Market ${code} added (inactive)`);
+    loadAdminMarkets();
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+async function editMarketTab(id) {
+  const m = _adminMarkets.find(x => x.id === id);
+  const tab = prompt('Sheet tab name for this market:', m ? m.sheet_tab : '');
+  if (tab === null) return;
+  try {
+    const r = await fetch(`/api/markets/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ sheet_tab: tab.trim() }) });
+    if (!r.ok) { toast('Failed to update tab', true); return; }
+    toast('Tab updated');
+    loadAdminMarkets();
+  } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
 function renderAdminUsers(users) {
@@ -111,16 +243,21 @@ function exportOrderCSV(oid) {
   fetch('/api/orders/'+oid)
     .then(r => r.json())
     .then(order => {
+      const market = order.market || '';        // market code, for AE traceability
+      const brand  = order.brand || 'Creditstar'; // derived from the order's market
       const rows = [];
       order.items.forEach(item => {
         item.langs.forEach(lang => {
           rows.push({
             target:      '', // to be filled by admin in AD.FACTORY or manually
-            output:      `${lang}/${item.category}/${item.slate}/${item.actor}/${item.clipName}`,
+            output:      `${market}/${lang}/${item.category}/${item.slate}/${item.actor}/${item.clipName}`,
             aef_footage: item.clipName + '.mov',
             headline:    item.copyText?.[lang.toLowerCase()] || item.copyText?.en || '',
             lang,
-            brand:       'Creditstar',
+            brand,
+            market,
+            // yes/no flag — After Effects fetches the per-market disclaimer image.
+            disclaimer:  item.requiresDisclaimer ? 'yes' : 'no',
             slate:       item.slate,
             actor:       item.actor,
           });
@@ -132,7 +269,8 @@ function exportOrderCSV(oid) {
       const blob = new Blob([csv], {type:'text/csv'});
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = url; a.download = `order_${oid}_${order.user_name.replace(/\s+/g,'_')}.csv`;
+      // Market code in the filename so rendered batches trace back to a market.
+      a.href = url; a.download = `order_${oid}_${(market||'NA')}_${order.user_name.replace(/\s+/g,'_')}.csv`;
       a.click(); URL.revokeObjectURL(url);
       toast(`✓ Downloaded CSV for order ${oid}`);
     })
