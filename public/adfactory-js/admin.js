@@ -830,6 +830,8 @@ function renderOrderTable(oid, rows, search) {
       else if (c.key === 'lang')   style += 'color:var(--blue);';
       else if (c.key === 'design') style += 'color:var(--purple);';
       else if (c.key === 'brand')  style += `color:${val==='Creditstar'?'var(--orange)':'var(--blue)'};`;
+      // Code-like values (comp names, paths, filenames, footage) stay monospace.
+      if (['target','output','ae_output_path','filename','aef_footage'].includes(c.key)) style += 'font-family:var(--font-mono);';
       return `<td style="${style}">${esc(val)}</td>`;
     }).join('');
     return `<tr style="border-bottom:1px solid var(--border);transition:background .1s;" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background='transparent'">${tds}</tr>`;
