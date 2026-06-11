@@ -8,11 +8,7 @@ function toggleBasketDrawer() {
   drawerOpen = !drawerOpen;
   document.getElementById('basket-drawer').classList.toggle('open', drawerOpen);
   document.getElementById('basket-drawer-overlay').classList.toggle('hidden', !drawerOpen);
-  if (drawerOpen) {
-    renderBasketDrawer();
-    const mkt = document.getElementById('order-market');
-    if (mkt && !mkt.value) mkt.value = currentUser?.market || '';
-  }
+  if (drawerOpen) renderBasketDrawer();
 }
 
 function calcItemRenderRows(item) {
@@ -79,6 +75,7 @@ function renderBasketDrawer() {
         </div>
       </div>
       <div class="basket-item-copy">${esc(b.copyText?.en || b.copyKey || '—')}</div>
+      ${b.requiresDisclaimer ? `<div class="basket-item-disclaimer" style="font-size:9px;color:var(--orange);margin-top:4px;">&#9878; Legal disclaimer applied (read-only)</div>` : ''}
       <div class="basket-item-section">
         <div class="basket-item-section-label">Languages</div>
         <div class="basket-item-tags">${(b.langs || []).map(l => `<span class="basket-item-tag lang">${esc(l)}</span>`).join('')}</div>
@@ -99,6 +96,18 @@ function renderBasketDrawer() {
 
   const totalRows = calcTotalRenderRows();
   if (totalEl) totalEl.textContent = `${basket.length} clip${basket.length !== 1 ? 's' : ''} · ${totalRows} render rows total`;
+
+  // Read-only market + disclaimer summary (market is chosen in the header).
+  const mdEl = document.getElementById('order-market-display');
+  if (mdEl) mdEl.textContent = currentMarket
+    ? `${currentMarket.code} — ${currentMarket.name} · ${currentMarket.brand}`
+    : '—';
+  const dnEl = document.getElementById('order-disclaimer-note');
+  if (dnEl) {
+    dnEl.textContent = basket.some(b => b.requiresDisclaimer)
+      ? 'A legal disclaimer is auto-applied to flagged clips for this market and cannot be edited.'
+      : 'No legal disclaimer required for the selected copies.';
+  }
 }
 
 function updateBasketBar() {
@@ -151,15 +160,15 @@ function editBasketItem(idx) {
 
 function confirmSubmitOrder() {
   if (!basket.length) { toast('Add clips to your order first', true); return; }
+  if (!currentMarket) { toast('Select a market first', true); return; }
   const totalRows = calcTotalRenderRows();
-  const market = document.getElementById('order-market')?.value.trim() || '—';
   const body = document.getElementById('submit-confirm-body');
-  if (body) body.innerHTML = `${basket.length} clip${basket.length !== 1 ? 's' : ''} &middot; ${totalRows} render rows &middot; Market: <strong>${esc(market)}</strong>`;
+  if (body) body.innerHTML = `${basket.length} clip${basket.length !== 1 ? 's' : ''} &middot; ${totalRows} render rows &middot; Market: <strong>${esc(currentMarket.code)} (${esc(currentMarket.brand)})</strong>`;
   document.getElementById('submit-confirm-modal').classList.remove('hidden');
 }
 
 async function submitOrder() {
-  const market = document.getElementById('order-market')?.value.trim() || '';
+  if (!currentMarket) { toast('Select a market first', true); return; }
   const note = document.getElementById('order-note')?.value.trim() || '';
 
   const items = basket.map(b => ({
@@ -175,12 +184,23 @@ async function submitOrder() {
   }));
 
   try {
+    // market_id is the source of truth; brand is derived server-side from it.
     const r = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, user_name: currentUser.name, brand: selectedBrand, market, note, items })
+      body: JSON.stringify({ user_name: currentUser.name, market_id: currentMarket.id, note, items })
     });
-    if (!r.ok) throw new Error('Server error');
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      // The market was disabled between selection and submit: reset and reprompt.
+      if (err.error_code === 'market_inactive') {
+        document.getElementById('submit-confirm-modal').classList.add('hidden');
+        if (drawerOpen) toggleBasketDrawer();
+        handleMarketUnavailable();
+        return;
+      }
+      throw new Error(err.message || 'Server error');
+    }
     clearBasket();
     document.getElementById('submit-confirm-modal').classList.add('hidden');
     if (drawerOpen) toggleBasketDrawer();

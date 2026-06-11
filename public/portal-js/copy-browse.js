@@ -382,6 +382,7 @@ function addCopyBrowseToBasket() {
       brand: selectedBrand,
       copyKey: copy.key,
       copyText,
+      requiresDisclaimer: !!copy.requires_disclaimer,
       langs: [...sharedState.selectedLangs],
       designs: [...sharedState.selectedDesigns],
     });

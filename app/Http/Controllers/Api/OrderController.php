@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Copy;
+use App\Models\Market;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Http\Request;
@@ -32,6 +34,7 @@ class OrderController extends Controller
                 'user_name' => $order->user->name ?? '',
                 'brand' => $order->brand ?? 'Creditstar',
                 'status' => $order->status,
+                'market_id' => $order->market_id,
                 'market' => $order->market,
                 'note' => $order->note,
                 'rendered_clips' => $order->rendered_clips,
@@ -45,6 +48,7 @@ class OrderController extends Controller
                         'actor' => $item->actor,
                         'copyKey' => $item->copy_key,
                         'copyText' => $item->copy_text,
+                        'requiresDisclaimer' => $item->requires_disclaimer,
                         'langs' => $item->langs,
                         'designs' => $item->designs,
                     ];
@@ -56,10 +60,8 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|exists:users,id',
             'user_name' => 'sometimes|string',
-            'brand' => 'sometimes|string|in:Creditstar,Monefit',
-            'market' => 'nullable|string|max:100',
+            'market_id' => 'required|integer',
             'note' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.clipId' => 'required|string',
@@ -67,21 +69,57 @@ class OrderController extends Controller
             'items.*.slate' => 'required|string',
             'items.*.category' => 'required|string',
             'items.*.actor' => 'sometimes|string',
-            'items.*.copyKey' => 'sometimes|string',
+            'items.*.copyKey' => 'required|string',
             'items.*.copyText' => 'sometimes|array',
             'items.*.langs' => 'required|array|min:1',
             'items.*.designs' => 'sometimes|array',
         ]);
 
+        $market = Market::find($validated['market_id']);
+
+        // An order may only ever be placed against an ACTIVE market — enforced
+        // server-side regardless of what the client sends.
+        if (! $market || ! $market->active) {
+            return response()->json([
+                'message' => $market
+                    ? "Market {$market->code} is disabled. Pick another market."
+                    : 'Selected market does not exist.',
+                'error_code' => 'market_inactive',
+            ], 422);
+        }
+
+        // Every item's copy must belong to this market. Look up the market's
+        // copies once and reject any item referencing copy from another market
+        // (or a copy that does not exist) — this is what keeps an order
+        // single-market and legally consistent.
+        $copies = $market->copies()->get()->keyBy('copy_key');
+
+        foreach ($validated['items'] as $i => $itemData) {
+            if (! $copies->has($itemData['copyKey'])) {
+                return response()->json([
+                    'message' => "Item {$i}: copy \"{$itemData['copyKey']}\" does not belong to market {$market->code}.",
+                    'error_code' => 'copy_market_mismatch',
+                ], 422);
+            }
+        }
+
         $order = Order::create([
-            'user_id' => $validated['user_id'] ?? $request->user()->id,
-            'brand' => $validated['brand'] ?? 'Creditstar',
+            // Always the authenticated user — never trust a client-supplied owner.
+            'user_id' => $request->user()->id,
+            'market_id' => $market->id,
+            // Keep the legacy label populated (= code) during the backfill window.
+            'market' => $market->code,
+            // Brand is derived from the market — never client-supplied — so the
+            // dual-brand template logic stays correct without a separate choice.
+            'brand' => $market->brand,
             'status' => 'pending',
-            'market' => $validated['market'] ?? null,
             'note' => $validated['note'] ?? null,
         ]);
 
         foreach ($validated['items'] as $itemData) {
+            /** @var Copy $copy */
+            $copy = $copies->get($itemData['copyKey']);
+
             OrderItem::create([
                 'order_id' => $order->id,
                 'clip_id' => $itemData['clipId'],
@@ -89,8 +127,11 @@ class OrderController extends Controller
                 'slate' => $itemData['slate'],
                 'category' => $itemData['category'],
                 'actor' => $itemData['actor'] ?? '',
-                'copy_key' => $itemData['copyKey'] ?? '',
-                'copy_text' => $itemData['copyText'] ?? null,
+                'copy_key' => $copy->copy_key,
+                // Copy text + disclaimer flag come from the approved market copy,
+                // not the client: growth leads cannot edit or remove them.
+                'copy_text' => $copy->copy_text,
+                'requires_disclaimer' => $copy->requires_disclaimer,
                 'langs' => $itemData['langs'],
                 'designs' => $itemData['designs'] ?? [],
             ]);
@@ -113,7 +154,9 @@ class OrderController extends Controller
             'id' => $order->id,
             'user_id' => $order->user_id,
             'user_name' => $order->user->name ?? '',
+            'brand' => $order->brand ?? 'Creditstar',
             'status' => $order->status,
+            'market_id' => $order->market_id,
             'market' => $order->market,
             'note' => $order->note,
             'rendered_clips' => $order->rendered_clips,
@@ -127,6 +170,7 @@ class OrderController extends Controller
                     'actor' => $item->actor,
                     'copyKey' => $item->copy_key,
                     'copyText' => $item->copy_text,
+                    'requiresDisclaimer' => $item->requires_disclaimer,
                     'langs' => $item->langs,
                     'designs' => $item->designs,
                 ];
@@ -173,8 +217,16 @@ class OrderController extends Controller
 
             // Replace items if provided
             if (isset($validated['items'])) {
+                // Re-derive the disclaimer flag from the order's market copies so
+                // it stays server-controlled even on admin edits.
+                $copies = $order->market_id
+                    ? $order->market->copies()->get()->keyBy('copy_key')
+                    : collect();
+
                 $order->items()->delete();
                 foreach ($validated['items'] as $itemData) {
+                    $copy = $copies->get($itemData['copyKey'] ?? '');
+
                     OrderItem::create([
                         'order_id' => $order->id,
                         'clip_id' => $itemData['clipId'],
@@ -183,7 +235,8 @@ class OrderController extends Controller
                         'category' => $itemData['category'],
                         'actor' => $itemData['actor'] ?? '',
                         'copy_key' => $itemData['copyKey'] ?? '',
-                        'copy_text' => $itemData['copyText'] ?? [],
+                        'copy_text' => $copy?->copy_text ?? $itemData['copyText'] ?? [],
+                        'requires_disclaimer' => $copy?->requires_disclaimer ?? false,
                         'langs' => $itemData['langs'],
                         'designs' => $itemData['designs'] ?? [],
                     ]);

@@ -149,7 +149,9 @@ class ProjectController extends Controller
     public function uploadDesignImage(Request $request, Project $project)
     {
         $request->validate([
-            'image' => 'required|image|max:10240',
+            // Laravel 12's `image` rule rejects SVG by default; design uploads
+            // include SVGs, so allow them explicitly to preserve prior behavior.
+            'image' => 'required|image:allow_svg|max:10240',
         ]);
 
         $file = $request->file('image');

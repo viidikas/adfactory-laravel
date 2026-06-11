@@ -26,9 +26,13 @@ class VideoController extends Controller
             abort(400, 'Missing path parameter');
         }
 
-        // Validate path does not escape base
+        // Validate path does not escape base. Compare against the base plus a
+        // trailing separator (or exact equality) so a sibling like
+        // /mnt/footage-private is not accepted as being under /mnt/footage.
+        $realBase = realpath($basePath);
         $fullPath = realpath($basePath.'/'.ltrim($relativePath, '/'));
-        if (! $fullPath || ! str_starts_with($fullPath, realpath($basePath))) {
+        if (! $fullPath || ! $realBase
+            || ($fullPath !== $realBase && ! str_starts_with($fullPath, $realBase.DIRECTORY_SEPARATOR))) {
             abort(403, 'Path traversal detected');
         }
 
@@ -91,9 +95,13 @@ class VideoController extends Controller
             abort(400, 'Missing path parameter');
         }
 
-        // Validate path does not escape base
+        // Validate path does not escape base. Compare against the base plus a
+        // trailing separator (or exact equality) so a sibling like
+        // /mnt/footage-private is not accepted as being under /mnt/footage.
+        $realBase = realpath($basePath);
         $fullPath = realpath($basePath.'/'.ltrim($relativePath, '/'));
-        if (! $fullPath || ! str_starts_with($fullPath, realpath($basePath))) {
+        if (! $fullPath || ! $realBase
+            || ($fullPath !== $realBase && ! str_starts_with($fullPath, $realBase.DIRECTORY_SEPARATOR))) {
             abort(403, 'Path traversal detected');
         }
 

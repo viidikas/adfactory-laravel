@@ -31,8 +31,10 @@ async function loadClipsFromServer() {
       url:          '/api/video?path=' + encodeURIComponent(m.relativePath)
     })).filter(m => m.slate);
 
-    // Populate copyLines from enriched clips if not already loaded
-    if (!copyLines.length) {
+    // Populate copyLines from enriched clips ONLY as a legacy fallback when no
+    // market is selected. With a market chosen, market-scoped copies (loaded via
+    // /api/copies) are authoritative and must never be clobbered by clip metadata.
+    if (!copyLines.length && !currentMarket) {
       const seen = new Set();
       clipLibrary.forEach(c => {
         (c.copy || []).forEach(row => {
@@ -269,12 +271,14 @@ function addFromDetailPanel() {
   const clip = clipLibrary.find(c => c.id === detailClipId);
   if (!clip) return;
 
+  const copyRow = copyLines.find(r => r.key === detailSelCopy);
   const newItem = {
     clipId: detailClipId,
     clip: {name:clip.name,nameNoExt:clip.nameNoExt,slate:clip.slate,category:clip.category,actor:clip.actor,relativePath:clip.relativePath},
     brand: selectedBrand,
     copyKey: detailSelCopy,
     copyText: buildCopyText(detailSelCopy),
+    requiresDisclaimer: !!(copyRow && copyRow.requires_disclaimer),
     langs: [...detailSelLangs],
     designs: [...detailSelDesigns],
   };

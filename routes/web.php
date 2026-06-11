@@ -6,10 +6,12 @@ use Inertia\Inertia;
 
 // Auth routes (no middleware)
 Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
-Route::post('/login/select', [LoginController::class, 'selectUser']);
+// Throttle code generation and verification to slow down enumeration,
+// mail-bombing, and OTP brute-forcing.
+Route::post('/login/select', [LoginController::class, 'selectUser'])->middleware('throttle:5,1');
 Route::get('/login/verify', [LoginController::class, 'showVerify']);
-Route::post('/login/verify', [LoginController::class, 'verify']);
-Route::get('/login/resend', [LoginController::class, 'resend']);
+Route::post('/login/verify', [LoginController::class, 'verify'])->middleware('throttle:10,1');
+Route::get('/login/resend', [LoginController::class, 'resend'])->middleware('throttle:5,1');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Protected routes

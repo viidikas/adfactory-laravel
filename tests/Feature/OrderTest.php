@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,53 +11,54 @@ class OrderTest extends TestCase
 
     public function test_growth_lead_can_create_order(): void
     {
-        $user = User::create([
-            'name' => 'Lead',
-            'email' => 'lead@test.com',
-            'role' => 'growth_lead',
+        $market = $this->market(['code' => 'FI']);
+        $this->copy($market, ['copy_key' => 'Tap_to_invest']);
+        $user = $this->lead();
+
+        $response = $this->asUser($user)->postJson('/api/orders', [
+            'user_name' => $user->name,
+            'market_id' => $market->id,
+            'note' => 'Test order',
+            'items' => [$this->itemPayload('Tap_to_invest')],
         ]);
 
-        $response = $this->withSession(['auth_user_id' => $user->id])
-            ->postJson('/api/orders', [
-                'user_id' => $user->id,
-                'user_name' => $user->name,
-                'market' => 'FI',
-                'note' => 'Test order',
-                'items' => [
-                    [
-                        'clipId' => 'test_clip_1',
-                        'clipName' => 'Test Clip',
-                        'slate' => 'PU1',
-                        'category' => 'Product Usage',
-                        'actor' => 'Andrey',
-                        'copyKey' => 'Tap_to_invest',
-                        'copyText' => ['en' => 'Tap to invest'],
-                        'langs' => ['EN'],
-                        'designs' => ['design1'],
-                    ],
-                ],
-            ]);
+        $response->assertStatus(201);
+        $this->assertEquals($market->id, $response->json('market_id'));
+    }
+
+    public function test_growth_lead_cannot_set_another_user_id_on_order(): void
+    {
+        $market = $this->market(['code' => 'FI']);
+        $this->copy($market, ['copy_key' => 'k']);
+        $attacker = $this->lead();
+        $victim = $this->lead();
+
+        $response = $this->asUser($attacker)->postJson('/api/orders', [
+            // Spoofed owner — must be ignored, order belongs to the authenticated user.
+            'user_id' => $victim->id,
+            'market_id' => $market->id,
+            'items' => [$this->itemPayload('k')],
+        ]);
 
         $response->assertStatus(201);
+        $this->assertSame($attacker->id, $response->json('user_id'));
+        $this->assertDatabaseHas('orders', ['id' => $response->json('id'), 'user_id' => $attacker->id]);
+        $this->assertDatabaseMissing('orders', ['id' => $response->json('id'), 'user_id' => $victim->id]);
     }
 
     public function test_growth_lead_sees_only_own_orders(): void
     {
-        $lead1 = User::create(['name' => 'Lead1', 'email' => 'lead1@test.com', 'role' => 'growth_lead']);
-        $lead2 = User::create(['name' => 'Lead2', 'email' => 'lead2@test.com', 'role' => 'growth_lead']);
+        $market = $this->market(['code' => 'FI']);
+        $this->copy($market, ['copy_key' => 'k']);
+        $lead1 = $this->lead();
+        $lead2 = $this->lead();
 
-        // Create order for lead1
-        $this->withSession(['auth_user_id' => $lead1->id])
-            ->postJson('/api/orders', [
-                'user_id' => $lead1->id,
-                'user_name' => $lead1->name,
-                'market' => 'FI',
-                'items' => [['clipId' => 'c1', 'clipName' => 'C1', 'slate' => 'PU1', 'category' => 'PU', 'actor' => 'A', 'copyKey' => 'k', 'copyText' => ['en' => 'x'], 'langs' => ['EN'], 'designs' => []]],
-            ]);
+        $this->asUser($lead1)->postJson('/api/orders', [
+            'market_id' => $market->id,
+            'items' => [$this->itemPayload('k')],
+        ])->assertStatus(201);
 
-        // Lead2 should see empty
-        $response = $this->withSession(['auth_user_id' => $lead2->id])
-            ->getJson('/api/orders');
+        $response = $this->asUser($lead2)->getJson('/api/orders');
 
         $response->assertStatus(200);
         $this->assertCount(0, $response->json());
@@ -66,19 +66,17 @@ class OrderTest extends TestCase
 
     public function test_admin_sees_all_orders(): void
     {
-        $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.com', 'role' => 'admin']);
-        $lead = User::create(['name' => 'Lead', 'email' => 'lead@test.com', 'role' => 'growth_lead']);
+        $market = $this->market(['code' => 'FI']);
+        $this->copy($market, ['copy_key' => 'k']);
+        $admin = $this->admin();
+        $lead = $this->lead();
 
-        $this->withSession(['auth_user_id' => $lead->id])
-            ->postJson('/api/orders', [
-                'user_id' => $lead->id,
-                'user_name' => $lead->name,
-                'market' => 'FI',
-                'items' => [['clipId' => 'c1', 'clipName' => 'C1', 'slate' => 'PU1', 'category' => 'PU', 'actor' => 'A', 'copyKey' => 'k', 'copyText' => ['en' => 'x'], 'langs' => ['EN'], 'designs' => []]],
-            ]);
+        $this->asUser($lead)->postJson('/api/orders', [
+            'market_id' => $market->id,
+            'items' => [$this->itemPayload('k')],
+        ])->assertStatus(201);
 
-        $response = $this->withSession(['auth_user_id' => $admin->id])
-            ->getJson('/api/orders');
+        $response = $this->asUser($admin)->getJson('/api/orders');
 
         $response->assertStatus(200);
         $this->assertGreaterThanOrEqual(1, count($response->json()));

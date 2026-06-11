@@ -56,8 +56,9 @@ class LoginController extends Controller
         // Queue email
         Mail::to($user->email)->queue(new LoginCodeMail($user, $plainCode));
 
-        // Store pending user in session
+        // Store pending user in session; reset any prior failed-attempt counter
         $request->session()->put('pending_user_id', $user->id);
+        $request->session()->forget("otp_attempts_{$user->id}");
 
         return Inertia::render('Verify', [
             'userName' => $user->name,
@@ -106,7 +107,24 @@ class LoginController extends Controller
             ->latest()
             ->first();
 
+        $attemptsKey = "otp_attempts_{$user->id}";
+
         if (! $loginCode || ! Hash::check($request->code, $loginCode->code)) {
+            $attempts = (int) $request->session()->get($attemptsKey, 0) + 1;
+            $request->session()->put($attemptsKey, $attempts);
+
+            // After 5 wrong attempts, invalidate the code entirely — the user must
+            // request a new one. This caps brute-forcing the 6-digit code.
+            if ($attempts >= 5) {
+                LoginCode::where('user_id', $user->id)->delete();
+                $request->session()->forget($attemptsKey);
+                session()->flash('error', 'Too many incorrect attempts. Please request a new code.');
+                return Inertia::render('Verify', [
+                    'userName' => $user->name,
+                    'userEmail' => $user->email,
+                ]);
+            }
+
             session()->flash('error', 'Invalid or expired code. Please try again.');
             return Inertia::render('Verify', [
                 'userName' => $user->name,
@@ -120,6 +138,7 @@ class LoginController extends Controller
         // Set authenticated session
         $request->session()->put('auth_user_id', $user->id);
         $request->session()->forget('pending_user_id');
+        $request->session()->forget($attemptsKey);
 
         return redirect($user->isAdmin() ? '/' : '/portal');
     }
@@ -152,6 +171,9 @@ class LoginController extends Controller
 
         // Queue email
         Mail::to($user->email)->queue(new LoginCodeMail($user, $plainCode));
+
+        // Fresh code → reset the failed-attempt counter
+        $request->session()->forget("otp_attempts_{$user->id}");
 
         session()->flash('success', 'A new code has been sent to your email.');
 

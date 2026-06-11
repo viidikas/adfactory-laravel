@@ -18,6 +18,7 @@ class OrderItem extends Model
         'actor',
         'copy_key',
         'copy_text',
+        'requires_disclaimer',
         'langs',
         'designs',
     ];
@@ -26,6 +27,7 @@ class OrderItem extends Model
     {
         return [
             'copy_text' => 'array',
+            'requires_disclaimer' => 'boolean',
             'langs' => 'array',
             'designs' => 'array',
         ];
