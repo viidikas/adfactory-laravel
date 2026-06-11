@@ -10,7 +10,7 @@ class ProxyController extends Controller
 {
     public function forward(Request $request)
     {
-        $apiKey = config('services.anthropic.api_key') ?: env('ANTHROPIC_API_KEY');
+        $apiKey = config('services.anthropic.api_key');
 
         if (! $apiKey) {
             return response()->json([
