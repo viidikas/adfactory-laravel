@@ -42,6 +42,28 @@ class OrderTest extends TestCase
         $response->assertStatus(201);
     }
 
+    public function test_growth_lead_cannot_set_another_user_id_on_order(): void
+    {
+        $attacker = User::create(['name' => 'Attacker', 'email' => 'attacker@test.com', 'role' => 'growth_lead']);
+        $victim = User::create(['name' => 'Victim', 'email' => 'victim@test.com', 'role' => 'growth_lead']);
+
+        $response = $this->withSession(['auth_user_id' => $attacker->id])
+            ->postJson('/api/orders', [
+                // Spoofed owner — must be ignored, order belongs to the authenticated user.
+                'user_id' => $victim->id,
+                'market' => 'FI',
+                'items' => [[
+                    'clipId' => 'c1', 'clipName' => 'C1', 'slate' => 'PU1', 'category' => 'PU',
+                    'actor' => 'A', 'copyKey' => 'k', 'copyText' => ['en' => 'x'], 'langs' => ['EN'], 'designs' => [],
+                ]],
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertSame($attacker->id, $response->json('user_id'));
+        $this->assertDatabaseHas('orders', ['id' => $response->json('id'), 'user_id' => $attacker->id]);
+        $this->assertDatabaseMissing('orders', ['id' => $response->json('id'), 'user_id' => $victim->id]);
+    }
+
     public function test_growth_lead_sees_only_own_orders(): void
     {
         $lead1 = User::create(['name' => 'Lead1', 'email' => 'lead1@test.com', 'role' => 'growth_lead']);

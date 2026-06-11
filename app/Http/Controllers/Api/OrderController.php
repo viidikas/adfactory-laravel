@@ -56,7 +56,6 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|exists:users,id',
             'user_name' => 'sometimes|string',
             'brand' => 'sometimes|string|in:Creditstar,Monefit',
             'market' => 'nullable|string|max:100',
@@ -74,7 +73,8 @@ class OrderController extends Controller
         ]);
 
         $order = Order::create([
-            'user_id' => $validated['user_id'] ?? $request->user()->id,
+            // Always the authenticated user — never trust a client-supplied owner.
+            'user_id' => $request->user()->id,
             'brand' => $validated['brand'] ?? 'Creditstar',
             'status' => 'pending',
             'market' => $validated['market'] ?? null,
