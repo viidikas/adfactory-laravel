@@ -592,13 +592,12 @@ function renderSlateFilter() {
       const hasCopy = !!state.copyAssignments[s.slate]?.length;
       return `<div class="chip ${sel ? 'sel' : ''}" data-val="${s.slate}"
         onclick="toggleSlateChip(this,'${s.slate}')"
-        title="${esc(s.shot)}"
-        style="${sel ? `background:rgba(0,0,0,.1);border-color:${color};color:${color};` : ''}">
+        title="${esc(s.shot)}">
         ${s.slate}${hasCopy ? '' : '<span style="color:var(--orange);margin-left:2px;">·</span>'}
       </div>`;
     }).join('');
-    return `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px;width:100%;">
-      <span style="font-size:9px;color:${color};text-transform:uppercase;letter-spacing:.8px;width:100%;margin-bottom:2px;">${cat}</span>
+    return `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;width:100%;">
+      <span style="font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;width:100%;margin-bottom:4px;display:flex;align-items:center;gap:7px;"><span class="cat-dot" style="background:${color};"></span>${cat}</span>
       ${chips}
     </div>`;
   }).join('');
@@ -1154,8 +1153,9 @@ function renderCopyMappingPage() {
       return `<div style="background:var(--s2);border:1px solid ${hasCopy ? 'var(--border)' : 'rgba(255,107,71,.3)'};border-radius:8px;padding:14px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <span style="color:${color};font-weight:500;font-size:12px;">${esc(slate)}</span>
-            <span style="font-size:10px;color:var(--muted2);">${esc(scene.shot)}</span>
+            <span class="cat-dot" style="background:${color};"></span>
+            <span style="color:var(--text);font-weight:600;font-size:13px;">${esc(slate)}</span>
+            <span style="font-size:11px;color:var(--muted2);">${esc(scene.shot)}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
             ${assignments.length > 1 ? `<span style="font-size:9px;color:var(--warn);background:rgba(251,191,36,.1);padding:2px 6px;border-radius:3px;">${assignments.length} options</span>` : ''}
