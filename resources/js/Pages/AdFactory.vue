@@ -14,6 +14,9 @@
             <span class="ni">&#128203;</span> Orders
             <span class="nav-badge" id="nb-orders">&mdash;</span>
           </div>
+          <div class="nav-item" id="nav-markets" @click="goView('markets')">
+            <span class="ni">&#127760;</span> Markets
+          </div>
 
           <div class="nav-section" id="nav-project-header" style="cursor:pointer;" @click="goView('projects')">
             PROJECT
@@ -59,6 +62,13 @@
 
     <div id="toast"></div>
     <div id="modal-overlay" class="modal-overlay hidden"></div>
+
+    <!-- Markets → [market] → Copies: read-only copy review + per-copy enable (super-admin) -->
+    <div class="modal-overlay hidden" id="market-copies-modal">
+      <div class="modal-box copies-modal-box">
+        <div id="market-copies-body"></div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -78,6 +88,7 @@ export default {
       '/adfactory-js/copy.js',
       '/adfactory-js/generate.js',
       '/adfactory-js/admin.js',
+      '/adfactory-js/markets.js',
       '/adfactory-js/main.js',
     ];
 
@@ -133,6 +144,27 @@ export default {
       </div>
       <div id="af-orders-list"></div>
       <div id="af-orders-empty" class="empty" style="display:none;"><div class="empty-icon">&#128237;</div><div class="empty-title">No orders yet</div><div class="empty-sub">Orders from growth leads will appear here</div></div>
+    </div>
+
+    <!-- VIEW: MARKETS -->
+    <div class="view-panel" id="view-markets">
+      <div class="card" style="border-color:var(--border2);">
+        <div class="card-title">&#127760; Markets</div>
+        <div class="card-sub">Prepare a market while inactive (set its tab, sync, review its copies and tick the ones to enable), then enable it. Inactive markets are hidden from growth leads, and only enabled copies are shown to them.</div>
+        <div style="display:flex;gap:8px;margin:12px 0;">
+          <button class="btn btn-blue btn-sm" onclick="syncAllMarkets()">&#10227; Sync all</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadAdminMarkets()">Refresh</button>
+        </div>
+        <div id="admin-markets-report"></div>
+        <div id="admin-markets-list"></div>
+        <div style="font-size:10px;color:var(--muted2);margin:14px 0 6px;font-weight:500;">Add a market (created inactive):</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="new-market-code" placeholder="Code = tab name, e.g. NO" style="width:190px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;">
+          <input type="text" id="new-market-name" placeholder="Name, e.g. Norway" style="flex:1;min-width:150px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;">
+          <select id="new-market-brand" style="width:150px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;"><option>Creditstar</option><option>Monefit</option></select>
+          <button class="btn btn-primary btn-sm" onclick="createMarket()">+ Add</button>
+        </div>
+      </div>
     </div>
 
     <!-- VIEW: PROJECTS -->

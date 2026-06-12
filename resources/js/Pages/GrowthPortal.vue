@@ -18,7 +18,6 @@
           <div class="tab" id="tab-browse" @click="showTab('browse')">Browse by Clips</div>
           <div class="tab" id="tab-designs" @click="showTab('designs')">Designs</div>
           <div class="tab" id="tab-orders" @click="showTab('orders')">My Orders</div>
-          <div class="tab hidden" id="tab-admin" @click="showTab('admin')">Admin</div>
         </div>
         <!-- Market selector — always visible. Lists ACTIVE markets only; the
              brand badge is derived from the chosen market. -->
@@ -119,47 +118,6 @@
           </div>
         </div>
 
-        <!-- ADMIN TAB -->
-        <div id="view-admin" class="hidden">
-          <div class="card" style="margin-bottom:32px;border-color:var(--border2);">
-            <div class="card-title">Markets</div>
-            <div class="card-sub">Prepare a market while inactive (set its tab, sync, review its copies), then enable it. Inactive markets are hidden from growth leads.</div>
-            <div style="display:flex;gap:8px;margin:12px 0;">
-              <button class="btn btn-blue" onclick="syncAllMarkets()">&#10227; Sync all</button>
-              <button class="btn btn-ghost" onclick="loadAdminMarkets()">Refresh</button>
-            </div>
-            <div id="admin-markets-report"></div>
-            <div id="admin-markets-list"></div>
-            <div style="font-size:10px;color:var(--muted2);margin:14px 0 6px;font-weight:500;">Add a market (created inactive):</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="new-market-code" class="form-input" placeholder="Code = tab name, e.g. NO" style="width:170px;">
-              <input type="text" id="new-market-name" class="form-input" placeholder="Name, e.g. Norway" style="flex:1;min-width:140px;">
-              <select id="new-market-brand" class="form-input" style="width:140px;"><option>Creditstar</option><option>Monefit</option></select>
-              <button class="btn btn-primary" onclick="createMarket()">+ Add</button>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">All Orders</div>
-            <div class="card-sub">Review incoming orders from growth leads.</div>
-          </div>
-          <div id="admin-orders-list"></div>
-          <div id="admin-empty" class="empty hidden">
-            <div class="empty-icon">&#128237;</div>
-            <div class="empty-title">No orders yet</div>
-            <div class="empty-sub">Orders from growth leads will appear here</div>
-          </div>
-          <div class="card" style="margin-top:32px;border-color:var(--border2);">
-            <div class="card-title">Growth Leads</div>
-            <div class="card-sub">Manage who has access to the Growth Portal.</div>
-            <div id="admin-users-list" style="margin-bottom:16px;"></div>
-            <div style="font-size:10px;color:var(--muted2);margin-bottom:8px;font-weight:500;">Add new growth lead:</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="new-user-name" class="form-input" placeholder="Name" style="flex:1;min-width:120px;">
-              <input type="email" id="new-user-email" class="form-input" placeholder="Email" style="flex:1;min-width:180px;">
-              <button class="btn btn-primary" onclick="addUser()">+ Add</button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -254,13 +212,6 @@
       </div>
     </div>
 
-    <!-- Markets → [market] → Copies: read-only copy review + legal confirmation (admin) -->
-    <div class="modal-overlay hidden" id="market-copies-modal">
-      <div class="modal-box copies-modal-box">
-        <div id="market-copies-body"></div>
-      </div>
-    </div>
-
     <div id="toast"></div>
   </div>
 </template>
@@ -288,7 +239,6 @@ export default {
       '/portal-js/copy-browse.js',
       '/portal-js/clips.js',
       '/portal-js/orders.js',
-      '/portal-js/admin.js',
     ];
 
     // Cache-bust by appending the deploy timestamp so each deploy forces a re-fetch.

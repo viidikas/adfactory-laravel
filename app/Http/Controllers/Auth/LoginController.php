@@ -18,7 +18,7 @@ class LoginController extends Controller
         if ($request->session()->has('auth_user_id')) {
             $user = User::find($request->session()->get('auth_user_id'));
             if ($user) {
-                return redirect($user->isAdmin() ? '/' : '/portal');
+                return redirect($user->isSuperAdmin() ? '/' : '/portal');
             }
             $request->session()->forget('auth_user_id');
         }
@@ -140,7 +140,7 @@ class LoginController extends Controller
         $request->session()->forget('pending_user_id');
         $request->session()->forget($attemptsKey);
 
-        return redirect($user->isAdmin() ? '/' : '/portal');
+        return redirect($user->isSuperAdmin() ? '/' : '/portal');
     }
 
     public function resend(Request $request)

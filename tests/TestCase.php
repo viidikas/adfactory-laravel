@@ -9,13 +9,54 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The AD.FACTORY panel + admin APIs are now super-admin gated. The
+        // existing admin-surface tests create the conventional `admin@test.com`
+        // inline (not via admin()), so treat it as a super-admin — these tests
+        // describe the authorised operator. nonSuperAdmin() stays blocked.
+        $this->allowSuperAdmin('admin@test.com');
+    }
+
     protected function admin(array $attrs = []): User
     {
-        return User::create(array_merge([
+        $user = User::create(array_merge([
             'name' => 'Admin',
             'email' => 'admin'.uniqid().'@test.com',
             'role' => 'admin',
         ], $attrs));
+
+        // The AD.FACTORY panel + markets/per-copy admin are super-admin gated, so
+        // tests treat their admins as super-admins (they pass the gate). Use
+        // nonSuperAdmin() for an admin that should be blocked by the gate.
+        $this->allowSuperAdmin($user->email);
+
+        return $user;
+    }
+
+    /**
+     * An admin-role user that is NOT on the super-admin allowlist — proves the
+     * AD.FACTORY / markets gate blocks ordinary admins, not just growth leads.
+     */
+    protected function nonSuperAdmin(array $attrs = []): User
+    {
+        return User::create(array_merge([
+            'name' => 'Plain Admin',
+            'email' => 'plainadmin'.uniqid().'@test.com',
+            'role' => 'admin',
+        ], $attrs));
+    }
+
+    /**
+     * Add an email to the super-admin allowlist for the current test run.
+     */
+    protected function allowSuperAdmin(string $email): void
+    {
+        $list = (array) config('adfactory.super_admins', []);
+        $list[] = strtolower($email);
+        config(['adfactory.super_admins' => array_values(array_unique($list))]);
     }
 
     protected function lead(array $attrs = []): User

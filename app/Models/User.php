@@ -24,6 +24,18 @@ class User extends Model
         return $this->role === 'admin';
     }
 
+    /**
+     * Super admins are the only users allowed into the AD.FACTORY operator panel
+     * and the markets / per-copy admin. Gated by a config email allowlist
+     * (config/adfactory.php → super_admins), matched case-insensitively.
+     */
+    public function isSuperAdmin(): bool
+    {
+        $allow = (array) config('adfactory.super_admins', []);
+
+        return in_array(strtolower((string) $this->email), $allow, true);
+    }
+
     public function scopeAdmins($query)
     {
         return $query->where('role', 'admin');
