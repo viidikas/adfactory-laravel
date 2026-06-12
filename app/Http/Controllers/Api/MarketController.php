@@ -176,6 +176,8 @@ class MarketController extends Controller
     {
         $market->loadCount(['copies', 'copies as enabled_copies_count' => fn ($q) => $q->where('enabled', true)]);
 
+        $copies = $market->copies()->with('enabledBy')->orderBy('category')->orderBy('copy_key')->get();
+
         return [
             'id' => $market->id,
             'code' => $market->code,
@@ -187,7 +189,11 @@ class MarketController extends Controller
             'enabled_count' => $market->enabled_copies_count,
             'can_enable' => $market->enabled_copies_count > 0,
             'last_synced_at' => optional($market->last_synced_at)->toIso8601String(),
-            'copies' => $market->copies()->with('enabledBy')->orderBy('category')->orderBy('copy_key')->get()->map(fn (Copy $c) => [
+            // Language columns present in THIS market's copies, ordered local
+            // language(s) first (alphabetical) and EN last as the reference.
+            // EN is always included even if the market has no copies yet.
+            'languages' => $this->presentLanguages($copies),
+            'copies' => $copies->map(fn (Copy $c) => [
                 'id' => $c->id,
                 'copy_key' => $c->copy_key,
                 'category' => $c->category,
@@ -199,5 +205,27 @@ class MarketController extends Controller
                 'copy_text' => $c->copy_text,
             ]),
         ];
+    }
+
+    /**
+     * The language codes present across a market's copies, ordered with the
+     * local language(s) first (alphabetical) and EN last. EN is always present.
+     *
+     * @param  \Illuminate\Support\Collection<int, Copy>  $copies
+     * @return array<int, string>
+     */
+    private function presentLanguages($copies): array
+    {
+        $present = [];
+        foreach ($copies as $c) {
+            foreach (array_keys($c->copy_text ?? []) as $lang) {
+                $present[$lang] = true;
+            }
+        }
+
+        $nonEn = array_values(array_filter(array_keys($present), fn ($l) => $l !== 'en'));
+        sort($nonEn);
+
+        return [...$nonEn, 'en'];
     }
 }

@@ -17,15 +17,17 @@ use Illuminate\Support\Facades\Http;
  * markets too — that is the whole point of the staged rollout: an admin prepares
  * and reviews a market before enabling it.
  *
- * Reserved column conventions (case-insensitive headers), matching the existing
- * copy sheet plus one addition:
- *   category, shot, brand, en, et, fr, de, es, disclaimer
- * The `disclaimer` column holds a per-row yes/no flag; the actual disclaimer
- * asset is selected inside After Effects by (market, yes/no).
+ * Reserved (structural) columns, case-insensitive: category, shot, brand,
+ * disclaimer. Every OTHER header that is a 2-letter code (en, et, fi, pl, da,
+ * sv, ru, …) is treated as a language column — the set is not hardcoded, so a
+ * tab can carry whatever languages it needs. EN is required and is the
+ * copy_key source. The `disclaimer` column holds a per-row yes/no flag; the
+ * actual disclaimer asset is selected inside After Effects by (market, yes/no).
  */
 class SheetSyncService
 {
-    private const LANG_COLS = ['en', 'et', 'fr', 'de', 'es'];
+    /** Structural (non-language) columns. Any other 2-letter header is a language. */
+    private const RESERVED_COLS = ['category', 'shot', 'brand', 'disclaimer'];
 
     private const CATEGORY_NORMALIZE = [
         'home reno' => 'Home Renovation',
@@ -229,13 +231,24 @@ class SheetSyncService
         $headers = array_map(fn ($h) => strtolower(trim((string) $h)), $lines[0]);
 
         $col = [];
-        foreach (['category', 'shot', 'brand', 'disclaimer', ...self::LANG_COLS] as $name) {
+        foreach (self::RESERVED_COLS as $name) {
             $idx = array_search($name, $headers, true);
             $col[$name] = $idx !== false ? $idx : null;
         }
 
-        // EN is required to treat a row as a copy line.
-        if ($col['en'] === null) {
+        // Language columns: any 2-letter header that isn't a reserved column.
+        // First occurrence wins if a code is duplicated.
+        $langCols = [];
+        foreach ($headers as $idx => $header) {
+            if (preg_match('/^[a-z]{2}$/', $header)
+                && ! in_array($header, self::RESERVED_COLS, true)
+                && ! array_key_exists($header, $langCols)) {
+                $langCols[$header] = $idx;
+            }
+        }
+
+        // EN is required to treat a row as a copy line, and is the copy_key source.
+        if (! array_key_exists('en', $langCols)) {
             return null;
         }
 
@@ -245,14 +258,18 @@ class SheetSyncService
         for ($i = 1; $i < count($lines); $i++) {
             $line = $lines[$i];
 
-            $en = $this->cell($line, $col['en']);
+            $en = $this->cell($line, $langCols['en']);
             if ($en === '') {
                 continue;
             }
 
+            // Store only languages that actually have content (no null padding).
             $copyText = [];
-            foreach (self::LANG_COLS as $lang) {
-                $copyText[$lang] = $this->cell($line, $col[$lang]);
+            foreach ($langCols as $lang => $idx) {
+                $val = $this->cell($line, $idx);
+                if ($val !== '') {
+                    $copyText[$lang] = $val;
+                }
             }
 
             $rows[] = [

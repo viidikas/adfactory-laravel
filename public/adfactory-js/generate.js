@@ -613,3 +613,38 @@ function exportGSheets() {
     toast('Clipboard blocked — downloading CSV instead. Import it into Google Sheets manually.');
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  getCopy — resolves the headline for a clip/brand/lang during export.
+//  (Moved here from the now-removed Copy view module.)
+//  Priority:
+//    1. copyAssignments[slate][selectedIndex] for that language
+//    2. manual key override from slateAssignments → COPY_KEYS
+//    3. global language override
+//    4. empty string — the row is OMITTED from the CSV (never a placeholder)
+// ═══════════════════════════════════════════════════════════════
+function getCopy(clip, brand, lang) {
+  const slate = clip.slate || '';
+
+  // 1. Slate-level copy assignment (from synced sheet, user-selected index)
+  if (slate && state.copyAssignments[slate]?.length) {
+    const idx = state.copySelection[slate] || 0;
+    const row = state.copyAssignments[slate][Math.min(idx, state.copyAssignments[slate].length - 1)];
+    const val = row?.[lang.toLowerCase()];
+    if (val) return val;
+  }
+
+  // 2. Manual key assignment via clip library dropdown
+  const clipId = clip.nameNoExt || clip.filename?.replace(/\.[^.]+$/,'') || '';
+  const libClip = state.clipLibrary.find(c => c.id === clipId || c.name === (clip.filename||''));
+  const assignedKey = libClip ? state.slateAssignments[libClip.id] : state.slateAssignments[clipId];
+  if (assignedKey && COPY_KEYS[assignedKey]) {
+    return COPY_KEYS[assignedKey][lang.toLowerCase()] || '';
+  }
+
+  // 3. Global language override
+  if (state.copyOverride[lang]) return state.copyOverride[lang];
+
+  // 4. No copy found — return empty (row will be omitted from CSV)
+  return '';
+}

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\AnalyseController;
 use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\CopyController;
@@ -57,7 +56,6 @@ Route::middleware('auth')->group(function () {
         // must never be reachable by non-admin users.
         Route::post('/proxy', [ProxyController::class, 'forward']);
 
-        Route::post('/analyse-sheets', [AnalyseController::class, 'analyse']);
         Route::post('/projects', [ProjectController::class, 'store']);
         Route::post('/projects/{project}/scan', [ProjectController::class, 'scan']);
         Route::put('/projects/{project}/activate', [ProjectController::class, 'activate']);
