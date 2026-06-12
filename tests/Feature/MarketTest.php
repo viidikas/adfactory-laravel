@@ -122,10 +122,11 @@ class MarketTest extends TestCase
         $this->assertFalse($market->fresh()->active);
     }
 
-    public function test_enable_blocked_without_disclaimer(): void
+    public function test_enable_blocked_without_any_enabled_copy(): void
     {
-        $market = $this->market(['code' => 'EE', 'active' => false, 'has_disclaimer' => false]);
-        $this->copy($market, ['copy_key' => 'k']);
+        $market = $this->market(['code' => 'EE', 'active' => false]);
+        // Copies exist but none are enabled — per-copy enablement is the gate.
+        $this->copy($market, ['copy_key' => 'k', 'enabled' => false]);
 
         $this->asUser($this->admin())
             ->putJson('/api/markets/'.$market->id.'/enable')
@@ -134,16 +135,12 @@ class MarketTest extends TestCase
         $this->assertFalse($market->fresh()->active);
     }
 
-    public function test_enable_succeeds_when_review_ready_and_confirmed(): void
+    public function test_enable_succeeds_with_an_enabled_copy(): void
     {
-        $market = $this->market(['code' => 'EE', 'active' => false, 'has_disclaimer' => true]);
-        $this->copy($market, ['copy_key' => 'k']);
-        $admin = $this->admin();
+        $market = $this->market(['code' => 'EE', 'active' => false]);
+        $this->copy($market, ['copy_key' => 'k', 'enabled' => true]);
 
-        // Enabling now also requires confirmation.
-        $this->asUser($admin)->postJson('/api/markets/'.$market->id.'/confirm')->assertStatus(200);
-
-        $this->asUser($admin)
+        $this->asUser($this->admin())
             ->putJson('/api/markets/'.$market->id.'/enable')
             ->assertStatus(200);
 

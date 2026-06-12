@@ -60,6 +60,9 @@ abstract class TestCase extends BaseTestCase
             'shot' => 'PU1',
             'brand' => 'Creditstar',
             'requires_disclaimer' => false,
+            // Default to enabled so order-flow helpers work; tests that exercise
+            // the per-copy gate pass enabled=false explicitly.
+            'enabled' => true,
         ], $attrs));
     }
 
