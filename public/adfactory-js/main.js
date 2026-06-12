@@ -90,9 +90,10 @@ function autoSaveState() {
 // ═══════════════════════════════════════════════════════════════
 //  NAVIGATION — view-based
 // ═══════════════════════════════════════════════════════════════
-const ALL_VIEWS = ['orders','projects','clips','copy','generate','preview','settings'];
+const ALL_VIEWS = ['orders','markets','projects','clips','copy','generate','preview','settings'];
 const VIEW_TITLES = {
   orders:   ['Orders',          'Incoming orders from growth leads'],
+  markets:  ['Markets',         'Staged market rollout + per-copy enablement'],
   projects: ['Projects',        'Manage footage projects — scan folders to index clips'],
   clips:    ['Clips',           'Browse and verify clip library'],
   copy:     ['Copy',            'Configure copy sheets and verify copy-to-clip matching'],
@@ -116,6 +117,7 @@ function goView(view) {
 
   // Load data for each view
   if (view === 'orders') loadAFOrders();
+  if (view === 'markets') loadAdminMarkets();
   if (view === 'projects') loadProjectCards();
   if (view === 'clips') { renderClipGrid(); loadProjects().then(updateProjectNav); }
   if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); renderCopySelector(); renderCopyOverrideFields(); }

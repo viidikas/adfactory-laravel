@@ -39,7 +39,7 @@ function toast(msg, err=false) {
 // ═══════════════════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════════════════
-const ALL_TABS = ['copy-browse','browse','designs','orders','admin'];
+const ALL_TABS = ['copy-browse','browse','designs','orders'];
 
 function showTab(tab) {
   ALL_TABS.forEach(t => {
@@ -49,7 +49,6 @@ function showTab(tab) {
     if (tabEl) tabEl.classList.toggle('active', t === tab);
   });
   if (tab === 'orders')      loadOrders();
-  if (tab === 'admin')       loadAdminOrders();
   if (tab === 'copy-browse') initCopyBrowse();
   if (tab === 'browse')      { renderGrid(); closeDetailPanel(); }
   if (tab === 'designs')     renderDesignsFullPage();
@@ -61,9 +60,8 @@ function showTab(tab) {
 async function login(user) {
   currentUser = user;
   document.getElementById('topbar-user-name').textContent = user.name;
-  if (user.role === 'admin') {
-    document.getElementById('tab-admin').classList.remove('hidden');
-  }
+  // The markets / per-copy admin lives in AD.FACTORY (super-admin only) — the
+  // Growth Portal no longer exposes an Admin tab.
   updateBasketBar();
 
   // Markets gate everything: load them first so we know the active set and which

@@ -16,9 +16,11 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Protected routes
 Route::middleware('auth')->group(function () {
+    // The AD.FACTORY operator panel is restricted to super admins (the markets /
+    // per-copy admin lives here). Everyone else is sent to the Growth Portal.
     Route::get('/', function () {
         return Inertia::render('AdFactory');
-    })->middleware('admin');
+    })->middleware('superadmin');
 
     Route::get('/portal', function () {
         return Inertia::render('GrowthPortal');

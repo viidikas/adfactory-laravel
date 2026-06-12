@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth')->group(function () {
     // Config
     Route::get('/config', [ConfigController::class, 'index']);
-    Route::post('/config', [ConfigController::class, 'store'])->middleware('admin');
+    Route::post('/config', [ConfigController::class, 'store'])->middleware('superadmin');
 
     // Sheets
     Route::get('/sheets', [SheetController::class, 'show']);
@@ -28,7 +28,7 @@ Route::middleware('auth')->group(function () {
 
     // Copy lines (legacy AD.FACTORY generate flow — global single-sheet cache)
     Route::get('/copy-lines', [CopyLineController::class, 'index']);
-    Route::post('/copy-lines/sync', [CopyLineController::class, 'sync'])->middleware('admin');
+    Route::post('/copy-lines/sync', [CopyLineController::class, 'sync'])->middleware('superadmin');
 
     // Markets — growth leads see ACTIVE markets only (the selector); admins see all.
     Route::get('/markets', [MarketController::class, 'index']);
@@ -37,7 +37,7 @@ Route::middleware('auth')->group(function () {
 
     // Clips
     Route::get('/clips', [ClipController::class, 'index']);
-    Route::post('/clips', [ClipController::class, 'store'])->middleware('admin');
+    Route::post('/clips', [ClipController::class, 'store'])->middleware('superadmin');
     Route::get('/clips-meta', [ClipController::class, 'meta']);
 
     // Video
@@ -51,8 +51,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::put('/orders/{order}', [OrderController::class, 'update']);
 
-    // Admin-only routes
-    Route::middleware('admin')->group(function () {
+    // Admin-only routes — restricted to super admins (the AD.FACTORY panel).
+    Route::middleware('superadmin')->group(function () {
         // Claude proxy forwards to the Anthropic API using the server's key, so it
         // must never be reachable by non-admin users.
         Route::post('/proxy', [ProxyController::class, 'forward']);
