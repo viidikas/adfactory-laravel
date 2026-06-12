@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Copy;
 use App\Models\Market;
-use App\Models\MarketConfirmation;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -107,60 +106,45 @@ class SheetSyncService
         }
 
         // Replace the market's copy set with the freshly synced rows so the
-        // approved set always matches the sheet (stale copies are removed), then
-        // recompute the content hash and, if the content changed since it was
-        // confirmed, reset the confirmation and deactivate the market.
-        $confirmationReset = false;
-        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn, &$confirmationReset) {
+        // approved set always matches the sheet (stale copies are removed).
+        // Per-copy enablement is preserved for unchanged copies; a new or
+        // content-changed copy is reset to DISABLED so an admin must re-review it.
+        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn) {
             $seen = [];
             foreach ($rows as $row) {
+                $existing = $market->copies()->where('copy_key', $row['copy_key'])->first();
+
+                $attrs = [
+                    'copy_text' => $row['copy_text'],
+                    'category' => $row['category'],
+                    'shot' => $row['shot'],
+                    'brand' => $row['brand'],
+                    'requires_disclaimer' => $row['requires_disclaimer'],
+                    'source_row' => $row['source_row'],
+                ];
+
+                // New or changed content must be re-enabled by an admin. Unchanged
+                // copies keep their existing enable state (attrs omits it).
+                if (! $existing || $this->copyContentChanged($existing, $row)) {
+                    $attrs['enabled'] = false;
+                    $attrs['enabled_at'] = null;
+                    $attrs['enabled_by'] = null;
+                }
+
                 Copy::updateOrCreate(
                     ['market_id' => $market->id, 'copy_key' => $row['copy_key']],
-                    [
-                        'copy_text' => $row['copy_text'],
-                        'category' => $row['category'],
-                        'shot' => $row['shot'],
-                        'brand' => $row['brand'],
-                        'requires_disclaimer' => $row['requires_disclaimer'],
-                        'source_row' => $row['source_row'],
-                    ]
+                    $attrs
                 );
                 $seen[] = $row['copy_key'];
             }
 
             $market->copies()->whereNotIn('copy_key', $seen ?: [''])->delete();
 
-            $newHash = $market->computeContentHash();
-
-            $attrs = [
+            $market->forceFill([
                 'has_disclaimer' => $hasDisclaimerColumn,
                 'last_synced_at' => Carbon::now(),
-                'content_hash' => $newHash,
-            ];
-
-            // A confirmed market whose content has changed loses its confirmation
-            // and is deactivated — same effect as a manual disable. If the hash is
-            // identical (no-change sync), the confirmation is left intact.
-            if ($market->confirmed_at !== null && $market->confirmed_hash !== $newHash) {
-                $attrs['confirmed_at'] = null;
-                $attrs['confirmed_by'] = null;
-                $attrs['confirmed_hash'] = null;
-                $attrs['active'] = false;
-
-                $market->confirmations()->create([
-                    'user_id' => null,
-                    'action' => MarketConfirmation::ACTION_INVALIDATED_BY_SYNC,
-                    'content_hash' => $newHash,
-                ]);
-                $confirmationReset = true;
-            }
-
-            $market->forceFill($attrs)->save();
+            ])->save();
         });
-
-        if ($confirmationReset) {
-            $issues[] = 'Content changed — confirmation reset, market deactivated.';
-        }
 
         return $this->result($market, true, count($rows), $hasDisclaimerColumn, $issues);
     }
@@ -179,6 +163,18 @@ class SheetSyncService
             'has_disclaimer' => $hasDisclaimer,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * Whether a synced row differs from the stored copy in any reviewed field
+     * (text, shot, category, or disclaimer flag) — i.e. it must be re-enabled.
+     */
+    private function copyContentChanged(Copy $existing, array $row): bool
+    {
+        return $existing->copy_text != $row['copy_text']
+            || (string) $existing->shot !== (string) $row['shot']
+            || (string) $existing->category !== (string) $row['category']
+            || (bool) $existing->requires_disclaimer !== (bool) $row['requires_disclaimer'];
     }
 
     /**

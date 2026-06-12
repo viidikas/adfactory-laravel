@@ -15,6 +15,9 @@ class Copy extends Model
         'shot',
         'brand',
         'requires_disclaimer',
+        'enabled',
+        'enabled_at',
+        'enabled_by',
         'source_row',
     ];
 
@@ -23,11 +26,18 @@ class Copy extends Model
         return [
             'copy_text' => 'array',
             'requires_disclaimer' => 'boolean',
+            'enabled' => 'boolean',
+            'enabled_at' => 'datetime',
         ];
     }
 
     public function market(): BelongsTo
     {
         return $this->belongsTo(Market::class);
+    }
+
+    public function enabledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'enabled_by');
     }
 }

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Copy;
 use App\Models\Market;
-use App\Models\MarketConfirmation;
 use App\Services\SheetSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,7 +21,9 @@ class MarketController extends Controller
     {
         $isAdmin = $request->user()->role === 'admin';
 
-        $query = Market::query()->withCount('copies')->with('confirmedBy')->orderBy('code');
+        $query = Market::query()
+            ->withCount(['copies', 'copies as enabled_copies_count' => fn ($q) => $q->where('enabled', true)])
+            ->orderBy('code');
         if (! $isAdmin) {
             $query->active();
         }
@@ -43,11 +44,9 @@ class MarketController extends Controller
             return $base + [
                 'sheet_tab' => $m->sheet_tab,
                 'copy_count' => $m->copies_count,
+                'enabled_count' => $m->enabled_copies_count,
+                'can_enable' => $m->enabled_copies_count > 0,
                 'has_disclaimer' => $m->has_disclaimer,
-                'review_ready' => $m->isReviewReady(),
-                'confirmed' => $m->isConfirmed(),
-                'confirmed_by' => optional($m->confirmedBy)->name,
-                'confirmed_at' => optional($m->confirmed_at)->toIso8601String(),
                 'activated_at' => optional($m->activated_at)->toIso8601String(),
                 'last_synced_at' => optional($m->last_synced_at)->toIso8601String(),
             ];
@@ -89,26 +88,15 @@ class MarketController extends Controller
     }
 
     /**
-     * Enable a market — an explicit admin action. Blocked unless the market is
-     * review-ready: it must have synced copies AND a Disclaimer column.
+     * Enable a market — an explicit admin action. Per-copy enablement is the
+     * content gate, so a market may be enabled once at least one of its copies
+     * has been enabled. Existing orders are untouched.
      */
     public function enable(Market $market)
     {
-        if (! $market->copies()->exists()) {
+        if (! $market->copies()->where('enabled', true)->exists()) {
             return response()->json([
-                'message' => "Cannot enable {$market->code}: it has no synced copies. Sync the market first.",
-            ], 422);
-        }
-
-        if (! $market->has_disclaimer) {
-            return response()->json([
-                'message' => "Cannot enable {$market->code}: its tab has no Disclaimer column. Add one and re-sync.",
-            ], 422);
-        }
-
-        if (! $market->isConfirmed()) {
-            return response()->json([
-                'message' => "Cannot enable {$market->code}: its copies are not confirmed. Review and confirm the copies first.",
+                'message' => "Cannot enable {$market->code}: no copies are enabled. Enable at least one copy first.",
             ], 422);
         }
 
@@ -144,9 +132,9 @@ class MarketController extends Controller
     }
 
     /**
-     * Admin Copies review view: read-only copies + sync metadata + confirmation
-     * status. Google Sheets stays the single source of truth — nothing here is
-     * editable.
+     * Admin Copies review view: the market's copies with per-copy enable state +
+     * sync metadata. Google Sheets stays the source of truth — copy text is
+     * read-only; only the per-copy `enabled` flag is editable (via toggleCopy).
      */
     public function copies(Market $market)
     {
@@ -154,67 +142,39 @@ class MarketController extends Controller
     }
 
     /**
-     * Confirm that the market's synced copies match the legally approved sheet.
-     * Records confirmed_hash = current content_hash and writes an audit row.
+     * Toggle a single copy's enabled flag (admin). Only enabled copies are shown
+     * to growth leads and accepted by order store(). The copy must belong to the
+     * given market.
      */
-    public function confirm(Request $request, Market $market)
+    public function toggleCopy(Request $request, Market $market, Copy $copy)
     {
-        if (! $market->copies()->exists()) {
-            return response()->json([
-                'message' => "Cannot confirm {$market->code}: it has no synced copies. Sync the market first.",
-            ], 422);
+        abort_unless($copy->market_id === $market->id, 404);
+
+        $validated = $request->validate(['enabled' => 'required|boolean']);
+
+        if ($validated['enabled']) {
+            $copy->forceFill([
+                'enabled' => true,
+                'enabled_at' => Carbon::now(),
+                'enabled_by' => $request->user()->id,
+            ])->save();
+        } else {
+            $copy->forceFill(['enabled' => false, 'enabled_at' => null, 'enabled_by' => null])->save();
         }
 
-        $hash = $market->computeContentHash();
-
-        $market->forceFill([
-            'content_hash' => $hash,
-            'confirmed_at' => Carbon::now(),
-            'confirmed_by' => $request->user()->id,
-            'confirmed_hash' => $hash,
-        ])->save();
-
-        $market->confirmations()->create([
-            'user_id' => $request->user()->id,
-            'action' => MarketConfirmation::ACTION_CONFIRMED,
-            'content_hash' => $hash,
-        ]);
-
         return response()->json($this->detail($market->fresh()));
     }
 
     /**
-     * Manually revoke a confirmation. Like a sync-triggered invalidation, this
-     * deactivates the market (existing orders untouched) and is audited.
-     */
-    public function revoke(Request $request, Market $market)
-    {
-        $market->confirmations()->create([
-            'user_id' => $request->user()->id,
-            'action' => MarketConfirmation::ACTION_MANUALLY_REVOKED,
-            'content_hash' => $market->content_hash,
-        ]);
-
-        $market->forceFill([
-            'confirmed_at' => null,
-            'confirmed_by' => null,
-            'confirmed_hash' => null,
-            'active' => false,
-        ])->save();
-
-        return response()->json($this->detail($market->fresh()));
-    }
-
-    /**
-     * Full admin detail payload for one market: metadata, confirmation status,
-     * latest audit event, and the read-only copy set.
+     * Full admin detail payload for one market: metadata + the copy set with
+     * per-copy enable state. Copies are read-only synced data; only their
+     * `enabled` flag is mutable (via toggleCopy).
      *
      * @return array<string, mixed>
      */
     private function detail(Market $market): array
     {
-        $market->loadCount('copies');
-        $latest = $market->confirmations()->with('user')->latest('id')->first();
+        $market->loadCount(['copies', 'copies as enabled_copies_count' => fn ($q) => $q->where('enabled', true)]);
 
         return [
             'id' => $market->id,
@@ -224,20 +184,18 @@ class MarketController extends Controller
             'active' => $market->active,
             'has_disclaimer' => $market->has_disclaimer,
             'copy_count' => $market->copies_count,
+            'enabled_count' => $market->enabled_copies_count,
+            'can_enable' => $market->enabled_copies_count > 0,
             'last_synced_at' => optional($market->last_synced_at)->toIso8601String(),
-            'content_hash' => $market->content_hash,
-            'confirmation' => [
-                'confirmed' => $market->isConfirmed(),
-                'confirmed_at' => optional($market->confirmed_at)->toIso8601String(),
-                'confirmed_by' => optional($market->confirmedBy)->name,
-                'last_action' => $latest?->action,
-                'last_action_at' => optional($latest?->created_at)->toIso8601String(),
-                'last_action_by' => optional($latest?->user)->name,
-            ],
-            'copies' => $market->copies()->orderBy('category')->orderBy('copy_key')->get()->map(fn (Copy $c) => [
+            'copies' => $market->copies()->with('enabledBy')->orderBy('category')->orderBy('copy_key')->get()->map(fn (Copy $c) => [
+                'id' => $c->id,
                 'copy_key' => $c->copy_key,
                 'category' => $c->category,
+                'shot' => $c->shot,
                 'requires_disclaimer' => $c->requires_disclaimer,
+                'enabled' => $c->enabled,
+                'enabled_by' => optional($c->enabledBy)->name,
+                'enabled_at' => optional($c->enabled_at)->toIso8601String(),
                 'copy_text' => $c->copy_text,
             ]),
         ];

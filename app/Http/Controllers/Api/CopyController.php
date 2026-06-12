@@ -10,10 +10,10 @@ use Illuminate\Http\Request;
 class CopyController extends Controller
 {
     /**
-     * List copies for a single market.
-     *
-     * Copies of INACTIVE markets are never returned to growth leads — admins may
-     * preview them to review a staged rollout before enabling.
+     * List the orderable copies for a single market — only ENABLED copies, since
+     * per-copy enablement is the content gate. Copies of inactive markets are
+     * never returned to growth leads. (Admins review the full set, including
+     * disabled copies, via GET /api/markets/{market}/copies.)
      */
     public function index(Request $request)
     {
@@ -30,7 +30,7 @@ class CopyController extends Controller
             return response()->json(['message' => 'Market is not available.'], 422);
         }
 
-        $copies = $market->copies()->orderBy('category')->orderBy('copy_key')->get();
+        $copies = $market->copies()->where('enabled', true)->orderBy('category')->orderBy('copy_key')->get();
 
         return response()->json($copies->map(function (Copy $c) {
             $text = $c->copy_text ?? [];

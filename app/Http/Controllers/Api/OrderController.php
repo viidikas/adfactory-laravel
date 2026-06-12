@@ -88,16 +88,15 @@ class OrderController extends Controller
             ], 422);
         }
 
-        // Every item's copy must belong to this market. Look up the market's
-        // copies once and reject any item referencing copy from another market
-        // (or a copy that does not exist) — this is what keeps an order
-        // single-market and legally consistent.
-        $copies = $market->copies()->get()->keyBy('copy_key');
+        // Every item's copy must be an ENABLED copy of this market. Per-copy
+        // enablement is the content gate, so only enabled copies are orderable;
+        // this also keeps an order single-market and legally consistent.
+        $copies = $market->copies()->where('enabled', true)->get()->keyBy('copy_key');
 
         foreach ($validated['items'] as $i => $itemData) {
             if (! $copies->has($itemData['copyKey'])) {
                 return response()->json([
-                    'message' => "Item {$i}: copy \"{$itemData['copyKey']}\" does not belong to market {$market->code}.",
+                    'message' => "Item {$i}: copy \"{$itemData['copyKey']}\" is not an enabled copy of market {$market->code}.",
                     'error_code' => 'copy_market_mismatch',
                 ], 422);
             }

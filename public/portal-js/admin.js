@@ -75,99 +75,94 @@ function renderAdminMarketsList(markets) {
   </table>`;
 }
 
-// ── Markets → [market] → Copies (read-only review + confirmation) ──
-let _copiesMarket = null;
+// ── Markets → Copies: per-market tabs + per-copy enable tickboxes ──
+let _copiesDetail = null;
 
 async function openMarketCopies(id) {
   try {
     const r = await fetch(`/api/markets/${id}/copies`);
     if (!r.ok) { toast('Could not load copies', true); return; }
-    _copiesMarket = await r.json();
-    renderMarketCopies(_copiesMarket);
+    _copiesDetail = await r.json();
+    renderMarketCopies(_copiesDetail);
     document.getElementById('market-copies-modal').classList.remove('hidden');
   } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
 function closeMarketCopies() {
   document.getElementById('market-copies-modal').classList.add('hidden');
-  _copiesMarket = null;
-}
-
-function confirmationBadge(c) {
-  if (c.confirmed) return `<span class="conf-badge conf-ok">&#10003; Confirmed by ${esc(c.confirmed_by||'—')} · ${esc(fmtSynced(c.confirmed_at))}</span>`;
-  if (c.last_action === 'invalidated_by_sync') return `<span class="conf-badge conf-warn">&#9888; Invalidated by sync · ${esc(fmtSynced(c.last_action_at))}</span>`;
-  if (c.last_action === 'manually_revoked') return `<span class="conf-badge conf-warn">&#9888; Revoked by ${esc(c.last_action_by||'—')} · ${esc(fmtSynced(c.last_action_at))}</span>`;
-  return `<span class="conf-badge conf-none">Not confirmed</span>`;
+  _copiesDetail = null;
 }
 
 function renderMarketCopies(d) {
   const el = document.getElementById('market-copies-body');
   if (!el) return;
-  const c = d.confirmation || {};
-  const reqCount = (d.copies || []).filter(x => x.requires_disclaimer).length;
   const langs = ['en','et','de','fr','es'];
+
+  // A tab per market (from the loaded admin markets list); click to switch.
+  const tabs = (_adminMarkets || []).map(m =>
+    `<button class="copies-tab${m.id === d.id ? ' active' : ''}" onclick="openMarketCopies(${m.id})">${esc(m.code)}${m.active ? ' <span class="copies-tab-dot" title="active"></span>' : ''}</button>`
+  ).join('');
+
+  const marketToggle = d.active
+    ? `<button class="btn btn-ghost" onclick="toggleMarketFromCopies(${d.id}, false)">Disable market</button>`
+    : `<button class="btn btn-green" style="${d.can_enable ? '' : 'opacity:.6;'}" title="${d.can_enable ? 'Enable market' : 'Enable at least one copy first'}" onclick="toggleMarketFromCopies(${d.id}, true)">Enable market</button>`;
 
   el.innerHTML = `
     <div class="copies-head">
-      <div class="copies-title">${esc(d.code)} — ${esc(d.name)} <span class="copies-brand">${esc(d.brand)}</span></div>
+      <div class="copies-title">Copies</div>
       <button class="btn btn-ghost" onclick="closeMarketCopies()">Close</button>
     </div>
 
+    <div class="copies-tabs">${tabs}</div>
+
     <div class="copies-meta">
+      <span><strong>${esc(d.code)}</strong> · ${esc(d.name)} · ${esc(d.brand)}</span>
       <span>Copies: <strong>${d.copy_count}</strong></span>
-      <span>Disclaimer column: <strong>${d.has_disclaimer ? 'present' : 'missing'}</strong> (${reqCount} require it)</span>
+      <span>Enabled: <strong>${d.enabled_count}</strong></span>
       <span>Last synced: <strong>${esc(fmtSynced(d.last_synced_at))}</strong></span>
       <span>Status: <strong>${d.active ? 'active' : 'inactive'}</strong></span>
+      <span style="margin-left:auto;">${marketToggle}</span>
     </div>
-
-    <div class="confirm-panel">
-      <div class="confirm-status">${confirmationBadge(c)}</div>
-      <div class="confirm-actions">
-        ${c.confirmed
-          ? `<button class="btn btn-ghost" onclick="revokeMarket(${d.id})">Revoke confirmation</button>`
-          : `<label class="confirm-check"><input type="checkbox" id="confirm-ack"> <span>I confirm the copies and disclaimer for <strong>${esc(d.code)}</strong> match the legally approved sheet.</span></label>
-             <button class="btn btn-green" onclick="confirmMarket(${d.id})">Confirm copies</button>`}
-      </div>
-      <div class="confirm-note">Google Sheets is the single source of truth — copies are read-only here. Confirming records who approved this exact content; any later sync that changes the content resets the confirmation and deactivates the market.</div>
-    </div>
+    <div class="confirm-note">Tick a copy to enable it — only enabled copies are shown to growth leads and can be ordered. Google Sheets stays the source of truth: copy text is read-only, and a sheet change resets that copy to disabled.</div>
 
     <table class="copies-table">
-      <thead><tr><th>Copy key</th><th>Category</th><th>Disclaimer</th><th>Copy (per language)</th></tr></thead>
+      <thead><tr><th style="width:60px;">Enable</th><th>Copy line</th><th style="width:170px;">Shot</th></tr></thead>
       <tbody>${(d.copies || []).map(row => {
         const txt = row.copy_text || {};
-        const langRows = langs.filter(l => txt[l]).map(l => `<div class="copy-lang"><span class="copy-lang-code">${l.toUpperCase()}</span> ${esc(txt[l])}</div>`).join('');
-        return `<tr>
-          <td class="mono">${esc(row.copy_key)}</td>
-          <td><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(row.category||'—')}</td>
-          <td>${row.requires_disclaimer ? '<span class="disc-yes">yes</span>' : 'no'}</td>
-          <td>${langRows || '<span class="muted">—</span>'}</td>
+        const en = txt.en || row.copy_key;
+        const others = langs.filter(l => l !== 'en' && txt[l]).map(l => `<span class="copy-lang-code">${l.toUpperCase()}</span>&nbsp;${esc(txt[l])}`).join('  ·  ');
+        return `<tr class="${row.enabled ? 'copy-on' : ''}">
+          <td style="text-align:center;"><input type="checkbox" class="copy-enable" ${row.enabled ? 'checked' : ''} onchange="toggleCopyEnabled(${d.id}, ${row.id}, this.checked)"></td>
+          <td>
+            <div class="copy-en"><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(en)}${row.requires_disclaimer ? ' <span class="disc-yes" title="requires disclaimer">&#9878;</span>' : ''}</div>
+            ${others ? `<div class="copy-others">${others}</div>` : ''}
+          </td>
+          <td class="mono">${esc(row.shot || '—')}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
 }
 
-async function confirmMarket(id) {
-  const ack = document.getElementById('confirm-ack');
-  if (!ack || !ack.checked) { toast('Tick the confirmation checkbox first', true); return; }
+async function toggleCopyEnabled(marketId, copyId, enabled) {
   try {
-    const r = await fetch(`/api/markets/${id}/confirm`, { method:'POST', headers:{'Content-Type':'application/json'} });
+    const r = await fetch(`/api/markets/${marketId}/copies/${copyId}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ enabled }),
+    });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) { toast(data.message || 'Confirm failed', true); return; }
-    toast('Copies confirmed');
-    _copiesMarket = data; renderMarketCopies(data);
+    if (!r.ok) { toast(data.message || 'Failed to update copy', true); openMarketCopies(marketId); return; }
+    _copiesDetail = data; renderMarketCopies(data);
     loadAdminMarkets();
-  } catch (e) { toast('Failed: ' + e.message, true); }
+  } catch (e) { toast('Failed: ' + e.message, true); openMarketCopies(marketId); }
 }
 
-async function revokeMarket(id) {
-  if (!confirm('Revoke confirmation? This deactivates the market (existing orders are kept).')) return;
+async function toggleMarketFromCopies(id, makeActive) {
   try {
-    const r = await fetch(`/api/markets/${id}/revoke`, { method:'POST', headers:{'Content-Type':'application/json'} });
+    const r = await fetch(`/api/markets/${id}/${makeActive ? 'enable' : 'disable'}`, { method: 'PUT', headers: {'Content-Type':'application/json'} });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) { toast(data.message || 'Revoke failed', true); return; }
-    toast('Confirmation revoked — market deactivated');
-    _copiesMarket = data; renderMarketCopies(data);
+    if (!r.ok) { toast(data.message || 'Failed', true); return; }
+    toast(makeActive ? 'Market enabled' : 'Market disabled');
     loadAdminMarkets();
+    openMarketCopies(id);
   } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
