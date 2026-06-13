@@ -144,20 +144,20 @@ function renderMarketCopies(d) {
       <thead><tr>
         <th style="width:60px;">Enabled</th>
         <th>Copy key</th>
+        ${langs.map(l => `<th>${esc(l.toUpperCase())}</th>`).join('')}
         <th>Category</th>
         <th style="width:120px;">Shot</th>
         <th style="width:70px;">Discl.</th>
-        ${langs.map(l => `<th>${esc(l.toUpperCase())}</th>`).join('')}
       </tr></thead>
       <tbody>${(d.copies || []).map(row => {
         const txt = row.copy_text || {};
         return `<tr class="${row.enabled ? 'copy-on' : ''}">
           <td style="text-align:center;"><input type="checkbox" class="copy-enable" ${row.enabled ? 'checked' : ''} onchange="toggleCopyEnabled(${d.id}, ${row.id}, this.checked)"></td>
           <td class="mono">${esc(row.copy_key)}</td>
+          ${langs.map(l => `<td><div class="copy-clamp" onclick="this.classList.toggle('expanded')">${esc(txt[l] || '')}</div></td>`).join('')}
           <td><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(row.category || '—')}</td>
           <td class="mono">${esc(row.shot || '—')}</td>
           <td>${row.requires_disclaimer ? '<span class="disc-yes">yes</span>' : '<span class="muted">no</span>'}</td>
-          ${langs.map(l => `<td><div class="copy-clamp" onclick="this.classList.toggle('expanded')">${esc(txt[l] || '')}</div></td>`).join('')}
         </tr>`;
       }).join('')}</tbody>
     </table>`;

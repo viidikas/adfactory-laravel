@@ -208,8 +208,11 @@ class MarketController extends Controller
     }
 
     /**
-     * The language codes present across a market's copies, ordered with the
-     * local language(s) first (alphabetical) and EN last. EN is always present.
+     * The language codes that actually carry content across a market's copies,
+     * ordered local language(s) first (alphabetical) and EN last as the
+     * reference. EN is always included. A language is only listed if at least
+     * one copy has non-empty text for it — so legacy padded copy_text
+     * ({en:'x', et:'', …}) does not surface empty ET/FR/DE/ES columns.
      *
      * @param  \Illuminate\Support\Collection<int, Copy>  $copies
      * @return array<int, string>
@@ -218,8 +221,10 @@ class MarketController extends Controller
     {
         $present = [];
         foreach ($copies as $c) {
-            foreach (array_keys($c->copy_text ?? []) as $lang) {
-                $present[$lang] = true;
+            foreach (($c->copy_text ?? []) as $lang => $value) {
+                if ($value !== null && $value !== '') {
+                    $present[$lang] = true;
+                }
             }
         }
 
