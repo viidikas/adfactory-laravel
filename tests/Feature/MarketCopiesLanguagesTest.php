@@ -43,6 +43,22 @@ class MarketCopiesLanguagesTest extends TestCase
         $this->assertEquals(['et', 'fi', 'en'], $response->json('languages'));
     }
 
+    public function test_padded_empty_languages_are_not_listed(): void
+    {
+        // Legacy padded copy_text (only EN has content) must report EN only —
+        // empty ET/FR/DE/ES columns should not surface, even without a re-sync.
+        $market = $this->market(['code' => 'UK']);
+        $this->copy($market, [
+            'copy_key' => 'k1',
+            'copy_text' => ['en' => 'Plan more, get more done', 'et' => '', 'fr' => '', 'de' => '', 'es' => ''],
+        ]);
+
+        $response = $this->asUser($this->admin())->getJson("/api/markets/{$market->id}/copies");
+
+        $response->assertStatus(200);
+        $this->assertEquals(['en'], $response->json('languages'));
+    }
+
     public function test_empty_market_still_reports_en(): void
     {
         $market = $this->market(['code' => 'PL']);
