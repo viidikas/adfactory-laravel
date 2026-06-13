@@ -1,13 +1,22 @@
 // ═══════════════════════════════════════════════════════════════
 //  MARKETS — staged rollout + per-copy enablement (super-admin only)
-//  Relocated from the Growth Portal Admin tab into AD.FACTORY.
-//  Source of truth is Google Sheets: copy text is read-only, only the
-//  per-copy `enabled` flag is editable here.
+//
+//  Two panels: the Markets list (view-markets, with the copy-spreadsheet
+//  config + Sync all on top), and a per-market copies PAGE (view-market-copies)
+//  reached by clicking a market row. The page is deep-linkable via the URL hash
+//  (#markets/UK). Google Sheets stays the source of truth: copy text is
+//  read-only, only the per-copy `enabled` flag is editable here.
 // ═══════════════════════════════════════════════════════════════
 let _adminMarkets = [];
 let _copiesDetail = null;
 
 async function loadAdminMarkets() {
+  // Hydrate the copy-spreadsheet URL field from saved config.
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    const el = document.getElementById('sheet-url-input');
+    if (el && document.activeElement !== el) el.value = cfg.sheet_url || '';
+  }).catch(() => {});
+
   const el = document.getElementById('admin-markets-list');
   try {
     const r = await fetch('/api/markets');
@@ -43,45 +52,70 @@ function renderAdminMarketsList(markets) {
       const toggleBtn = m.active
         ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="setMarketActive(${m.id}, false)">Disable</button>`
         : `<button class="btn btn-green" style="padding:3px 10px;font-size:9px;${canEnable ? '' : 'opacity:.5;cursor:not-allowed;'}" onclick="setMarketActive(${m.id}, true)" title="${canEnable ? 'Enable' : 'Enable at least one copy first'}">Enable</button>`;
-      return `<tr style="border-bottom:1px solid var(--border);${dim}">
+      // The whole row navigates to the market's copies page; action buttons stop propagation.
+      return `<tr class="market-row" style="border-bottom:1px solid var(--border);cursor:pointer;${dim}" onclick="openMarketCopiesPage(${m.id}, '${esc(m.code)}')">
         <td style="padding:8px 10px;color:var(--text);"><strong>${esc(m.code)}</strong> · ${esc(m.name)}</td>
         <td style="padding:8px 10px;color:var(--blue);">${esc(m.brand)}</td>
-        <td style="padding:8px 10px;color:var(--muted);">${esc(m.sheet_tab)} <button class="btn-edit" style="font-size:9px;background:none;border:none;color:var(--blue);cursor:pointer;" onclick="editMarketTab(${m.id})">edit</button></td>
+        <td style="padding:8px 10px;color:var(--muted);">${esc(m.sheet_tab)} <button class="btn-edit" style="font-size:9px;background:none;border:none;color:var(--blue);cursor:pointer;" onclick="event.stopPropagation();editMarketTab(${m.id})">edit</button></td>
         <td style="padding:8px 10px;color:var(--muted);">${m.copy_count ?? 0}</td>
         <td style="padding:8px 10px;color:${(m.enabled_count ?? 0) > 0 ? 'var(--green)' : 'var(--muted2)'};">${m.enabled_count ?? 0}</td>
         <td style="padding:8px 10px;color:var(--muted);">${esc(fmtSynced(m.last_synced_at))}</td>
         <td style="padding:8px 10px;">${badge}</td>
-        <td style="padding:8px 10px;white-space:nowrap;"><button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="openMarketCopies(${m.id})">Copies</button> <button class="btn btn-blue" style="padding:3px 10px;font-size:9px;" onclick="syncMarketNow(${m.id})">&#10227; Sync</button> ${toggleBtn}</td>
+        <td style="padding:8px 10px;white-space:nowrap;" onclick="event.stopPropagation();"><button class="btn btn-ghost" style="padding:3px 10px;font-size:9px;" onclick="openMarketCopiesPage(${m.id}, '${esc(m.code)}')">Copies &rarr;</button> <button class="btn btn-blue" style="padding:3px 10px;font-size:9px;" onclick="syncMarketNow(${m.id})">&#10227; Sync</button> ${toggleBtn}</td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
 
-// ── Markets → Copies: per-market tabs + per-copy enable tickboxes ──
-async function openMarketCopies(id) {
+// ── Market copies PAGE (full panel, deep-linkable via #markets/CODE) ──
+
+// Switch to the market copies panel and load one market's copies.
+async function openMarketCopiesPage(id, code) {
+  ALL_VIEWS.forEach(v => {
+    const panel = document.getElementById('view-' + v);
+    if (panel) panel.classList.toggle('active', v === 'market-copies');
+    const nav = document.getElementById('nav-' + v);
+    if (nav) nav.classList.toggle('active', v === 'markets'); // keep Markets lit
+  });
+  document.getElementById('page-title').textContent = 'Markets';
+  document.getElementById('page-sub').textContent = 'Review copies and enable per market';
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  if (code) history.replaceState(null, '', '#markets/' + encodeURIComponent(code));
+
+  const body = document.getElementById('market-copies-body');
+  if (body) body.innerHTML = '<div style="padding:24px;color:var(--muted);font-size:11px;">Loading…</div>';
   try {
     const r = await fetch(`/api/markets/${id}/copies`);
     if (!r.ok) { toast('Could not load copies', true); return; }
     _copiesDetail = await r.json();
     renderMarketCopies(_copiesDetail);
-    document.getElementById('market-copies-modal').classList.remove('hidden');
   } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
-function closeMarketCopies() {
-  document.getElementById('market-copies-modal').classList.add('hidden');
-  _copiesDetail = null;
+// Deep-link entry: resolve a market CODE → id, then open its page.
+async function openMarketCopiesByCode(code) {
+  if (!_adminMarkets || !_adminMarkets.length) {
+    try { _adminMarkets = await fetch('/api/markets').then(r => r.json()); } catch (e) { _adminMarkets = []; }
+  }
+  const m = (_adminMarkets || []).find(x => String(x.code).toLowerCase() === String(code).toLowerCase());
+  if (!m) { goView('markets'); return; }
+  openMarketCopiesPage(m.id, m.code);
+}
+
+function backToMarkets() {
+  goView('markets');
 }
 
 function renderMarketCopies(d) {
   const el = document.getElementById('market-copies-body');
   if (!el) return;
-  const langs = ['en','et','de','fr','es'];
 
-  // A tab per market (from the loaded admin markets list); click to switch.
-  const tabs = (_adminMarkets || []).map(m =>
-    `<button class="copies-tab${m.id === d.id ? ' active' : ''}" onclick="openMarketCopies(${m.id})">${esc(m.code)}${m.active ? ' <span class="copies-tab-dot" title="active"></span>' : ''}</button>`
-  ).join('');
+  // Language columns come from the server (locals first, EN last).
+  const langs = Array.isArray(d.languages) && d.languages.length ? d.languages : ['en'];
+
+  const badge = d.active
+    ? '<span class="mk-badge mk-badge-on">active</span>'
+    : '<span class="mk-badge mk-badge-off">inactive</span>';
 
   const marketToggle = d.active
     ? `<button class="btn btn-ghost" onclick="toggleMarketFromCopies(${d.id}, false)">Disable market</button>`
@@ -89,35 +123,41 @@ function renderMarketCopies(d) {
 
   el.innerHTML = `
     <div class="copies-head">
-      <div class="copies-title">Copies</div>
-      <button class="btn btn-ghost" onclick="closeMarketCopies()">Close</button>
+      <button class="btn btn-ghost" onclick="backToMarkets()">&larr; Markets</button>
+      <div class="copies-title">${esc(d.name)} <span style="color:var(--muted2);font-weight:400;">· ${esc(d.code)}</span></div>
     </div>
-
-    <div class="copies-tabs">${tabs}</div>
 
     <div class="copies-meta">
-      <span><strong>${esc(d.code)}</strong> · ${esc(d.name)} · ${esc(d.brand)}</span>
+      <span>${esc(d.brand)}</span>
+      <span>${badge}</span>
+      <span>Last synced: <strong>${esc(fmtSynced(d.last_synced_at))}</strong></span>
       <span>Copies: <strong>${d.copy_count}</strong></span>
       <span>Enabled: <strong>${d.enabled_count}</strong></span>
-      <span>Last synced: <strong>${esc(fmtSynced(d.last_synced_at))}</strong></span>
-      <span>Status: <strong>${d.active ? 'active' : 'inactive'}</strong></span>
-      <span style="margin-left:auto;">${marketToggle}</span>
+      <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-blue" onclick="syncMarketNow(${d.id})">&#10227; Sync this market</button>
+        ${marketToggle}
+      </span>
     </div>
-    <div class="confirm-note">Tick a copy to enable it — only enabled copies are shown to growth leads and can be ordered. Google Sheets stays the source of truth: copy text is read-only, and a sheet change resets that copy to disabled.</div>
+    <div class="confirm-note">Tick a copy to enable it — only enabled copies are shown to growth leads and can be ordered. Google Sheets stays the source of truth: copy text is read-only, and a sheet change resets that copy to disabled. Click a long copy cell to expand it.</div>
 
     <table class="copies-table">
-      <thead><tr><th style="width:60px;">Enable</th><th>Copy line</th><th style="width:170px;">Shot</th></tr></thead>
+      <thead><tr>
+        <th style="width:60px;">Enabled</th>
+        <th>Copy key</th>
+        <th>Category</th>
+        <th style="width:120px;">Shot</th>
+        <th style="width:70px;">Discl.</th>
+        ${langs.map(l => `<th>${esc(l.toUpperCase())}</th>`).join('')}
+      </tr></thead>
       <tbody>${(d.copies || []).map(row => {
         const txt = row.copy_text || {};
-        const en = txt.en || row.copy_key;
-        const others = langs.filter(l => l !== 'en' && txt[l]).map(l => `<span class="copy-lang-code">${l.toUpperCase()}</span>&nbsp;${esc(txt[l])}`).join('  ·  ');
         return `<tr class="${row.enabled ? 'copy-on' : ''}">
           <td style="text-align:center;"><input type="checkbox" class="copy-enable" ${row.enabled ? 'checked' : ''} onchange="toggleCopyEnabled(${d.id}, ${row.id}, this.checked)"></td>
-          <td>
-            <div class="copy-en"><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(en)}${row.requires_disclaimer ? ' <span class="disc-yes" title="requires disclaimer">&#9878;</span>' : ''}</div>
-            ${others ? `<div class="copy-others">${others}</div>` : ''}
-          </td>
+          <td class="mono">${esc(row.copy_key)}</td>
+          <td><span class="cat-dot" data-cat="${esc(row.category||'')}"></span>${esc(row.category || '—')}</td>
           <td class="mono">${esc(row.shot || '—')}</td>
+          <td>${row.requires_disclaimer ? '<span class="disc-yes">yes</span>' : '<span class="muted">no</span>'}</td>
+          ${langs.map(l => `<td><div class="copy-clamp" onclick="this.classList.toggle('expanded')">${esc(txt[l] || '')}</div></td>`).join('')}
         </tr>`;
       }).join('')}</tbody>
     </table>`;
@@ -129,10 +169,11 @@ async function toggleCopyEnabled(marketId, copyId, enabled) {
       method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ enabled }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) { toast(data.message || 'Failed to update copy', true); openMarketCopies(marketId); return; }
+    if (!r.ok) { toast(data.message || 'Failed to update copy', true); return; }
     _copiesDetail = data; renderMarketCopies(data);
+    // Keep the underlying list counts fresh for when the user goes back.
     loadAdminMarkets();
-  } catch (e) { toast('Failed: ' + e.message, true); openMarketCopies(marketId); }
+  } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
 async function toggleMarketFromCopies(id, makeActive) {
@@ -142,7 +183,7 @@ async function toggleMarketFromCopies(id, makeActive) {
     if (!r.ok) { toast(data.message || 'Failed', true); return; }
     toast(makeActive ? 'Market enabled' : 'Market disabled');
     loadAdminMarkets();
-    openMarketCopies(id);
+    openMarketCopiesPage(id, _copiesDetail && _copiesDetail.code);
   } catch (e) { toast('Failed: ' + e.message, true); }
 }
 
@@ -168,10 +209,26 @@ async function syncMarketNow(id) {
       toast(`Synced ${data.copy_count} copies` + (issues.length ? ' · ' + issues.join('; ') : ''), issues.length > 0);
     }
     loadAdminMarkets();
+    // If we're on a market's copies page, refresh it.
+    if (_copiesDetail && _copiesDetail.id === id) openMarketCopiesPage(id, _copiesDetail.code);
   } catch (e) { toast('Sync failed: ' + e.message, true); }
 }
 
+// Persist the copy-spreadsheet URL (shared by market sync and the Generate copy
+// lines). Returns true once saved.
+async function saveSheetUrl() {
+  const input = document.getElementById('sheet-url-input');
+  const url = input ? input.value.trim() : '';
+  await fetch('/api/config', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ sheet_url: url }),
+  }).catch(() => {});
+  return url;
+}
+
+// Sync is market-centric: refresh every market's tab AND the global copy lines
+// the Generate flow reads (slate_data), all from the one configured sheet.
 async function syncAllMarkets() {
+  await saveSheetUrl();
   toast('Syncing all markets…');
   try {
     const r = await fetch('/api/markets/sync-all', { method: 'POST', headers: {'Content-Type':'application/json'} });
@@ -179,6 +236,13 @@ async function syncAllMarkets() {
     renderSyncReport(report);
     loadAdminMarkets();
   } catch (e) { toast('Sync failed: ' + e.message, true); }
+
+  // Keep the Generate flow's copy data flowing: rebuild copy lines + slate_data
+  // from the same sheet, then refresh in-memory copy assignments.
+  try {
+    await fetch('/api/copy-lines/sync', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    if (typeof loadSlateData === 'function') loadSlateData();
+  } catch (e) { /* copy-lines refresh is best-effort */ }
 }
 
 function renderSyncReport(report) {
@@ -186,10 +250,10 @@ function renderSyncReport(report) {
   if (!el) return;
   const issues = (report && report.issues) || [];
   if (!issues.length) {
-    el.innerHTML = `<div style="font-size:10px;color:var(--green);padding:8px 10px;background:var(--s3);border-radius:6px;margin-bottom:10px;">&#10003; Synced ${report.synced ?? 0} market(s) — no issues.</div>`;
+    el.innerHTML = `<div style="font-size:10px;color:var(--green);padding:8px 10px;background:var(--s3);border-radius:6px;margin:10px 0;">&#10003; Synced ${report.synced ?? 0} market(s) — no issues.</div>`;
     return;
   }
-  el.innerHTML = `<div style="font-size:10px;color:var(--orange);padding:8px 10px;background:var(--s3);border:1px solid var(--orange);border-radius:6px;margin-bottom:10px;">
+  el.innerHTML = `<div style="font-size:10px;color:var(--orange);padding:8px 10px;background:var(--s3);border:1px solid var(--orange);border-radius:6px;margin:10px 0;">
     <div style="font-weight:600;margin-bottom:4px;">Validation report (${issues.length} issue${issues.length>1?'s':''}):</div>
     ${issues.map(i => `<div>• ${esc(i)}</div>`).join('')}
   </div>`;

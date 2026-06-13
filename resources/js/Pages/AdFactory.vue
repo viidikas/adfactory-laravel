@@ -26,9 +26,6 @@
             <span class="ni">&#128193;</span> Clips
             <span class="nav-badge" id="nb-clips">&mdash;</span>
           </div>
-          <div class="nav-item" id="nav-copy" @click="goView('copy')">
-            <span class="ni">&#128221;</span> Copy
-          </div>
           <div class="nav-item" id="nav-generate" @click="goView('generate')">
             <span class="ni">&#11015;</span> Generate
           </div>
@@ -62,13 +59,6 @@
 
     <div id="toast"></div>
     <div id="modal-overlay" class="modal-overlay hidden"></div>
-
-    <!-- Markets → [market] → Copies: read-only copy review + per-copy enable (super-admin) -->
-    <div class="modal-overlay hidden" id="market-copies-modal">
-      <div class="modal-box copies-modal-box">
-        <div id="market-copies-body"></div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -85,7 +75,6 @@ export default {
       '/adfactory-js/constants.js',
       '/adfactory-js/state.js',
       '/adfactory-js/clips.js',
-      '/adfactory-js/copy.js',
       '/adfactory-js/generate.js',
       '/adfactory-js/admin.js',
       '/adfactory-js/markets.js',
@@ -149,13 +138,20 @@ export default {
     <!-- VIEW: MARKETS -->
     <div class="view-panel" id="view-markets">
       <div class="card" style="border-color:var(--border2);">
-        <div class="card-title">&#127760; Markets</div>
-        <div class="card-sub">Prepare a market while inactive (set its tab, sync, review its copies and tick the ones to enable), then enable it. Inactive markets are hidden from growth leads, and only enabled copies are shown to them.</div>
-        <div style="display:flex;gap:8px;margin:12px 0;">
+        <div class="card-title">&#128202; Copy spreadsheet</div>
+        <div class="card-sub">One Google Sheet, one tab per market (tab name = market code). Set the URL, then Sync all to pull every market's tab. Sync also refreshes the copy lines the Generate flow uses.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/…" style="flex:1;min-width:220px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:11px;outline:none;">
+          <button class="btn btn-secondary btn-sm" onclick="saveSheetUrl().then(()=>toast('Sheet URL saved'))">Save URL</button>
           <button class="btn btn-blue btn-sm" onclick="syncAllMarkets()">&#10227; Sync all</button>
           <button class="btn btn-ghost btn-sm" onclick="loadAdminMarkets()">Refresh</button>
         </div>
         <div id="admin-markets-report"></div>
+      </div>
+
+      <div class="card" style="border-color:var(--border2);">
+        <div class="card-title">&#127760; Markets</div>
+        <div class="card-sub">Click a market to review its copies and tick the ones to enable, then enable the market. Inactive markets are hidden from growth leads, and only enabled copies are shown to them.</div>
         <div id="admin-markets-list"></div>
         <div style="font-size:10px;color:var(--muted2);margin:14px 0 6px;font-weight:500;">Add a market (created inactive):</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -165,6 +161,11 @@ export default {
           <button class="btn btn-primary btn-sm" onclick="createMarket()">+ Add</button>
         </div>
       </div>
+    </div>
+
+    <!-- VIEW: MARKET COPIES (per-market page, reached from the Markets list; deep-linkable via #markets/CODE) -->
+    <div class="view-panel" id="view-market-copies">
+      <div id="market-copies-body"></div>
     </div>
 
     <!-- VIEW: PROJECTS -->
@@ -220,54 +221,6 @@ export default {
       <div id="lib-empty" class="empty" style="display:none;"><div class="empty-icon">&#128269;</div><div class="empty-title">No clips match</div><div class="empty-sub">Try clearing the search or filter.</div></div>
     </div>
 
-    <!-- VIEW: COPY -->
-    <div class="view-panel" id="view-copy">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <div>
-          <div class="card">
-            <div class="card-title">&#128202; Sheet Configuration</div>
-            <div class="card-sub">Copy sheet URL. Click Sync to fetch and map copy to clips.</div>
-            <div id="sheet-list"></div>
-            <div style="display:flex;gap:8px;margin-top:10px;">
-              <button class="btn btn-secondary btn-sm" onclick="addSheetRow()">+ Add Sheet</button>
-              <button class="btn btn-primary btn-sm" onclick="syncCopyFromSheet()">&#8635; Sync Copy</button>
-              <button class="btn btn-secondary btn-sm" onclick="analyseAllSheets()">&#129302; AI Analysis</button>
-            </div>
-            <div id="copy-sync-status" style="font-size:10px;color:var(--muted);margin-top:8px;"></div>
-          </div>
-          <div class="card" id="analysis-card" style="display:none;">
-            <div class="card-title">&#129302; AI Analysis Results</div>
-            <div id="analysis-results"></div>
-          </div>
-        </div>
-        <div>
-          <div class="card">
-            <div class="card-title">&#128221; Copy Browser</div>
-            <div class="card-sub">Verify copy-to-clip matching. Click a line to filter Clips view.</div>
-            <div id="copy-browser-cat-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
-            <div id="copy-browser-list" style="max-height:500px;overflow-y:auto;"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px;">
-        <div class="card-title">&#9997;&#65039; Copy Mapping</div>
-        <div class="card-sub">Slates with no copy are omitted from export.</div>
-        <div style="display:flex;gap:8px;margin-top:4px;margin-bottom:12px;">
-          <button class="btn btn-secondary btn-sm" onclick="copyMappingFilterAll()">Show all</button>
-          <button class="btn btn-secondary btn-sm" onclick="copyMappingFilterMissing()">Show missing only</button>
-          <select id="copy-mapping-cat-filter" onchange="renderCopyMappingPage()" style="background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 10px;font-family:'DM Mono',monospace;font-size:10px;outline:none;">
-            <option value="">All categories</option><option value="Product Usage">Product Usage</option><option value="Travel and Holiday">Travel and Holiday</option><option value="Home Renovation">Home Renovation</option><option value="Lifestyle and Events">Lifestyle and Events</option><option value="Electronics and Devices">Electronics and Devices</option><option value="Financial Relief">Financial Relief</option>
-          </select>
-        </div>
-        <div id="copy-mapping-list"></div>
-      </div>
-
-      <div class="card card-blue" style="margin-top:16px;"><div class="card-title">&#9997;&#65039; Copy Selection</div><div class="card-sub">When a slate has multiple copy options, select which one to use for generation.</div><div id="copy-selector-list"></div></div>
-
-      <div class="card" style="margin-top:16px;"><div class="card-title">&#9997;&#65039; Copy Override</div><div class="card-sub">Override per language. Leave blank to use sheet copy.</div><div class="copy-lang-grid" id="copy-override-fields"></div></div>
-    </div>
-
     <!-- VIEW: GENERATE -->
     <div class="view-panel" id="view-generate">
       <div class="card">
@@ -289,7 +242,7 @@ export default {
             <div class="card-title" style="margin-bottom:4px;">&#9997; Copy Status</div>
             <div id="copy-status-summary" style="font-size:10px;color:var(--muted2);"></div>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="goView('copy')">Edit Copy &rarr;</button>
+          <button class="btn btn-secondary btn-sm" onclick="goView('markets')">Markets &rarr;</button>
         </div>
       </div>
 

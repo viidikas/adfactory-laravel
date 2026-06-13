@@ -55,10 +55,16 @@ async function init() {
     if (el && v.built) el.textContent = 'v' + v.built;
   }).catch(() => {});
 
-  // Restore view from URL hash, or default to orders
-  const hash = window.location.hash.replace('#', '');
-  const view = ALL_VIEWS.includes(hash) ? hash : 'orders';
-  goView(view);
+  // Restore view from URL hash. `#markets/CODE` deep-links to a market's copies
+  // page; otherwise restore a known top-level view, defaulting to orders.
+  const hash = window.location.hash.replace(/^#/, '');
+  const marketMatch = hash.match(/^markets\/(.+)$/);
+  if (marketMatch && typeof openMarketCopiesByCode === 'function') {
+    openMarketCopiesByCode(decodeURIComponent(marketMatch[1]));
+  } else {
+    const view = (ALL_VIEWS.includes(hash) && hash !== 'market-copies') ? hash : 'orders';
+    goView(view);
+  }
 }
 
 // Persist current view to URL hash
@@ -90,13 +96,14 @@ function autoSaveState() {
 // ═══════════════════════════════════════════════════════════════
 //  NAVIGATION — view-based
 // ═══════════════════════════════════════════════════════════════
-const ALL_VIEWS = ['orders','markets','projects','clips','copy','generate','preview','settings'];
+// 'market-copies' is a sub-page of Markets (reached by clicking a market row);
+// it has no nav item but is listed so goView() hides it when leaving.
+const ALL_VIEWS = ['orders','markets','market-copies','projects','clips','generate','preview','settings'];
 const VIEW_TITLES = {
   orders:   ['Orders',          'Incoming orders from growth leads'],
   markets:  ['Markets',         'Staged market rollout + per-copy enablement'],
   projects: ['Projects',        'Manage footage projects — scan folders to index clips'],
   clips:    ['Clips',           'Browse and verify clip library'],
-  copy:     ['Copy',            'Configure copy sheets and verify copy-to-clip matching'],
   generate: ['Generate',        'Configure filters, output paths, AE comp names'],
   preview:  ['Preview & Export', 'Review generation summary and export Templater CSV'],
   settings: ['Settings',        'Designs, formats, users, output configuration'],
@@ -120,7 +127,6 @@ function goView(view) {
   if (view === 'markets') loadAdminMarkets();
   if (view === 'projects') loadProjectCards();
   if (view === 'clips') { renderClipGrid(); loadProjects().then(updateProjectNav); }
-  if (view === 'copy') { loadSheetsMeta(); renderCopyBrowser(); renderCopyMappingPage(); renderCopySelector(); renderCopyOverrideFields(); }
   if (view === 'generate') {
     // Load copy lines if not yet loaded (needed for brand→slate filtering)
     if (typeof adminCopyLines !== 'undefined' && !adminCopyLines.length) {
@@ -196,49 +202,6 @@ function scanActiveProject() {
   }).catch(() => toast('Could not load projects', true));
 }
 
-function renderCopyBrowser() {
-  const chipsEl = document.getElementById('copy-browser-cat-chips');
-  const listEl = document.getElementById('copy-browser-list');
-  if (!chipsEl || !listEl) return;
-
-  if (!adminCopyLines.length) {
-    fetch('/api/copy-lines').then(r => r.json()).then(data => {
-      if (Array.isArray(data)) adminCopyLines = data;
-      renderCopyBrowser();
-    }).catch(() => {});
-    return;
-  }
-
-  const CATS = ['','Product Usage','Travel and Holiday','Home Renovation','Lifestyle and Events','Electronics and Devices','Financial Relief'];
-  chipsEl.innerHTML = CATS.map(c =>
-    `<span class="chip${adminCopyFilterCat===c?' sel':''}" style="padding:4px 10px;font-size:9px;cursor:pointer;border:1px solid var(--border);border-radius:4px;${adminCopyFilterCat===c?'background:var(--accent);color:#000;border-color:var(--accent);':'color:var(--muted2);'}" onclick="adminCopyFilterCat='${esc(c)}';renderCopyBrowser()">${c||'All'}</span>`
-  ).join('');
-
-  let lines = adminCopyLines;
-  if (adminCopyFilterCat) lines = lines.filter(r => r.category === adminCopyFilterCat);
-
-  if (!lines.length) {
-    listEl.innerHTML = '<div style="padding:14px;font-size:10px;color:var(--muted);">No copy lines. Sync a sheet first.</div>';
-    return;
-  }
-
-  // Count matching clips per copy line
-  listEl.innerHTML = lines.map((row, i) => {
-    const shotCodes = (row.shot||'').split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
-    const matchCount = shotCodes.length
-      ? state.clipLibrary.filter(c => shotCodes.includes((c.slate||'').toUpperCase())).length
-      : state.clipLibrary.filter(c => (c.category||'').toLowerCase() === (row.category||'').toLowerCase()).length;
-    return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="goView('clips');selectCopyFilterLine(${adminCopyLines.indexOf(row)})">
-      <div style="font-size:11px;color:var(--text);margin-bottom:3px;">${esc(row.en)}</div>
-      <div style="display:flex;gap:8px;align-items:center;font-size:9px;">
-        <span style="color:var(--blue);">${esc(row.shot||'Category-wide')}</span>
-        <span style="color:var(--muted);">${matchCount} clips</span>
-        ${row.brand?`<span style="color:var(--muted2);">${esc(row.brand)}</span>`:''}
-      </div>
-    </div>`;
-  }).join('');
-}
-
 // Admin order status filter
 let adminOrderStatusFilter = 'all';
 function filterAdminOrders(status) {
@@ -249,7 +212,7 @@ function filterAdminOrders(status) {
 
 // Legacy step navigation — maps to views for backward compat
 function goStep(n) {
-  const stepToView = {1:'copy', 2:'clips', 3:'generate', 4:'copy', 5:'generate', 6:'generate', 7:'generate', 8:'orders', 9:'settings', 10:'settings'};
+  const stepToView = {1:'markets', 2:'clips', 3:'generate', 4:'markets', 5:'generate', 6:'generate', 7:'generate', 8:'orders', 9:'settings', 10:'settings'};
   goView(stepToView[n] || 'orders');
 }
 
@@ -273,229 +236,6 @@ function showSettingsTab(tab) {
     if (typeof renderCompNameFields === 'function') renderCompNameFields();
     if (typeof updatePathPreview === 'function') updatePathPreview();
   }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  SHEET MANAGEMENT
-// ═══════════════════════════════════════════════════════════════
-function addSheetRow() {
-  const id = Date.now();
-  state.sheets.push({ id, url:'', label:'', csvText:'', type:'unknown', data:null, analysisText:'', status:'idle' });
-  renderSheetList();
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('.sheet-url-input');
-    if (inputs.length) inputs[inputs.length-1].focus();
-  }, 50);
-}
-
-function removeSheet(id) {
-  state.sheets = state.sheets.filter(s => s.id !== id);
-  renderSheetList();
-  saveSheetsMeta();
-}
-
-function saveSheetsMeta() {
-  const meta = state.sheets.map(s => ({
-    id: s.id, url: s.url || '', label: s.label || '',
-    type: s.type || 'unknown', status: s.status === 'ok' ? 'ok' : 'idle',
-    row_count: s.data?.row_count || 0,
-  }));
-  fetch('/api/config', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ sheets_meta: meta })
-  }).catch(() => {});
-}
-
-async function loadSheetsMeta() {
-  try {
-    const r = await fetch('/api/config');
-    const cfg = await r.json();
-    const meta = cfg.sheets_meta || [];
-    if (!meta.length) return;
-    state.sheets = meta.map(m => ({
-      id: m.id || Date.now() + Math.random(),
-      url: m.url || '', label: m.label || '',
-      type: m.type || 'unknown', data: m.row_count ? { row_count: m.row_count } : null,
-      analysisText: '', status: m.status || 'idle', csvText: '',
-    }));
-    renderSheetList();
-  } catch(e) {}
-}
-
-function renderSheetList() {
-  const el = document.getElementById('sheet-list');
-  if (!state.sheets.length) { el.innerHTML = ''; return; }
-
-  el.innerHTML = state.sheets.map(s => {
-    const statusDot = s.status === 'ok'      ? 'sdot-ok'
-                    : s.status === 'loading' ? 'sdot-loading'
-                    : s.status === 'error'   ? 'sdot-err'
-                    : 'sdot-pending';
-    const statusText = s.status === 'ok'      ? 'Ready'
-                     : s.status === 'loading' ? 'Fetching…'
-                     : s.status === 'error'   ? 'Error'
-                     : 'Not analysed';
-    const typeBadge = s.type !== 'unknown'
-      ? `<span class="sheet-type-badge badge-${s.type}">${s.type}</span>`
-      : `<span class="sheet-type-badge badge-unknown">Not analysed</span>`;
-
-    return `<div class="sheet-block" id="sb-${s.id}">
-      <div class="sheet-block-header">
-        <div style="display:flex;align-items:center;gap:8px;">
-          ${typeBadge}
-          ${s.data?.row_count ? `<span style="font-size:9px;color:var(--muted);">${s.data.row_count} rows</span>` : ''}
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="sheet-status">
-            <div class="sdot ${statusDot}"></div>
-            <span style="font-size:10px;color:var(--muted)">${statusText}</span>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="removeSheet(${s.id})" title="Remove">✕</button>
-        </div>
-      </div>
-
-      <div style="margin-bottom:8px;">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px;">Label (optional)</div>
-        <input type="text" placeholder="e.g. Clips — Product Usage" value="${esc(s.label||'')}"
-          onchange="state.sheets.find(x=>x.id===${s.id}).label=this.value;saveSheetsMeta()"
-          style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;"
-          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
-        <input type="text" class="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(s.url||'')}"
-          onchange="state.sheets.find(x=>x.id===${s.id}).url=this.value.trim();saveSheetsMeta()"
-          onkeydown="if(event.key==='Enter') analyseSheet(${s.id})"
-          style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px 12px;font-family:'DM Mono',monospace;font-size:10px;outline:none;"
-          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'">
-        <button class="btn btn-blue btn-sm" onclick="analyseSheet(${s.id})" id="btn-analyse-${s.id}">
-          ${s.data ? '↻ Re-fetch' : '🔗 Connect'}
-        </button>
-      </div>
-
-      ${s.analysisText ? `<div class="analysis-box" style="margin-top:10px;">${s.analysisText}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function updateSheetLabel(id, val) {
-  const s = state.sheets.find(x => x.id === id);
-  if (s) s.label = val;
-}
-
-function updateSheetUrl(id, url) {
-  const s = state.sheets.find(x => x.id === id);
-  if (s) s.url = url.trim();
-}
-
-async function analyseAllSheets() {
-  const targets = state.sheets.filter(s => s.url);
-  if (!targets.length) { toast('Add at least one Sheet URL first', true); return; }
-
-  // Disable buttons and show progress
-  const btn = document.querySelector('#step-1 .btn-primary');
-  if (btn) { btn.innerHTML = '<span class="spinner"></span> Analysing…'; btn.disabled = true; }
-  toast('Fetching sheets and analysing with AI… this may take a minute');
-
-  try {
-    const r = await fetch('/api/analyse-sheets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sheet_urls: targets.map(s => ({ url: s.url, label: s.label || '' }))
-      })
-    });
-
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error || 'Analysis failed');
-
-    // Update sheet statuses
-    targets.forEach(s => { s.status = 'ok'; s.type = 'analysed'; });
-    saveSheetsMeta();
-    renderSheetList();
-
-    // Store slate data locally and auto-map to clips
-    if (data.slate_data) {
-      state.slateData = data.slate_data;
-      applySlateDataToClips(data.slate_data);
-    }
-
-    document.getElementById('analysis-card').style.display = 'block';
-    document.getElementById('analysis-results').innerHTML = `
-      <div style="color:var(--text);font-size:11px;line-height:1.8;">
-        <strong style="color:var(--green);">✓ Analysis complete</strong><br>
-        Slates matched: <strong>${data.slates}</strong><br>
-        Copy rows: <strong>${data.copy_rows}</strong>
-      </div>`;
-
-    toast(`✓ Analysis complete — ${data.slates} slates, ${data.copy_rows} copy rows`);
-    setEl('nb-1', 'textContent', data.slates + ' slates');
-    setEl('nb-1', 'className', 'nav-badge ok');
-  } catch(e) {
-    toast('Analysis failed: ' + e.message, true);
-    document.getElementById('analysis-card').style.display = 'block';
-    document.getElementById('analysis-results').innerHTML =
-      `<div style="color:var(--orange);">⚠ ${e.message}</div>`;
-  }
-
-  if (btn) { btn.innerHTML = '🤖 Analyse All'; btn.disabled = false; }
-
-  // After AI analysis, sync copy from the copies sheet deterministically
-  await syncCopyFromSheet();
-}
-
-async function syncCopyFromSheet() {
-  // Find the copies sheet URL (the one with language columns, not shot descriptions)
-  // Save the first sheet URL to config as the copy sheet
-  const copySheet = state.sheets.find(s => s.url);
-  if (copySheet) {
-    await fetch('/api/config', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ sheet_url: copySheet.url })
-    });
-  }
-
-  try {
-    const r = await fetch('/api/copy-lines/sync', { method: 'POST' });
-    const data = await r.json();
-    if (data.ok) {
-      toast(`✓ Copy synced — ${data.copy_lines} lines, ${data.slates_mapped} slates`);
-      // Reload clips to get updated copy data
-      await loadClipsFromProxy();
-      loadSlateData();
-    } else {
-      toast('Copy sync: ' + (data.error || 'failed'), true);
-    }
-  } catch(e) {
-    // Copy sync is optional — AI analysis may have handled it
-  }
-}
-
-function applySlateDataToClips(slateData) {
-  // Update clip library with enriched data from AI
-  state.clipLibrary.forEach(clip => {
-    const sd = slateData[clip.slate];
-    if (!sd) return;
-    clip.description = sd.description || '';
-    clip.markets = sd.markets || '';
-    clip.copy = sd.copy || [];
-    clip.matchStatus = sd.copy?.length ? 'matched' : 'unmatched';
-  });
-
-  // Build copyAssignments from slate_data for getCopy() compatibility
-  state.copyAssignments = {};
-  Object.entries(slateData).forEach(([slate, sd]) => {
-    if (sd.copy?.length) {
-      state.copyAssignments[slate] = sd.copy;
-      if (state.copySelection[slate] === undefined) state.copySelection[slate] = 0;
-    }
-  });
-  localStorage.setItem('af_copy_assignments', JSON.stringify(state.copyAssignments));
-  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));autoSaveState();
-
-  if (typeof renderClipGrid === 'function') renderClipGrid();
-  if (typeof updateLibStats === 'function') updateLibStats();
-  if (typeof renderCopySelector === 'function') renderCopySelector();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -664,18 +404,6 @@ function updateFilterSummary() {
     </div>`;
 
   setEl('nb-3', 'textContent', selectedSlates + ' slates');
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  COPY OVERRIDE FIELDS
-// ═══════════════════════════════════════════════════════════════
-function renderCopyOverrideFields() {
-  document.getElementById('copy-override-fields').innerHTML = LANGS.map(lang => `
-    <div class="copy-lang-item">
-      <div class="copy-lang-label">${lang}</div>
-      <textarea placeholder="Leave blank to use copy from sheet…"
-        oninput="state.copyOverride['${lang}']=this.value">${esc(state.copyOverride[lang]||'')}</textarea>
-    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -937,7 +665,7 @@ function updateCopyStatusSummary() {
   const withCopy = allSlates.filter(s => state.copyAssignments[s]?.length > 0).length;
   const missing = allSlates.length - withCopy;
   if (missing > 0) {
-    el.innerHTML = `<span style="color:var(--green);">${withCopy}</span> slates have copy · <span style="color:var(--orange);">${missing} missing</span> — <a href="#" onclick="event.preventDefault();goView('copy')" style="color:var(--blue);text-decoration:underline;">configure in Copy page</a>`;
+    el.innerHTML = `<span style="color:var(--green);">${withCopy}</span> slates have copy · <span style="color:var(--orange);">${missing} missing</span> — <a href="#" onclick="event.preventDefault();goView('markets')" style="color:var(--blue);text-decoration:underline;">review in Markets</a>`;
   } else {
     el.innerHTML = `<span style="color:var(--green);">All ${withCopy} slates have copy configured</span>`;
   }
@@ -1054,179 +782,6 @@ function fnAddPart(part) {
     renderFilenameBuilder();
     updatePathPreview();
   }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  COPY MAPPING PAGE — Step 4
-// ═══════════════════════════════════════════════════════════════
-let copyMappingFilter = 'all'; // 'all' | 'missing'
-
-function copyMappingFilterAll()     { copyMappingFilter = 'all';     renderCopyMappingPage(); }
-function copyMappingFilterMissing() { copyMappingFilter = 'missing'; renderCopyMappingPage(); }
-function copyMappingFilterCat(cat)  { const el = document.getElementById('copy-mapping-cat-filter'); if (el) { el.value = cat; renderCopyMappingPage(); } }
-
-function renderCopyMappingPage() {
-  const list = document.getElementById('copy-mapping-list');
-  if (!list) return;
-
-  const catFilter = document.getElementById('copy-mapping-cat-filter')?.value || '';
-  const activeCats = state.filters.cat.length ? state.filters.cat
-    : ['Product Usage','Travel and Holiday','Home Renovation','Lifestyle and Events','Electronics and Devices','Financial Relief'];
-
-  // Get unique slates from SCENE_DATA filtered by category
-  const scenes = SCENE_DATA.filter(s =>
-    activeCats.includes(s.category) &&
-    (!catFilter || s.category === catFilter)
-  );
-  // Deduplicate by slate
-  const uniqueSlates = [];
-  const seen = new Set();
-  scenes.forEach(s => { if (!seen.has(s.slate)) { seen.add(s.slate); uniqueSlates.push(s); } });
-
-  // Filter by missing copy if needed
-  const filtered = copyMappingFilter === 'missing'
-    ? uniqueSlates.filter(s => !hasCopyForSlate(s.slate))
-    : uniqueSlates;
-
-  // Update badge
-  const missing = uniqueSlates.filter(s => !hasCopyForSlate(s.slate)).length;
-  const nb = document.getElementById('nb-4');
-  if (nb) {
-    nb.textContent = missing ? `${missing} missing` : '✓ all mapped';
-    nb.className   = missing ? 'nav-badge' : 'nav-badge ok';
-  }
-
-  if (!filtered.length) {
-    list.innerHTML = `<div class="empty" style="padding:48px 20px;">
-      <div class="empty-icon">${copyMappingFilter === 'missing' ? '✓' : '📋'}</div>
-      <div class="empty-title">${copyMappingFilter === 'missing' ? 'All slates have copy!' : 'No slates'}</div>
-    </div>`;
-    return;
-  }
-
-  // Group by category
-  const byCat = {};
-  filtered.forEach(s => {
-    if (!byCat[s.category]) byCat[s.category] = [];
-    byCat[s.category].push(s);
-  });
-
-  const catColors = {
-    'Product Usage':'var(--accent)','Travel and Holiday':'var(--blue)',
-    'Home Renovation':'var(--orange)','Lifestyle and Events':'var(--purple)',
-    'Electronics and Devices':'var(--green)','Financial Relief':'var(--warn)',
-  };
-
-  list.innerHTML = Object.entries(byCat).map(([cat, slates]) => {
-    const color = catColors[cat] || 'var(--muted)';
-    const rows = slates.map(scene => {
-      const slate = scene.slate;
-      const assignments = state.copyAssignments[slate] || [];
-      const selIdx = state.copySelection[slate] || 0;
-      const current = assignments[Math.min(selIdx, assignments.length-1)];
-      const manualKey = state.slateAssignments[slate] || '';
-      const hasCopy = hasCopyForSlate(slate);
-
-      // Current copy display
-      const copyDisplay = current?.en
-        ? `<div style="color:var(--green);font-size:10px;margin-top:4px;">
-            <strong>EN:</strong> ${esc(current.en)}
-            ${current.et ? `<span style="margin-left:8px;color:var(--muted);"><strong>ET:</strong> ${esc(current.et.slice(0,30))}…</span>` : ''}
-           </div>`
-        : manualKey && COPY_KEYS[manualKey]
-          ? `<div style="color:var(--accent);font-size:10px;margin-top:4px;"><strong>Key:</strong> ${esc(manualKey)} — ${esc(COPY_KEYS[manualKey].en)}</div>`
-          : `<div style="color:var(--orange);font-size:10px;margin-top:4px;">⚠ No copy — will be omitted from export</div>`;
-
-      // Multiple options selector
-      const multiSelect = assignments.length > 1 ? `
-        <div style="margin-top:8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">Choose copy option:</div>
-          <select onchange="setCopySelection('${esc(slate)}', parseInt(this.value))"
-            style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 10px;font-family:'DM Mono',monospace;font-size:10px;outline:none;">
-            ${assignments.map((r,i) => `<option value="${i}" ${i===selIdx?'selected':''}>${esc(r.key||r.en.slice(0,40))}</option>`).join('')}
-          </select>
-        </div>` : '';
-
-      // Manual key override dropdown
-      const keyOptions = Object.entries(COPY_KEYS).map(([k,v]) =>
-        `<option value="${esc(k)}" ${manualKey===k?'selected':''}>${esc(k)} — ${esc(v.en.slice(0,35))}</option>`
-      ).join('');
-
-      return `<div style="background:var(--s2);border:1px solid ${hasCopy ? 'var(--border)' : 'rgba(255,107,71,.3)'};border-radius:8px;padding:14px;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="cat-dot" style="background:${color};"></span>
-            <span style="color:var(--text);font-weight:600;font-size:13px;">${esc(slate)}</span>
-            <span style="font-size:11px;color:var(--muted2);">${esc(scene.shot)}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            ${assignments.length > 1 ? `<span style="font-size:9px;color:var(--warn);background:rgba(251,191,36,.1);padding:2px 6px;border-radius:3px;">${assignments.length} options</span>` : ''}
-            ${hasCopy ? '<span style="font-size:9px;color:var(--green);">✓</span>' : '<span style="font-size:9px;color:var(--orange);">✗ missing</span>'}
-          </div>
-        </div>
-        ${copyDisplay}
-        ${multiSelect}
-        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
-          <div style="font-size:9px;color:var(--muted);flex-shrink:0;">Manual key override:</div>
-          <select onchange="setManualCopyKey('${esc(slate)}', this.value)"
-            style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 10px;font-family:'DM Mono',monospace;font-size:10px;outline:none;">
-            <option value="">— use sheet copy —</option>
-            ${keyOptions}
-          </select>
-          ${manualKey ? `<button onclick="setManualCopyKey('${esc(slate)}','')" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:9px;">✕ clear</button>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-
-    return `<div style="margin-bottom:20px;">
-      <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${esc(cat)}</div>
-      ${rows}
-    </div>`;
-  }).join('');
-}
-
-function hasCopyForSlate(slate) {
-  // Check copyAssignments (from sheet)
-  const assignments = state.copyAssignments[slate];
-  if (assignments?.length) {
-    const sel = state.copySelection[slate] || 0;
-    const row = assignments[Math.min(sel, assignments.length-1)];
-    if (row?.en) return true;
-  }
-  // Check manual key assignment
-  const key = state.slateAssignments[slate];
-  if (key && COPY_KEYS[key]?.en) return true;
-  // Check getBuiltinCopy fallback (only if no sheet loaded)
-  if (!Object.keys(state.copyAssignments).length) {
-    const builtin = getBuiltinCopy(slate, 'Creditstar');
-    if (builtin) return true;
-  }
-  return false;
-}
-
-function setCopySelection(slate, idx) {
-  state.copySelection[slate] = idx;
-  localStorage.setItem('af_copy_selection', JSON.stringify(state.copySelection));autoSaveState();
-  renderCopyMappingPage();
-  renderClipGrid();
-}
-
-function setManualCopyKey(slate, key) {
-  if (key) {
-    state.slateAssignments[slate] = key;
-  } else {
-    delete state.slateAssignments[slate];
-  }
-  localStorage.setItem('af_slate_assignments', JSON.stringify(state.slateAssignments));autoSaveState();
-  renderCopyMappingPage();
-  renderClipGrid();
-  updateLibStats();
-}
-
-// ─── Omit slates with no copy from export ────────────────────
-function clipHasCopy(clip, brand, lang) {
-  const copy = getCopy(clip, brand, lang);
-  return !!copy;
 }
 
 async function loadFootagePath() {
@@ -1400,21 +955,6 @@ function getBuiltinClips() {
   return clips;
 }
 
-function getBuiltinCopy(slate, brand) {
-  const map = {
-    PU1:  {Creditstar:'Money in minutes',       Monefit:'Small investment, big potential'},
-    PU2:  {Creditstar:'Apply today, relax tomorrow', Monefit:''},
-    PU3:  {Creditstar:'Loans. Interesting.',    Monefit:''},
-    PU4:  {Creditstar:'Loans effort-free',      Monefit:''},
-    PU6:  {Creditstar:'Loans on tap',           Monefit:'Investing on tap'},
-    PU7:  {Creditstar:'Tap. Apply. Done.',      Monefit:'Tap to invest'},
-    PU8:  {Creditstar:'Tap. Apply. Done.',      Monefit:'Tap to invest'},
-    PU10: {Creditstar:'Loans on tap',           Monefit:'Investing on tap'},
-    PU12: {Creditstar:'Borrow easy',            Monefit:''},
-    PU13: {Creditstar:'Borrow easy',            Monefit:''},
-  };
-  return map[slate]?.[brand] || '';
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  KEYBOARD & EVENT HANDLERS
