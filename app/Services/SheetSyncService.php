@@ -170,10 +170,21 @@ class SheetSyncService
     /**
      * Whether a synced row differs from the stored copy in any reviewed field
      * (text, shot, category, or disclaimer flag) — i.e. it must be re-enabled.
+     *
+     * copy_text is compared on meaningful content only: empty-language entries
+     * are stripped from the stored value first, so a legacy copy_text
+     * ({en:'x', et:'', fr:'', …}) and the new sparse shape ({en:'x'}) count as
+     * UNCHANGED when the actual text matches — re-syncing after this change must
+     * not spuriously reset enablement.
      */
     private function copyContentChanged(Copy $existing, array $row): bool
     {
-        return $existing->copy_text != $row['copy_text']
+        $existingText = array_filter(
+            (array) $existing->copy_text,
+            fn ($v) => $v !== null && $v !== ''
+        );
+
+        return $existingText != $row['copy_text']
             || (string) $existing->shot !== (string) $row['shot']
             || (string) $existing->category !== (string) $row['category']
             || (bool) $existing->requires_disclaimer !== (bool) $row['requires_disclaimer'];

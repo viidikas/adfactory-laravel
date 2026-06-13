@@ -98,6 +98,36 @@ class MarketCopiesLanguagesTest extends TestCase
         $this->assertArrayNotHasKey('et', $copy->copy_text);
     }
 
+    public function test_resync_from_legacy_padded_shape_preserves_enabled(): void
+    {
+        // A copy as stored by the OLD sync: copy_text padded with empty languages,
+        // and the admin had enabled it.
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+        $copy = $this->copy($market, [
+            'copy_key' => 'Tap_to_invest',
+            'copy_text' => ['en' => 'Tap to invest', 'et' => '', 'fr' => '', 'de' => '', 'es' => ''],
+            'shot' => 'PU1',
+            'category' => 'Product Usage',
+            'requires_disclaimer' => false,
+            'enabled' => true,
+        ]);
+
+        // Re-sync from the sheet under the NEW parser → sparse copy_text {en:…}.
+        Setting::set('sheet_url', 'https://docs.google.com/spreadsheets/d/ABC123/edit');
+        Http::fake(['docs.google.com/*' => Http::response(
+            "Category,Shot,Brand,EN,Disclaimer\n".
+            "Product Usage,PU1,Creditstar,Tap to invest,no\n",
+            200
+        )]);
+
+        $this->asUser($this->admin())->postJson("/api/markets/{$market->id}/sync")->assertStatus(200);
+
+        // Shape changed (padding dropped) but the text is identical → still enabled.
+        $fresh = $copy->fresh();
+        $this->assertTrue($fresh->enabled, 'enablement must survive the legacy→sparse shape migration');
+        $this->assertEquals(['en' => 'Tap to invest'], $fresh->copy_text);
+    }
+
     public function test_sync_still_requires_en_column(): void
     {
         Setting::set('sheet_url', 'https://docs.google.com/spreadsheets/d/ABC123/edit');
