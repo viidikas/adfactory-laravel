@@ -1,0 +1,177 @@
+/* ============================================================
+   AD.FACTORY — design theme layer (ported from
+   design_handoff_adfactory/theme.css).
+   Dark-first with a light variant; switchable via
+   [data-theme="dark"|"light"] and [data-density] on <html>.
+
+   NOTE: the page-level reset (background/color/font/box-sizing) is
+   scoped under `.af-app` so it never restyles the legacy
+   AD.FACTORY / Growth Portal pages, which ship their own CSS.
+   ============================================================ */
+
+:root {
+  --app-font: 'Manrope', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* brand constants reused across themes */
+  --brand-mint:   #49DA8A;
+  --brand-mint-2: #3FC97D;
+  --brand-teal:   #48DABA;
+  --brand-sage:   #cad8cb;
+  --brand-sky:    #d4e2e8;
+  --brand-blue:   #3880ff;
+  --brand-yellow: #f6c642;
+
+  /* radii — brand system (theme-independent) */
+  --r-card: 18px;
+  --r-md: 12px;
+  --r-input: 12px;
+  --r-chip: 10px;
+  --r-pill: 999px;
+
+  --ease: cubic-bezier(0.3, 0, 0, 1);
+}
+
+/* ---------------- DARK (default) ---------------- */
+[data-theme="dark"] {
+  --surface-0:   #16191b;
+  --surface-1:   #1c1f21;
+  --surface-2:   #212528;
+  --surface-2b:  #25292c;
+  --surface-3:   #2b3034;
+  --surface-inset:#15181a;
+
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.16);
+  --divider:       rgba(255,255,255,0.06);
+
+  --text-1: #f1efe9;
+  --text-2: #a7aab0;
+  --text-3: #71747b;
+  --text-on-accent: #0a2416;
+
+  --accent:       var(--brand-mint);
+  --accent-hover: var(--brand-mint-2);
+  --accent-soft:  rgba(73,218,138,0.14);
+  --accent-ring:  rgba(73,218,138,0.30);
+
+  --link:    #6fa2ff;
+  --danger:  #ff6a6a;
+  --danger-soft: rgba(255,106,106,0.14);
+  --warning: var(--brand-yellow);
+  --success: var(--brand-mint);
+  --info:    #6fa2ff;
+
+  --tint-sage: rgba(202,216,203,0.16);
+  --tint-sky:  rgba(212,226,232,0.16);
+  --tint-violet: rgba(150,140,230,0.18);
+
+  --btn-primary-bg:   var(--brand-mint);
+  --btn-primary-ink:  #0a2416;
+  --btn-primary-hover:var(--brand-mint-2);
+  --btn-secondary-bg: transparent;
+  --btn-secondary-ink:var(--text-1);
+  --btn-secondary-bd: var(--border-strong);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-pop:  0 16px 48px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
+
+  --logo-ink: #f1efe9;
+  color-scheme: dark;
+}
+
+/* ---------------- LIGHT (brand-true) ---------------- */
+[data-theme="light"] {
+  --surface-0:   #f6f4f2;
+  --surface-1:   #ffffff;
+  --surface-2:   #ffffff;
+  --surface-2b:  #faf8f5;
+  --surface-3:   #f0ece7;
+  --surface-inset:#f0ece7;
+
+  --border:        rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.22);
+  --divider:       rgba(0,0,0,0.07);
+
+  --text-1: #15161a;
+  --text-2: #5f636b;
+  --text-3: #9aa0a8;
+  --text-on-accent: #ffffff;
+
+  --accent:       #14a35a;
+  --accent-hover: #0f8c4c;
+  --accent-soft:  rgba(20,163,90,0.12);
+  --accent-ring:  rgba(20,163,90,0.28);
+
+  --link:    var(--brand-blue);
+  --danger:  #e11d2a;
+  --danger-soft: #feeded;
+  --warning: #b7791f;
+  --success: #14a35a;
+  --info:    var(--brand-blue);
+
+  --tint-sage: #e7ede7;
+  --tint-sky:  #ebf2f4;
+  --tint-violet: #ece9fb;
+
+  --btn-primary-bg:   #000000;
+  --btn-primary-ink:  #ffffff;
+  --btn-primary-hover:#1a1a1a;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-ink:#000000;
+  --btn-secondary-bd: rgba(0,0,0,0.22);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.05);
+  --shadow-pop:  0 16px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08);
+
+  --logo-ink: #000000;
+  color-scheme: light;
+}
+
+/* ---------------- DENSITY ---------------- */
+[data-density="compact"] {
+  --pad-card: 16px; --pad-screen: 22px; --row-h: 40px;
+  --gap: 12px; --gap-sm: 8px; --ctrl-h: 38px; --grid-min: 184px;
+}
+[data-density="regular"] {
+  --pad-card: 20px; --pad-screen: 32px; --row-h: 52px;
+  --gap: 16px; --gap-sm: 10px; --ctrl-h: 44px; --grid-min: 220px;
+}
+[data-density="comfy"] {
+  --pad-card: 26px; --pad-screen: 44px; --row-h: 62px;
+  --gap: 22px; --gap-sm: 14px; --ctrl-h: 50px; --grid-min: 260px;
+}
+
+/* ---------------- scoped page reset (the new design only) ---------------- */
+.af-app {
+  min-height: 100vh;
+  font-family: var(--app-font);
+  background: var(--surface-0);
+  color: var(--text-1);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.af-app *, .af-app *::before, .af-app *::after { box-sizing: border-box; }
+.af-app ::selection { background: var(--accent-soft); }
+
+/* scrollbar (design surfaces only) */
+.af-app *::-webkit-scrollbar { width: 11px; height: 11px; }
+.af-app *::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.af-app *::-webkit-scrollbar-track { background: transparent; }
+
+/* hero numeric — the defining Monefit move */
+.af-app .hero-num {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.0;
+}
+.af-app .mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+.af-app .row-hover { transition: background .14s; }
+.af-app .row-hover:hover { background: var(--surface-2b); }
