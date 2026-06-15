@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
-use App\Support\DesignPreviewData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -16,76 +15,45 @@ Route::post('/login/verify', [LoginController::class, 'verify'])->middleware('th
 Route::get('/login/resend', [LoginController::class, 'resend'])->middleware('throttle:5,1');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-// Protected routes
-Route::middleware('auth')->group(function () {
-    // The AD.FACTORY operator panel is restricted to super admins (the markets /
-    // per-copy admin lives here). Everyone else is sent to the Growth Portal.
-    Route::get('/', function () {
-        return Inertia::render('AdFactory');
-    })->middleware('superadmin');
+// Optional first-load appearance overrides (?theme / ?density); thereafter the
+// choice is persisted client-side. Workspace drives nav + labels.
+$chrome = fn (Request $r, string $workspace) => [
+    'workspace' => $workspace,
+    'theme' => in_array($r->query('theme'), ['light', 'dark'], true) ? $r->query('theme') : null,
+    'density' => in_array($r->query('density'), ['compact', 'comfy', 'regular'], true) ? $r->query('density') : null,
+];
 
-    Route::get('/portal', function () {
-        return Inertia::render('GrowthPortal');
-    });
+// ── AD.FACTORY admin (super-admin only) ─────────────────────────────────────
+Route::middleware('superadmin')->group(function () use ($chrome) {
+    Route::get('/', fn (Request $r) => Inertia::render('Admin/Dashboard', $chrome($r, 'admin')))->name('home');
+    Route::get('/orders', fn (Request $r) => Inertia::render('Admin/Orders', $chrome($r, 'admin') + [
+        'openId' => $r->query('open'),
+    ]))->name('admin.orders');
+
+    Route::get('/markets', fn (Request $r) => Inertia::render('Admin/Markets', $chrome($r, 'admin')))->name('admin.markets');
+    Route::get('/markets/{code}', fn (Request $r, $code) => Inertia::render('Admin/MarketCopies', $chrome($r, 'admin') + ['code' => $code]));
+    Route::get('/projects', fn (Request $r) => Inertia::render('Admin/Projects', $chrome($r, 'admin')))->name('admin.projects');
+    Route::get('/clips', fn (Request $r) => Inertia::render('Admin/Clips', $chrome($r, 'admin')))->name('admin.clips');
+    Route::get('/generate', fn (Request $r) => Inertia::render('Admin/Generate', $chrome($r, 'admin')))->name('admin.generate');
+    Route::get('/preview', fn (Request $r) => Inertia::render('Admin/Preview', $chrome($r, 'admin')))->name('admin.preview');
+    Route::get('/settings', fn (Request $r) => Inertia::render('Admin/Settings', $chrome($r, 'admin')))->name('admin.settings');
+
+    // Legacy operator panel — kept reachable so the heavy tooling stays at full
+    // parity until each screen is rebuilt in the new design.
+    Route::get('/legacy', fn () => Inertia::render('AdFactory'))->name('legacy.admin');
 });
 
-// ── AD.FACTORY design preview (WIP) ─────────────────────────────────────────
-// The new design rendered with representative data (App\Support\DesignPreviewData,
-// mirrors the handoff's data.js); not yet wired to real models. Gated to super
-// admins — a private preview on the production domain, NOT public.
-// Chrome: ?ws=portal switches workspace; ?theme=light + ?density=compact|comfy
-// override appearance (then persisted client-side as you navigate).
-Route::middleware('superadmin')->prefix('design')->group(function () {
-    $chrome = fn (Request $r) => [
-        'workspace' => $r->query('ws') === 'portal' ? 'portal' : 'admin',
-        'theme' => in_array($r->query('theme'), ['light', 'dark'], true) ? $r->query('theme') : null,
-        'density' => in_array($r->query('density'), ['compact', 'comfy', 'regular'], true) ? $r->query('density') : null,
-        'user' => [
-            'name' => optional($r->user())->name ?: 'Mark Viidik',
-            'email' => optional($r->user())->email ?: 'mark@creditstar.com',
-        ],
-    ];
-
-    Route::get('/', fn (Request $r) => Inertia::render('Dashboard', $chrome($r) + [
-        'stats' => DesignPreviewData::stats(),
-        'orders' => DesignPreviewData::orders(),
-        'activity' => DesignPreviewData::activity(),
-        'markets' => DesignPreviewData::markets(),
-    ]))->name('design.dashboard');
-
-    Route::get('/clips', fn (Request $r) => Inertia::render('Clips/Index', $chrome($r) + [
-        'clips' => DesignPreviewData::clips(),
-        'markets' => DesignPreviewData::markets(),
-        'categories' => DesignPreviewData::categories(),
-    ]));
-
-    Route::get('/copy', fn (Request $r) => Inertia::render('Copy/Index', $chrome($r) + [
-        'rows' => DesignPreviewData::copyRows(),
-        'langs' => DesignPreviewData::langs(),
-    ]));
-
-    Route::get('/orders', fn (Request $r) => Inertia::render('Orders/Index', $chrome($r) + [
-        'orders' => DesignPreviewData::orders(),
-        'markets' => DesignPreviewData::markets(),
-        'designs' => DesignPreviewData::designs(),
-        'clips' => DesignPreviewData::clips(),
-        'statuses' => DesignPreviewData::statuses(),
-        'langs' => DesignPreviewData::langs(),
-        'openId' => $r->query('open'),
+// ── Growth Portal (any authenticated user) ──────────────────────────────────
+Route::middleware('auth')->group(function () use ($chrome) {
+    Route::get('/portal', fn (Request $r) => Inertia::render('Portal/CopyBrowse', $chrome($r, 'portal')))->name('portal');
+    Route::get('/portal/clips', fn (Request $r) => Inertia::render('Portal/Clips', $chrome($r, 'portal')));
+    Route::get('/portal/designs', fn (Request $r) => Inertia::render('Portal/Designs', $chrome($r, 'portal')));
+    Route::get('/portal/orders', fn (Request $r) => Inertia::render('Portal/Orders', $chrome($r, 'portal') + [
         'justSubmitted' => (bool) $r->query('submitted'),
     ]));
 
-    Route::get('/orders/create', fn (Request $r) => Inertia::render('Orders/Create', $chrome($r) + [
-        'clips' => DesignPreviewData::clips(),
-        'designs' => DesignPreviewData::designs(),
-        'markets' => DesignPreviewData::markets(),
-        'brands' => DesignPreviewData::brands(),
-        'langs' => DesignPreviewData::langs(),
-    ]));
-
-    Route::get('/login', fn (Request $r) => Inertia::render('Auth/DesignLogin', $chrome($r) + [
-        'clips' => DesignPreviewData::clips(),
-    ]));
+    // Legacy Growth Portal — kept reachable during cutover.
+    Route::get('/portal/legacy', fn () => Inertia::render('GrowthPortal'))->name('legacy.portal');
 });
 
 // API routes — under /api prefix, using web middleware (sessions)
