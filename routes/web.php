@@ -42,8 +42,7 @@ Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
     Route::get('/clips', fn (Request $r) => Inertia::render('Admin/Clips', $chrome($r, 'admin')))->name('admin.clips');
     Route::get('/generate', fn (Request $r) => Inertia::render('Admin/Generate', $chrome($r, 'admin')))->name('admin.generate');
     Route::get('/preview', fn (Request $r) => Inertia::render('Admin/Preview', $chrome($r, 'admin')))->name('admin.preview');
-    Route::get('/settings', fn (Request $r) => $soon($r, 'admin', 'settings', 'Settings',
-        'Users, output/filename builders, AE comp-name mapping and project designs are being rebuilt here.', '/legacy#settings'))->name('admin.settings');
+    Route::get('/settings', fn (Request $r) => Inertia::render('Admin/Settings', $chrome($r, 'admin')))->name('admin.settings');
 
     // Legacy operator panel — kept reachable so the heavy tooling stays at full
     // parity until each screen is rebuilt in the new design.
