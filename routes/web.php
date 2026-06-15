@@ -38,8 +38,7 @@ Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
 
     Route::get('/markets', fn (Request $r) => Inertia::render('Admin/Markets', $chrome($r, 'admin')))->name('admin.markets');
     Route::get('/markets/{code}', fn (Request $r, $code) => Inertia::render('Admin/MarketCopies', $chrome($r, 'admin') + ['code' => $code]));
-    Route::get('/projects', fn (Request $r) => $soon($r, 'admin', 'projects', 'Projects',
-        'Footage project management (create · scan · activate) is being rebuilt here.', '/legacy#projects'))->name('admin.projects');
+    Route::get('/projects', fn (Request $r) => Inertia::render('Admin/Projects', $chrome($r, 'admin')))->name('admin.projects');
     Route::get('/clips', fn (Request $r) => $soon($r, 'admin', 'clips', 'Clip library',
         'Clip browsing, copy-key assignment and the video player are being rebuilt here.', '/legacy#clips'))->name('admin.clips');
     Route::get('/generate', fn (Request $r) => $soon($r, 'admin', 'generate', 'Generate',
