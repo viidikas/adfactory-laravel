@@ -29,8 +29,8 @@ Route::middleware('auth')->group(function () {
 
 // ── AD.FACTORY design preview (WIP — phase 1) ───────────────────────────────
 // Renders the new design with representative data (mirrors the handoff's
-// data.js); not yet wired to real models. PREVIEW-ONLY and ungated for local
-// review — gate or remove before this ships to production.
+// data.js); not yet wired to real models. Gated to super admins (same gate as
+// the operator panel) — a private preview on the production domain, NOT public.
 // Toggle with ?ws=portal, ?theme=light, ?density=compact|comfy.
 Route::get('/design/clips', function (\Illuminate\Http\Request $request) {
     $thumbs = ['#2e6b57', '#365b7a', '#7a5a36', '#6b3550', '#41506b', '#5a6b35', '#356b6b', '#6b4135', '#4b3a6b', '#2e5b6b', '#6b6235', '#553a2e'];
@@ -91,7 +91,7 @@ Route::get('/design/clips', function (\Illuminate\Http\Request $request) {
         'theme' => $request->query('theme') === 'light' ? 'light' : 'dark',
         'density' => $density,
     ]);
-});
+})->middleware('superadmin');
 
 // API routes — under /api prefix, using web middleware (sessions)
 Route::prefix('api')->group(function () {

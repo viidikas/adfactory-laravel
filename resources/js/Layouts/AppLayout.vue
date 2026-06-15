@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed } from 'vue';
 import BrandLockup from '../Components/BrandLockup.vue';
 import WorkspaceSwitch from '../Components/WorkspaceSwitch.vue';
 import NavItem from '../Components/NavItem.vue';
@@ -30,18 +30,14 @@ const NAV = {
 
 const ws = ref(props.workspace);
 const nav = computed(() => NAV[ws.value]);
-
-function applyChrome() {
-  const r = document.documentElement;
-  r.setAttribute('data-theme', props.theme);
-  r.setAttribute('data-density', props.density);
-}
-onMounted(applyChrome);
-watch(() => [props.theme, props.density], applyChrome);
+// Theme + density are applied to THIS subtree only (the design tokens are
+// defined on [data-theme]/[data-density]). Scoping them to .af-app — instead
+// of <html> — keeps shared var names (--accent, --border, …) from leaking into
+// the legacy AD.FACTORY / Growth Portal pages during SPA navigation.
 </script>
 
 <template>
-  <div class="af-app" :style="{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '252px 1fr' }">
+  <div class="af-app" :data-theme="theme" :data-density="density" :style="{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '252px 1fr' }">
     <!-- Sidebar -->
     <aside :style="{ background: 'var(--surface-1)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }">
       <div :style="{ padding: '20px 18px 14px' }"><BrandLockup /></div>
