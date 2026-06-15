@@ -36,10 +36,8 @@ Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
         'openId' => $r->query('open'),
     ]))->name('admin.orders');
 
-    Route::get('/markets', fn (Request $r) => $soon($r, 'admin', 'markets', 'Markets',
-        'Google-Sheet sync, per-copy enablement and market rollout are being rebuilt here.', '/legacy#markets'))->name('admin.markets');
-    Route::get('/markets/{code}', fn (Request $r, $code) => $soon($r, 'admin', 'markets', 'Market · '.$code,
-        'Per-market copy enablement is being rebuilt here.', '/legacy#markets/'.$code));
+    Route::get('/markets', fn (Request $r) => Inertia::render('Admin/Markets', $chrome($r, 'admin')))->name('admin.markets');
+    Route::get('/markets/{code}', fn (Request $r, $code) => Inertia::render('Admin/MarketCopies', $chrome($r, 'admin') + ['code' => $code]));
     Route::get('/projects', fn (Request $r) => $soon($r, 'admin', 'projects', 'Projects',
         'Footage project management (create · scan · activate) is being rebuilt here.', '/legacy#projects'))->name('admin.projects');
     Route::get('/clips', fn (Request $r) => $soon($r, 'admin', 'clips', 'Clip library',
