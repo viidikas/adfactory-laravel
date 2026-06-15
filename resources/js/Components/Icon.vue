@@ -8,7 +8,8 @@ import {
   SlidersHorizontal, Bell, Settings, User, LogOut, ArrowRight, ArrowLeft,
   MoreVertical, Upload, Download, Clock, Wand2, Globe, Calendar, Eye, Trash2,
   Pencil, Copy, PanelLeft, Layers, Zap, RefreshCw, CircleCheck, TriangleAlert,
-  Send, Scissors, Folder, Sparkles, ExternalLink, Circle,
+  Send, Scissors, Folder, Sparkles, ExternalLink, Circle, Sun, Moon, Inbox,
+  GripVertical, FileSpreadsheet, FolderSearch,
 } from 'lucide-vue-next';
 
 const MAP = {
@@ -22,7 +23,8 @@ const MAP = {
   trash: Trash2, edit: Pencil, copy: Copy, panelleft: PanelLeft, layers: Layers,
   zap: Zap, refresh: RefreshCw, check_circle: CircleCheck, alert: TriangleAlert,
   send: Send, scissors: Scissors, folder: Folder, sparkles: Sparkles,
-  external: ExternalLink, dot: Circle,
+  external: ExternalLink, dot: Circle, sun: Sun, moon: Moon, inbox: Inbox,
+  grip: GripVertical, spreadsheet: FileSpreadsheet, foldersearch: FolderSearch,
 };
 
 const props = defineProps({

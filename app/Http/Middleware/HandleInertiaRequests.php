@@ -32,6 +32,7 @@ class HandleInertiaRequests extends Middleware
                     'email' => $user->email,
                     'role' => $user->role,
                     'market' => $user->market,
+                    'is_super_admin' => $user->isSuperAdmin(),
                 ] : null,
             ],
             'flash' => [
