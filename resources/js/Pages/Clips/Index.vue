@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
+import { router } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Button from '../../Components/Button.vue';
 import Input from '../../Components/Input.vue';
@@ -21,6 +22,8 @@ const props = defineProps({
 });
 
 const portal = computed(() => props.workspace === 'portal');
+const wsq = computed(() => (props.workspace === 'portal' ? '?ws=portal' : ''));
+const startOrder = () => router.visit('/design/orders/create' + wsq.value);
 const marketOf = (code) => props.markets.find((m) => m.code === code) || { flag: '🏳️', name: code };
 
 const q = ref('');
@@ -63,7 +66,7 @@ const dur = (s) => '0:' + String(s).padStart(2, '0');
           <h1 :style="{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }">{{ portal ? 'Browse clips' : 'Clip library' }}</h1>
           <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">{{ filtered.length }} clips · {{ portal ? 'pick what fits your campaign' : 'source footage, sorted and tagged' }}</p>
         </div>
-        <Button v-if="portal" icon="plus">Start an order</Button>
+        <Button v-if="portal" icon="plus" @click="startOrder">Start an order</Button>
         <Button v-else icon="upload">Upload clips</Button>
       </div>
 
@@ -138,7 +141,7 @@ const dur = (s) => '0:' + String(s).padStart(2, '0');
       </div>
       <template #footer>
         <Button variant="secondary" icon="download" full>Download</Button>
-        <Button v-if="portal" icon="plus" full>Use in order</Button>
+        <Button v-if="portal" icon="plus" full @click="startOrder">Use in order</Button>
         <Button v-else icon="edit" full>Edit tags</Button>
       </template>
     </Drawer>
