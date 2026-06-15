@@ -23,14 +23,8 @@ $chrome = fn (Request $r, string $workspace) => [
     'density' => in_array($r->query('density'), ['compact', 'comfy', 'regular'], true) ? $r->query('density') : null,
 ];
 
-// A single placeholder page covers screens not yet rebuilt in the new design.
-// Each links to the still-functional classic UI, so no capability is lost during
-// the cutover (see the "Open classic UI" affordance + the legacy routes below).
-$soon = fn (Request $r, string $ws, string $active, string $title, string $blurb, string $legacy) =>
-    Inertia::render('Placeholder', $chrome($r, $ws) + compact('active', 'title', 'blurb', 'legacy'));
-
 // ── AD.FACTORY admin (super-admin only) ─────────────────────────────────────
-Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
+Route::middleware('superadmin')->group(function () use ($chrome) {
     Route::get('/', fn (Request $r) => Inertia::render('Admin/Dashboard', $chrome($r, 'admin')))->name('home');
     Route::get('/orders', fn (Request $r) => Inertia::render('Admin/Orders', $chrome($r, 'admin') + [
         'openId' => $r->query('open'),
@@ -50,15 +44,13 @@ Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
 });
 
 // ── Growth Portal (any authenticated user) ──────────────────────────────────
-Route::middleware('auth')->group(function () use ($soon) {
-    Route::get('/portal', fn (Request $r) => $soon($r, 'portal', 'copy-browse', 'Browse by copy',
-        'The copy-first ordering flow is being rebuilt here.', '/portal/legacy'))->name('portal');
-    Route::get('/portal/clips', fn (Request $r) => $soon($r, 'portal', 'clips', 'Browse clips',
-        'The clip-first ordering flow is being rebuilt here.', '/portal/legacy'));
-    Route::get('/portal/designs', fn (Request $r) => $soon($r, 'portal', 'designs', 'Designs',
-        'The design gallery is being rebuilt here.', '/portal/legacy'));
-    Route::get('/portal/orders', fn (Request $r) => $soon($r, 'portal', 'orders', 'My orders',
-        'Your order history and rendered-clip downloads are being rebuilt here.', '/portal/legacy'));
+Route::middleware('auth')->group(function () use ($chrome) {
+    Route::get('/portal', fn (Request $r) => Inertia::render('Portal/CopyBrowse', $chrome($r, 'portal')))->name('portal');
+    Route::get('/portal/clips', fn (Request $r) => Inertia::render('Portal/Clips', $chrome($r, 'portal')));
+    Route::get('/portal/designs', fn (Request $r) => Inertia::render('Portal/Designs', $chrome($r, 'portal')));
+    Route::get('/portal/orders', fn (Request $r) => Inertia::render('Portal/Orders', $chrome($r, 'portal') + [
+        'justSubmitted' => (bool) $r->query('submitted'),
+    ]));
 
     // Legacy Growth Portal — kept reachable during cutover.
     Route::get('/portal/legacy', fn () => Inertia::render('GrowthPortal'))->name('legacy.portal');
