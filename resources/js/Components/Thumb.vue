@@ -12,9 +12,9 @@ const emit = defineEmits(['click']);
 const hover = ref(false);
 
 const ratio = computed(() => (props.clip.aspect === '16:9' ? '16 / 9' : props.clip.aspect === '1:1' ? '1 / 1' : '9 / 16'));
+// Gradient placeholder; a real poster frame (when present) is overlaid as a
+// lazy-loaded <img> so large grids don't fetch every thumbnail up front.
 const bg = computed(() => {
-  // Real poster frame when available; gradient placeholder otherwise.
-  if (props.clip.poster) return `center/cover no-repeat url(${props.clip.poster})`;
   const c = props.clip.color || '#2e6b57';
   return `linear-gradient(150deg, ${c}, ${c}cc 55%, #0d0f10 140%)`;
 });
@@ -33,14 +33,16 @@ const dur = computed(() => '0:' + String(props.clip.duration ?? 0).padStart(2, '
       outlineOffset: selected ? '0' : '-1px', transition: 'outline .15s',
     }"
   >
+    <img v-if="clip.poster" :src="clip.poster" loading="lazy" decoding="async" alt=""
+      :style="{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }" />
     <div :style="{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(180deg, transparent 0, transparent 13px, rgba(0,0,0,0.07) 13px, rgba(0,0,0,0.07) 14px)', opacity: 0.5 }" />
     <div v-if="showPlay" :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: hover ? 'rgba(0,0,0,0.18)' : 'transparent', transition: 'background .15s' }">
       <div :style="{ width: '40px', height: '40px', borderRadius: '999px', display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', color: '#fff', transform: hover ? 'scale(1.08)' : 'scale(1)', transition: 'transform .15s' }">
         <Icon name="play" :size="16" fill="#fff" />
       </div>
     </div>
-    <span :style="{ position: 'absolute', top: '8px', left: '8px', fontSize: '10.5px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.4)', padding: '2px 7px', borderRadius: '6px', letterSpacing: '0.02em' }">{{ clip.aspect }}</span>
-    <span class="mono" :style="{ position: 'absolute', bottom: '8px', right: '8px', fontSize: '11px', fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 7px', borderRadius: '6px' }">{{ dur }}</span>
+    <span v-if="clip.aspect" :style="{ position: 'absolute', top: '8px', left: '8px', fontSize: '10.5px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.4)', padding: '2px 7px', borderRadius: '6px', letterSpacing: '0.02em' }">{{ clip.aspect }}</span>
+    <span v-if="clip.duration != null" class="mono" :style="{ position: 'absolute', bottom: '8px', right: '8px', fontSize: '11px', fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 7px', borderRadius: '6px' }">{{ dur }}</span>
     <span v-if="selected" :style="{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', borderRadius: '999px', background: 'var(--accent)', color: 'var(--text-on-accent)', display: 'grid', placeItems: 'center' }">
       <Icon name="check" :size="13" :stroke="2.5" />
     </span>
