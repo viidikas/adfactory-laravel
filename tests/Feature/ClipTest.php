@@ -127,4 +127,57 @@ class ClipTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    /**
+     * Clip copy must come from ENABLED copies of ACTIVE markets — the live,
+     * approved copy — not retired (disabled) copy and not copy of inactive
+     * markets. This is what keeps Generate from surfacing old copy lines.
+     */
+    public function test_clip_copy_comes_from_enabled_active_market_copies_only(): void
+    {
+        $user = $this->createAdmin();
+        $this->seedClips(); // includes a PU1 clip
+
+        $active = $this->market(['code' => 'EE', 'active' => true]);
+        $this->copy($active, ['copy_key' => 'Fresh', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Fresh approved copy', 'et' => 'Värske']]);
+        $this->copy($active, ['copy_key' => 'Retired', 'shot' => 'PU1', 'enabled' => false,
+            'copy_text' => ['en' => 'Old retired copy']]);
+
+        $inactive = $this->market(['code' => 'NO', 'active' => false]);
+        $this->copy($inactive, ['copy_key' => 'InactiveOnly', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Copy from an inactive market']]);
+
+        $clips = collect($this->asUser($user)->getJson('/api/clips')->assertStatus(200)->json());
+        $pu1 = $clips->firstWhere('slate', 'PU1');
+        $ens = collect($pu1['copy'])->pluck('en');
+
+        $this->assertTrue($ens->contains('Fresh approved copy'));
+        $this->assertFalse($ens->contains('Old retired copy'));
+        $this->assertFalse($ens->contains('Copy from an inactive market'));
+    }
+
+    /**
+     * A language a market doesn't carry is filled from another active market that
+     * does (per-market copy_text only holds that market's languages).
+     */
+    public function test_clip_copy_merges_languages_across_active_markets(): void
+    {
+        $user = $this->createAdmin();
+        $this->seedClips();
+
+        $ee = $this->market(['code' => 'EE', 'active' => true]);
+        $this->copy($ee, ['copy_key' => 'Shared', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Shared line', 'et' => 'Estonian']]);
+        $es = $this->market(['code' => 'ES', 'active' => true]);
+        $this->copy($es, ['copy_key' => 'Shared', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Shared line', 'es' => 'Spanish']]);
+
+        $clips = collect($this->asUser($user)->getJson('/api/clips')->json());
+        $pu1 = $clips->firstWhere('slate', 'PU1');
+        $shared = collect($pu1['copy'])->firstWhere('key', 'Shared');
+
+        $this->assertSame('Estonian', $shared['et']);
+        $this->assertSame('Spanish', $shared['es']);
+    }
 }
