@@ -40,10 +40,8 @@ Route::middleware('superadmin')->group(function () use ($chrome, $soon) {
     Route::get('/markets/{code}', fn (Request $r, $code) => Inertia::render('Admin/MarketCopies', $chrome($r, 'admin') + ['code' => $code]));
     Route::get('/projects', fn (Request $r) => Inertia::render('Admin/Projects', $chrome($r, 'admin')))->name('admin.projects');
     Route::get('/clips', fn (Request $r) => Inertia::render('Admin/Clips', $chrome($r, 'admin')))->name('admin.clips');
-    Route::get('/generate', fn (Request $r) => $soon($r, 'admin', 'generate', 'Generate',
-        'The Templater CSV generator (filter rules) is being rebuilt here.', '/legacy#generate'))->name('admin.generate');
-    Route::get('/preview', fn (Request $r) => $soon($r, 'admin', 'preview', 'Preview & export',
-        'The output preview and CSV / Google-Sheets export are being rebuilt here.', '/legacy#preview'))->name('admin.preview');
+    Route::get('/generate', fn (Request $r) => Inertia::render('Admin/Generate', $chrome($r, 'admin')))->name('admin.generate');
+    Route::get('/preview', fn (Request $r) => Inertia::render('Admin/Preview', $chrome($r, 'admin')))->name('admin.preview');
     Route::get('/settings', fn (Request $r) => $soon($r, 'admin', 'settings', 'Settings',
         'Users, output/filename builders, AE comp-name mapping and project designs are being rebuilt here.', '/legacy#settings'))->name('admin.settings');
 
