@@ -198,7 +198,12 @@ function exportItemsCsv() {
           <span :style="{ color: 'var(--text-3)' }">Note: </span>{{ detail.note }}
         </div>
 
-        <SectionLabel>Items ({{ (detail.items || []).length }})</SectionLabel>
+        <SectionLabel>
+          Items ({{ (detail.items || []).length }})
+          <template #right>
+            <Button size="sm" variant="secondary" icon="download" :disabled="!(detail.items || []).length" @click="exportItemsCsv">Review CSV</Button>
+          </template>
+        </SectionLabel>
         <div :style="{ marginTop: '8px', marginBottom: '20px' }">
           <div v-for="(it, i) in detail.items" :key="i" :style="{ padding: '12px 0', borderTop: '1px solid var(--divider)' }">
             <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600 }">
@@ -244,7 +249,6 @@ function exportItemsCsv() {
           </template>
 
           <template v-else>
-            <Button :disabled="busy" variant="secondary" icon="download" @click="exportItemsCsv">CSV</Button>
             <Button :disabled="busy" variant="ghost" icon="refresh" full @click="setStatus('processing')">Reopen</Button>
           </template>
         </template>
