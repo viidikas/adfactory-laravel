@@ -58,10 +58,41 @@ onMounted(async () => {
   catch (e) { error.value = e.message || 'Failed to load.'; }
   finally { loading.value = false; }
 });
-watch(() => store.market?.id, async () => { try { await Promise.all([loadCopies(), loadDesigns()]); } catch {} });
+watch(() => store.market?.id, async () => {
+  // Categories are market-specific now, so reset the tab to avoid landing on a
+  // category the new market doesn't have (which would look like an empty grid).
+  cat.value = 'All';
+  try { await Promise.all([loadCopies(), loadDesigns()]); } catch {}
+});
 
-const categories = computed(() => [...new Set(clips.value.map((c) => c.category).filter(Boolean))].sort());
-const filtered = computed(() => clips.value.filter((c) => {
+// A copy's Shot column lists the slate codes (clips) it may be used with; a
+// copy with no codes applies to its whole category.
+const shotCodes = (c) => (c.shot || '').toUpperCase().split(/[\s,;]+/).filter(Boolean);
+
+// What the selected market's enabled copies make available: every slate code a
+// copy lists, plus the categories covered by codeless (category-wide) copies.
+const marketReach = computed(() => {
+  const slates = new Set();
+  const wideCategories = new Set();
+  for (const c of copies.value) {
+    const codes = shotCodes(c);
+    if (codes.length) codes.forEach((code) => slates.add(code));
+    else if (c.category) wideCategories.add(c.category);
+  }
+  return { slates, wideCategories };
+});
+
+// A clip is available for the market when an enabled copy lists its slate in
+// Shot, or a category-wide copy covers its category. Clips no copy can use are
+// hidden — browsing by clips only shows what's orderable in this market.
+function clipAvailable(clip) {
+  const { slates, wideCategories } = marketReach.value;
+  return slates.has((clip.slate || '').toUpperCase()) || wideCategories.has(clip.category || '');
+}
+const availableClips = computed(() => clips.value.filter(clipAvailable));
+
+const categories = computed(() => [...new Set(availableClips.value.map((c) => c.category).filter(Boolean))].sort());
+const filtered = computed(() => availableClips.value.filter((c) => {
   if (cat.value !== 'All' && c.category !== cat.value) return false;
   if (q.value) {
     const s = q.value.toLowerCase();
@@ -70,14 +101,14 @@ const filtered = computed(() => clips.value.filter((c) => {
   return true;
 }));
 
-// Copies relevant to a clip: by slate (shot codes), else by category, else all.
+// Copies offered for a clip: those whose Shot lists this clip's slate, else the
+// category-wide (codeless) copies covering its category.
 function copiesForClip(clip) {
   if (!clip) return [];
   const slate = (clip.slate || '').toUpperCase();
-  let list = copies.value.filter((c) => (c.shot || '').toUpperCase().split(/[\s,;]+/).filter(Boolean).includes(slate));
-  if (!list.length) list = copies.value.filter((c) => (c.category || '') === clip.category);
-  if (!list.length) list = copies.value;
-  return list;
+  const bySlate = copies.value.filter((c) => shotCodes(c).includes(slate));
+  if (bySlate.length) return bySlate;
+  return copies.value.filter((c) => shotCodes(c).length === 0 && (c.category || '') === clip.category);
 }
 const copyOptions = computed(() => [{ value: '', label: copies.value.length ? 'Choose copy…' : 'No copy enabled for this market' },
   ...copiesForClip(sel.value).map((c) => ({ value: c.key, label: `${c.key} · ${c.en || ''}`.slice(0, 60) }))]);
@@ -142,7 +173,7 @@ function add() {
         </div>
 
         <div v-if="loading" :style="{ color: 'var(--text-3)', fontSize: '14px' }">Loading…</div>
-        <Card v-else-if="!filtered.length"><EmptyState icon="film" title="No clips" sub="Nothing matches your search." /></Card>
+        <Card v-else-if="!filtered.length"><EmptyState icon="film" title="No clips" :sub="availableClips.length ? 'Nothing matches your search.' : 'No clips are available for this market yet.'" /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
           <div v-for="c in filtered" :key="c.id">
             <Thumb :clip="withPoster(c)" @click="openClip(c)" />
