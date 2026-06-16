@@ -23,6 +23,16 @@ use Illuminate\Support\Facades\Http;
  * tab can carry whatever languages it needs. EN is required and is the
  * copy_key source. The `disclaimer` column holds a per-row yes/no flag; the
  * actual disclaimer asset is selected inside After Effects by (market, yes/no).
+ *
+ * Approval column: a tab may carry a "<market-code> copy approved" column (e.g.
+ * "es copy approved"; the un-prefixed "copy approved" is also accepted). When
+ * present it is authoritative — it holds the APPROVED local-language text. Such
+ * a tab is "approval-gated": only rows with a filled approval cell are synced
+ * at all (blank-approval rows are dropped, so a market's copy set is exactly its
+ * approved copies and nothing pending ever surfaces), and every synced copy is
+ * enabled straight from the sheet — no manual per-copy review. The raw draft
+ * language column is ignored in favor of the approved text. Tabs without this
+ * column keep the legacy manual-enablement behavior.
  */
 class SheetSyncService
 {
@@ -92,26 +102,32 @@ class SheetSyncService
             return $this->result($market, false, $market->copies()->count(), $market->has_disclaimer, ['Tab not found or could not be fetched']);
         }
 
-        $parsed = $this->parseCsv($csv);
+        $parsed = $this->parseCsv($csv, $market->code);
         if ($parsed === null) {
             return $this->result($market, false, $market->copies()->count(), $market->has_disclaimer, ['Tab is empty or missing required EN column']);
         }
 
-        [$rows, $hasDisclaimerColumn] = $parsed;
+        [$rows, $hasDisclaimerColumn, $approvalGated] = $parsed;
 
         if (! $hasDisclaimerColumn) {
             $issues[] = 'Tab has no Disclaimer column';
         }
 
         if (empty($rows)) {
-            $issues[] = 'Tab has no copy rows';
+            $issues[] = $approvalGated ? 'No approved copies in this tab yet' : 'Tab has no copy rows';
         }
 
         // Replace the market's copy set with the freshly synced rows so the
         // approved set always matches the sheet (stale copies are removed).
-        // Per-copy enablement is preserved for unchanged copies; a new or
-        // content-changed copy is reset to DISABLED so an admin must re-review it.
-        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn) {
+        //
+        // Enablement depends on whether the tab carries an approval column:
+        //  • Approval-gated tab — the sheet is the source of truth. A copy is
+        //    enabled iff its "<code> copy approved" cell is filled; a blank cell
+        //    disables it. No manual review toggle is involved.
+        //  • Ungated tab (UK/EE/EEA today) — the legacy manual gate stands: a new
+        //    or content-changed copy resets to DISABLED for admin re-review, and
+        //    an unchanged copy keeps its existing enable state.
+        DB::transaction(function () use ($market, $rows, $hasDisclaimerColumn, $approvalGated) {
             $seen = [];
             foreach ($rows as $row) {
                 $existing = $market->copies()->where('copy_key', $row['copy_key'])->first();
@@ -125,9 +141,21 @@ class SheetSyncService
                     'source_row' => $row['source_row'],
                 ];
 
-                // New or changed content must be re-enabled by an admin. Unchanged
-                // copies keep their existing enable state (attrs omits it).
-                if (! $existing || $this->copyContentChanged($existing, $row)) {
+                if ($approvalGated) {
+                    // Every synced row in a gated market is approved (blank-approval
+                    // rows are dropped at parse time), so it is enabled. Approval is
+                    // the sheet's, never an admin's, so enabled_by is always null —
+                    // including for a copy that an admin had enabled before its tab
+                    // became gated. enabled_at is stamped once on first enable and
+                    // kept stable across re-syncs.
+                    $attrs['enabled'] = true;
+                    $attrs['enabled_by'] = null;
+                    if (! $existing || ! $existing->enabled) {
+                        $attrs['enabled_at'] = Carbon::now();
+                    }
+                } elseif (! $existing || $this->copyContentChanged($existing, $row)) {
+                    // New or changed content must be re-enabled by an admin. Unchanged
+                    // copies keep their existing enable state (attrs omits it).
                     $attrs['enabled'] = false;
                     $attrs['enabled_at'] = null;
                     $attrs['enabled_by'] = null;
@@ -229,17 +257,17 @@ class SheetSyncService
     /**
      * Parse a tab's CSV into normalized copy rows.
      *
-     * @return array{0: array<int, array<string, mixed>>, 1: bool}|null
-     *         [rows, hasDisclaimerColumn], or null if the tab is unusable.
+     * @return array{0: array<int, array<string, mixed>>, 1: bool, 2: bool}|null
+     *         [rows, hasDisclaimerColumn, approvalGated], or null if unusable.
      */
-    private function parseCsv(string $csv): ?array
+    private function parseCsv(string $csv, string $marketCode): ?array
     {
         $lines = array_map('str_getcsv', explode("\n", trim($csv)));
         if (count($lines) < 2) {
             return null;
         }
 
-        $headers = array_map(fn ($h) => strtolower(trim((string) $h)), $lines[0]);
+        $headers = array_map(fn ($h) => $this->normalizeHeader((string) $h), $lines[0]);
 
         $col = [];
         foreach (self::RESERVED_COLS as $name) {
@@ -265,6 +293,26 @@ class SheetSyncService
 
         $hasDisclaimerColumn = $col['disclaimer'] !== null;
 
+        // Approval column: "<market-code> copy approved" (e.g. "es copy approved")
+        // or the bare "copy approved". When present it is the source of truth —
+        // it holds the APPROVED local-language text; a blank cell means the copy
+        // is not approved. The raw draft language column is then ignored in favor
+        // of this text. The approved text is stored under the market's local
+        // language: the single non-EN language column (es/pl/sv/…), or EN itself
+        // for an English-only market. Multiple non-EN columns are ambiguous, so
+        // the tab falls back to ungated parsing.
+        $approvedIdx = $this->findApprovedColumn($headers, $marketCode);
+        $localLang = null;
+        if ($approvedIdx !== null) {
+            $nonEn = array_values(array_filter(array_keys($langCols), fn ($l) => $l !== 'en'));
+            $localLang = match (count($nonEn)) {
+                1 => $nonEn[0],
+                0 => 'en',
+                default => null,
+            };
+        }
+        $approvalGated = $approvedIdx !== null && $localLang !== null;
+
         $rows = [];
         for ($i = 1; $i < count($lines); $i++) {
             $line = $lines[$i];
@@ -274,12 +322,25 @@ class SheetSyncService
                 continue;
             }
 
-            // Store only languages that actually have content (no null padding).
-            $copyText = [];
-            foreach ($langCols as $lang => $idx) {
-                $val = $this->cell($line, $idx);
-                if ($val !== '') {
-                    $copyText[$lang] = $val;
+            if ($approvalGated) {
+                // Only copies with a filled approval cell are usable. Rows with a
+                // blank approval are dropped entirely, so the market's copy set is
+                // exactly its approved copies — nothing pending ever surfaces. EN
+                // stays the reference + copy_key source; the local language text
+                // comes from the approval column.
+                $approvedText = $this->cell($line, $approvedIdx);
+                if ($approvedText === '') {
+                    continue;
+                }
+                $copyText = ['en' => $en, $localLang => $approvedText];
+            } else {
+                // Store only languages that actually have content (no null padding).
+                $copyText = [];
+                foreach ($langCols as $lang => $idx) {
+                    $val = $this->cell($line, $idx);
+                    if ($val !== '') {
+                        $copyText[$lang] = $val;
+                    }
                 }
             }
 
@@ -294,7 +355,35 @@ class SheetSyncService
             ];
         }
 
-        return [$rows, $hasDisclaimerColumn];
+        return [$rows, $hasDisclaimerColumn, $approvalGated];
+    }
+
+    /**
+     * Locate the approval column index for a market, or null if the tab has none.
+     *
+     * Matches the market-code-prefixed form ("es copy approved") first, then the
+     * bare un-prefixed form ("copy approved"). Headers are already normalized
+     * (lower-cased, internal whitespace collapsed) by parseCsv.
+     *
+     * @param  array<int, string>  $headers
+     */
+    private function findApprovedColumn(array $headers, string $marketCode): ?int
+    {
+        $code = strtolower(trim($marketCode));
+
+        foreach ([$code.' copy approved', 'copy approved'] as $want) {
+            $idx = array_search($want, $headers, true);
+            if ($idx !== false) {
+                return $idx;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeHeader(string $header): string
+    {
+        return preg_replace('/\s+/', ' ', strtolower(trim($header)));
     }
 
     private function cell(array $line, ?int $idx): string
