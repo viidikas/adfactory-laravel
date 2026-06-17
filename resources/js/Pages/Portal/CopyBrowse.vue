@@ -130,7 +130,6 @@ function addOne() {
             <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }">
               <Tag :clickable="false">{{ c.key }}</Tag>
               <Tag v-if="c.shot" :clickable="false">{{ c.shot }}</Tag>
-              <Tag v-if="c.requires_disclaimer" :clickable="false">disclaimer</Tag>
             </div>
           </Card>
         </div>
@@ -167,7 +166,6 @@ function addOne() {
             <div :style="{ marginTop: '5px', fontSize: '12px', color: 'var(--text-3)' }">EN · {{ chosen.en }}</div>
           </template>
           <template v-else>{{ chosen.en }}</template>
-          <span v-if="chosen.requires_disclaimer" :style="{ display: 'block', marginTop: '4px', color: 'var(--warning)', fontSize: '11.5px', fontWeight: 600 }">Requires disclaimer</span>
         </div>
 
         <SectionLabel :style="{ marginTop: '18px' }">Languages</SectionLabel>

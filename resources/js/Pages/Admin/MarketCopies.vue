@@ -139,12 +139,11 @@ const tdBase = { padding: '11px 14px', verticalAlign: 'top', fontSize: '13px' };
                   <th :style="{ ...thBase, position: 'sticky', left: '52px', zIndex: 3 }">Copy</th>
                   <th :style="thBase">Category</th>
                   <th :style="thBase">Shot</th>
-                  <th :style="thBase">Disclaimer</th>
                   <th v-for="l in langs" :key="l" :style="thBase">{{ upper(l) }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!visible.length"><td :colspan="5 + langs.length" :style="{ ...tdBase, color: 'var(--text-3)', padding: '24px 14px' }">No copies in this view.</td></tr>
+                <tr v-if="!visible.length"><td :colspan="4 + langs.length" :style="{ ...tdBase, color: 'var(--text-3)', padding: '24px 14px' }">No copies in this view.</td></tr>
                 <tr v-for="c in visible" :key="c.id" :style="{ borderTop: '1px solid var(--divider)' }" :class="{ 'row-hover': true }">
                   <td :style="{ ...tdBase, textAlign: 'center', position: 'sticky', left: 0, background: 'var(--surface-2)', borderRight: '1px solid var(--divider)' }">
                     <input type="checkbox" :checked="c.enabled" :disabled="busy" @change="toggleCopy(c)"
@@ -156,10 +155,6 @@ const tdBase = { padding: '11px 14px', verticalAlign: 'top', fontSize: '13px' };
                   </td>
                   <td :style="{ ...tdBase, color: 'var(--text-2)', whiteSpace: 'nowrap' }">{{ c.category || '—' }}</td>
                   <td :style="{ ...tdBase, color: 'var(--text-2)' }" class="mono">{{ c.shot || '—' }}</td>
-                  <td :style="tdBase">
-                    <span v-if="c.requires_disclaimer" :style="{ color: 'var(--warning)', fontWeight: 600, fontSize: '12px' }">Required</span>
-                    <span v-else :style="{ color: 'var(--text-3)' }">—</span>
-                  </td>
                   <td v-for="l in langs" :key="l" :style="{ ...tdBase, color: 'var(--text-1)', maxWidth: '280px' }">{{ (c.copy_text || {})[l] || '' }}</td>
                 </tr>
               </tbody>

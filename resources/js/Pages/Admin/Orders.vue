@@ -208,7 +208,6 @@ function exportItemsCsv() {
           <div v-for="(it, i) in detail.items" :key="i" :style="{ padding: '12px 0', borderTop: '1px solid var(--divider)' }">
             <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600 }">
               <Icon name="film" :size="15" :style="{ color: 'var(--text-3)' }" /> {{ it.clipName }}
-              <span v-if="it.requiresDisclaimer" :style="{ fontSize: '11px', color: 'var(--warning)', fontWeight: 600 }">· disclaimer</span>
             </div>
             <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '4px' }">{{ it.slate }} · {{ it.category }} · {{ it.actor || '—' }} · copy: {{ it.copyKey }}</div>
             <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '7px' }">

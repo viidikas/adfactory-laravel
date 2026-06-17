@@ -212,7 +212,6 @@ function add() {
             <div :style="{ marginTop: '5px', fontSize: '12px', color: 'var(--text-3)' }">EN · {{ selCopyObj.en }}</div>
           </template>
           <template v-else>{{ selCopyObj.en }}</template>
-          <span v-if="selCopyObj.requires_disclaimer" :style="{ display: 'block', marginTop: '4px', color: 'var(--warning)', fontSize: '11.5px', fontWeight: 600 }">Requires disclaimer</span>
         </div>
 
         <SectionLabel :style="{ marginTop: '18px' }">Languages</SectionLabel>
