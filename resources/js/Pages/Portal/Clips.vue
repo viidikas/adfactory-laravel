@@ -110,9 +110,19 @@ function copiesForClip(clip) {
   if (bySlate.length) return bySlate;
   return copies.value.filter((c) => shotCodes(c).length === 0 && (c.category || '') === clip.category);
 }
+// The market-language text of a copy: its non-EN copy_text entry (e.g. the
+// approved Spanish for an ES market). Empty for an English-only market (UK).
+function localText(o) {
+  const ct = o?.copy_text || {};
+  const key = Object.keys(ct).find((k) => k !== 'en' && String(ct[k] || '').trim());
+  return key ? ct[key] : '';
+}
+
 const copyOptions = computed(() => [{ value: '', label: copies.value.length ? 'Choose copy…' : 'No copy enabled for this market' },
-  ...copiesForClip(sel.value).map((c) => ({ value: c.key, label: `${c.key} · ${c.en || ''}`.slice(0, 60) }))]);
+  ...copiesForClip(sel.value).map((c) => ({ value: c.key, label: `${c.key} · ${localText(c) || c.en || ''}`.slice(0, 60) }))]);
 const selCopyObj = computed(() => copies.value.find((c) => c.key === selCopy.value) || null);
+// Market-language text of the selected copy, shown above the EN reference.
+const selLocalText = computed(() => localText(selCopyObj.value));
 const copyLangs = computed(() => {
   const o = selCopyObj.value;
   if (!o) return ['EN'];
@@ -122,7 +132,9 @@ const copyLangs = computed(() => {
 
 function openClip(c) {
   sel.value = c;
-  selCopy.value = '';
+  // Pre-select the first copy available for this clip so the drawer opens ready.
+  const opts = copiesForClip(c);
+  selCopy.value = opts.length ? opts[0].key : '';
   selLangs.value = ['EN'];
   selDesigns.value = designs.value.length === 1 ? [designs.value[0].key] : [];
 }
@@ -176,7 +188,7 @@ function add() {
         <Card v-else-if="!filtered.length"><EmptyState icon="film" title="No clips" :sub="availableClips.length ? 'Nothing matches your search.' : 'No clips are available for this market yet.'" /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
           <div v-for="c in filtered" :key="c.id">
-            <Thumb :clip="withPoster(c)" @click="openClip(c)" />
+            <Thumb :clip="withPoster(c)" aspect-override="16:9" @click="openClip(c)" />
             <div :style="{ padding: '10px 2px 0' }">
               <div :style="{ fontSize: '13.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ c.nameNoExt || c.name }}</div>
               <div :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '4px' }">{{ c.slate || '—' }} · {{ c.category || '—' }}</div>
@@ -195,7 +207,11 @@ function add() {
         <SectionLabel>Copy</SectionLabel>
         <Select v-model="selCopy" :options="copyOptions" />
         <div v-if="selCopyObj" :style="{ fontSize: '13px', color: 'var(--text-2)', margin: '8px 0 0', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: '10px' }">
-          {{ selCopyObj.en }}
+          <template v-if="selLocalText">
+            <div :style="{ color: 'var(--text-1)', fontWeight: 600 }">{{ selLocalText }}</div>
+            <div :style="{ marginTop: '5px', fontSize: '12px', color: 'var(--text-3)' }">EN · {{ selCopyObj.en }}</div>
+          </template>
+          <template v-else>{{ selCopyObj.en }}</template>
           <span v-if="selCopyObj.requires_disclaimer" :style="{ display: 'block', marginTop: '4px', color: 'var(--warning)', fontSize: '11.5px', fontWeight: 600 }">Requires disclaimer</span>
         </div>
 
