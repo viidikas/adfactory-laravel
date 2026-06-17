@@ -25,10 +25,9 @@ const error = ref('');
 const step = ref(1);
 const cat = ref('All');
 const chosen = ref(null);        // chosen copy object
-const picked = ref([]);          // selected clip ids
-const preview = ref(null);       // clip shown in the preview modal
-const selLangs = ref(['EN']);
-const selDesigns = ref([]);
+const preview = ref(null);       // clip shown in the preview/configure modal
+const selLangs = ref(['EN']);    // per-clip languages (set in the modal)
+const selDesigns = ref([]);      // per-clip designs (set in the modal)
 
 const thumb = (c) => ({ ...c, poster: '/api/thumb?path=' + encodeURIComponent(c.relativePath || ''), aspect: undefined, duration: null });
 const thumbUrl = (c) => '/api/thumb?path=' + encodeURIComponent(c?.relativePath || '');
@@ -64,37 +63,40 @@ const copyLangs = computed(() => {
   const present = ALL_LANGS.filter((l) => (o.copy_text?.[l.toLowerCase()] || o[l.toLowerCase()] || '').trim());
   return present.includes('EN') ? present : ['EN', ...present];
 });
-// Market-language text of the chosen copy, shown for context in the preview.
+// Market-language text of the chosen copy, shown for context in the modal.
 const chosenLocalText = computed(() => {
   const ct = chosen.value?.copy_text || {};
   const k = Object.keys(ct).find((x) => x !== 'en' && String(ct[x] || '').trim());
   return k ? ct[k] : '';
 });
 
-function chooseCopy(c) { chosen.value = c; picked.value = []; step.value = 2; }
-function togglePick(id) { const i = picked.value.indexOf(id); if (i === -1) picked.value.push(id); else picked.value.splice(i, 1); }
-function openPreview(c) { preview.value = c; }
-// Toggle this clip's selection from inside the modal, then return to the grid.
-function togglePickFromPreview() { if (preview.value) togglePick(preview.value.id); preview.value = null; }
-function toLangs() { selLangs.value = ['EN']; selDesigns.value = designs.value.length === 1 ? [designs.value[0].key] : []; step.value = 3; }
+function chooseCopy(c) { chosen.value = c; step.value = 2; }
+function openPreview(c) {
+  preview.value = c;
+  // Reset per-clip localization to defaults each time a clip is opened.
+  selLangs.value = ['EN'];
+  selDesigns.value = designs.value.length === 1 ? [designs.value[0].key] : [];
+}
 function toggleLang(l) { const i = selLangs.value.indexOf(l); if (i === -1) selLangs.value.push(l); else if (selLangs.value.length > 1) selLangs.value.splice(i, 1); }
 function toggleDesign(k) { const i = selDesigns.value.indexOf(k); if (i === -1) selDesigns.value.push(k); else selDesigns.value.splice(i, 1); }
-function reset() { step.value = 1; chosen.value = null; picked.value = []; preview.value = null; selLangs.value = ['EN']; selDesigns.value = []; cat.value = 'All'; }
+function reset() { step.value = 1; chosen.value = null; preview.value = null; selLangs.value = ['EN']; selDesigns.value = []; cat.value = 'All'; }
 
-const canAdd = computed(() => picked.value.length && selLangs.value.length && (!designs.value.length || selDesigns.value.length));
-function addAll() {
-  const o = chosen.value;
-  const copyText = o?.copy_text || { en: o?.en || '', et: o?.et || '', fr: o?.fr || '', de: o?.de || '', es: o?.es || '' };
-  picked.value.forEach((id) => {
-    const clip = clips.value.find((c) => c.id === id);
-    if (!clip) return;
-    addToBasket({
-      clipId: clip.id,
-      clip: { nameNoExt: clip.nameNoExt, name: clip.name, slate: clip.slate, category: clip.category, actor: clip.actor, relativePath: clip.relativePath },
-      copyKey: o.key, copyText, langs: [...selLangs.value], designs: [...selDesigns.value], requiresDisclaimer: !!o?.requires_disclaimer,
-    });
+// Whether this clip is already in the basket for the chosen copy (grid hint).
+function inBasket(clip) {
+  return store.basket.some((b) => b.clipId === clip.id && b.copyKey === chosen.value?.key);
+}
+
+const canAdd = computed(() => !!preview.value && selLangs.value.length && (!designs.value.length || selDesigns.value.length));
+function addOne() {
+  const o = chosen.value, clip = preview.value;
+  if (!o || !clip) return;
+  const copyText = o.copy_text || { en: o.en || '', et: o.et || '', fr: o.fr || '', de: o.de || '', es: o.es || '' };
+  addToBasket({
+    clipId: clip.id,
+    clip: { nameNoExt: clip.nameNoExt, name: clip.name, slate: clip.slate, category: clip.category, actor: clip.actor, relativePath: clip.relativePath },
+    copyKey: o.key, copyText, langs: [...selLangs.value], designs: [...selDesigns.value], requiresDisclaimer: !!o.requires_disclaimer,
   });
-  reset();
+  preview.value = null;
 }
 </script>
 
@@ -104,12 +106,11 @@ function addAll() {
       <div :style="{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }">
         <div>
           <h1 :style="{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }">Browse by copy</h1>
-          <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">Pick a message, choose the clips, localize, add to your order.</p>
+          <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">Pick a message, then open each clip to localize and add it to your order.</p>
         </div>
         <div :style="{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '13px', color: 'var(--text-3)' }">
           <span :style="{ color: step >= 1 ? 'var(--accent)' : 'inherit', fontWeight: step === 1 ? 700 : 400 }">1 Copy</span><Icon name="chevright" :size="14" />
-          <span :style="{ color: step >= 2 ? 'var(--accent)' : 'inherit', fontWeight: step === 2 ? 700 : 400 }">2 Clips</span><Icon name="chevright" :size="14" />
-          <span :style="{ color: step >= 3 ? 'var(--accent)' : 'inherit', fontWeight: step === 3 ? 700 : 400 }">3 Localize</span>
+          <span :style="{ color: step >= 2 ? 'var(--accent)' : 'inherit', fontWeight: step === 2 ? 700 : 400 }">2 Clips</span>
         </div>
       </div>
 
@@ -136,37 +137,23 @@ function addAll() {
       </template>
 
       <!-- Step 2: clips -->
-      <template v-else-if="step === 2">
+      <template v-else>
         <button @click="step = 1" :style="{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '13.5px', fontFamily: 'inherit' }"><Icon name="arrowleft" :size="16" /> Copy</button>
-        <Card :style="{ background: 'var(--surface-2)' }"><div :style="{ fontSize: '15px', fontWeight: 700 }">{{ chosen.en }}</div></Card>
+        <Card :style="{ background: 'var(--surface-2)' }">
+          <div :style="{ fontSize: '15px', fontWeight: 700 }">{{ chosen.en }}</div>
+          <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '4px' }">Open a clip to preview it, pick languages &amp; designs, and add it to your order.</div>
+        </Card>
         <Card v-if="!stepClips.length"><EmptyState icon="film" title="No clips for this copy" sub="No footage matches this copy's slates." /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
           <div v-for="c in stepClips" :key="c.id">
-            <Thumb :clip="thumb(c)" :selected="picked.includes(c.id)" @click="openPreview(c)" />
+            <Thumb :clip="thumb(c)" :selected="inBasket(c)" @click="openPreview(c)" />
             <div :style="{ fontSize: '12.5px', color: 'var(--text-2)', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ c.slate }} · {{ c.actor || '—' }}</div>
           </div>
         </div>
-        <div :style="{ display: 'flex', justifyContent: 'flex-end' }"><Button icon-right="arrowright" :disabled="!picked.length" @click="toLangs">Continue · {{ picked.length }} selected</Button></div>
-      </template>
-
-      <!-- Step 3: localize -->
-      <template v-else>
-        <button @click="step = 2" :style="{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '13.5px', fontFamily: 'inherit' }"><Icon name="arrowleft" :size="16" /> Clips</button>
-        <Card :style="{ maxWidth: '640px' }">
-          <div :style="{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }">{{ chosen.en }}</div>
-          <div :style="{ fontSize: '13px', color: 'var(--text-3)' }">{{ picked.length }} clip(s) selected</div>
-          <SectionLabel :style="{ marginTop: '18px' }">Languages</SectionLabel>
-          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }"><Tag v-for="l in copyLangs" :key="l" :active="selLangs.includes(l)" @click="toggleLang(l)">{{ l }}</Tag></div>
-          <template v-if="designs.length">
-            <SectionLabel :style="{ marginTop: '18px' }">Designs</SectionLabel>
-            <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }"><Tag v-for="d in designs" :key="d.key" :active="selDesigns.includes(d.key)" @click="toggleDesign(d.key)">{{ d.label || d.key }}</Tag></div>
-          </template>
-          <div :style="{ marginTop: '20px' }"><Button icon="plus" :disabled="!canAdd" @click="addAll">Add {{ picked.length }} to order</Button></div>
-        </Card>
       </template>
     </div>
 
-    <!-- Clip preview modal (same drawer style as Browse clips) -->
+    <!-- Clip preview + configure modal (same drawer style as Browse clips) -->
     <Drawer :open="!!preview" :title="preview ? (preview.slate || 'Clip') : ''" :width="480" @close="preview = null">
       <div v-if="preview">
         <video :src="videoUrl(preview)" controls preload="metadata" :poster="thumbUrl(preview)" :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '320px' }" />
@@ -182,10 +169,21 @@ function addAll() {
           <template v-else>{{ chosen.en }}</template>
           <span v-if="chosen.requires_disclaimer" :style="{ display: 'block', marginTop: '4px', color: 'var(--warning)', fontSize: '11.5px', fontWeight: 600 }">Requires disclaimer</span>
         </div>
+
+        <SectionLabel :style="{ marginTop: '18px' }">Languages</SectionLabel>
+        <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
+          <Tag v-for="l in copyLangs" :key="l" :active="selLangs.includes(l)" @click="toggleLang(l)">{{ l }}</Tag>
+        </div>
+
+        <template v-if="designs.length">
+          <SectionLabel :style="{ marginTop: '18px' }">Designs</SectionLabel>
+          <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
+            <Tag v-for="d in designs" :key="d.key" :active="selDesigns.includes(d.key)" @click="toggleDesign(d.key)">{{ d.label || d.key }}</Tag>
+          </div>
+        </template>
       </div>
       <template #footer>
-        <Button v-if="preview && picked.includes(preview.id)" full variant="secondary" icon="check" @click="togglePickFromPreview">Selected · remove</Button>
-        <Button v-else full icon="plus" @click="togglePickFromPreview">Add to selection</Button>
+        <Button full icon="plus" :disabled="!canAdd" @click="addOne">{{ preview && inBasket(preview) ? 'Add another variant' : 'Add to order' }}</Button>
       </template>
     </Drawer>
   </PortalLayout>
