@@ -49,6 +49,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::put('/orders/{order}', [OrderController::class, 'update']);
+    Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
 
     // Admin-only routes — restricted to super admins (the AD.FACTORY panel).
     Route::middleware('superadmin')->group(function () {
