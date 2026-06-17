@@ -188,7 +188,7 @@ function add() {
         <Card v-else-if="!filtered.length"><EmptyState icon="film" title="No clips" :sub="availableClips.length ? 'Nothing matches your search.' : 'No clips are available for this market yet.'" /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
           <div v-for="c in filtered" :key="c.id">
-            <Thumb :clip="withPoster(c)" aspect-override="16:9" @click="openClip(c)" />
+            <Thumb :clip="withPoster(c)" @click="openClip(c)" />
             <div :style="{ padding: '10px 2px 0' }">
               <div :style="{ fontSize: '13.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ c.nameNoExt || c.name }}</div>
               <div :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '4px' }">{{ c.slate || '—' }} · {{ c.category || '—' }}</div>
