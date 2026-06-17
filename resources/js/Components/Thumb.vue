@@ -7,11 +7,17 @@ const props = defineProps({
   selected: Boolean,
   showPlay: { type: Boolean, default: true },
   height: { type: [String, Number], default: 'auto' },
+  // Force the frame ratio independent of the corner badge (clip.aspect). Lets a
+  // grid show landscape thumbs without surfacing a "16:9" badge on every tile.
+  aspectOverride: { type: String, default: null },
 });
 const emit = defineEmits(['click']);
 const hover = ref(false);
 
-const ratio = computed(() => (props.clip.aspect === '16:9' ? '16 / 9' : props.clip.aspect === '1:1' ? '1 / 1' : '9 / 16'));
+const ratio = computed(() => {
+  const a = props.aspectOverride || props.clip.aspect;
+  return a === '16:9' ? '16 / 9' : a === '1:1' ? '1 / 1' : '9 / 16';
+});
 // Gradient placeholder; a real poster frame (when present) is overlaid as a
 // lazy-loaded <img> so large grids don't fetch every thumbnail up front.
 const bg = computed(() => {
