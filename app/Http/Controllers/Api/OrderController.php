@@ -186,7 +186,7 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => 'sometimes|in:pending,processing,ready',
+            'status' => 'sometimes|in:pending,processing,ready,rejected',
             'market' => 'sometimes|nullable|string|max:100',
             'note' => 'sometimes|nullable|string|max:2000',
             'rendered_clips' => 'sometimes|nullable|array',
@@ -217,9 +217,12 @@ class OrderController extends Controller
             // Replace items if provided
             if (isset($validated['items'])) {
                 // Re-derive the disclaimer flag from the order's market copies so
-                // it stays server-controlled even on admin edits.
-                $copies = $order->market_id
-                    ? $order->market->copies()->get()->keyBy('copy_key')
+                // it stays server-controlled even on admin edits. Resolve the
+                // market by id — the `market` column (legacy code string) shadows
+                // the market() relation, so $order->market is NOT the model.
+                $market = $order->market_id ? Market::find($order->market_id) : null;
+                $copies = $market
+                    ? $market->copies()->get()->keyBy('copy_key')
                     : collect();
 
                 $order->items()->delete();
@@ -244,5 +247,17 @@ class OrderController extends Controller
         });
 
         return response()->json($order->fresh()->load('items'));
+    }
+
+    public function destroy(Request $request, Order $order)
+    {
+        if ($request->user()->role !== 'admin') {
+            abort(403, 'Only admins can delete orders.');
+        }
+
+        // order_items are removed via the FK's cascadeOnDelete.
+        $order->delete();
+
+        return response()->json(['ok' => true]);
     }
 }

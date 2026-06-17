@@ -15,6 +15,7 @@ const STATUS_STYLE = {
   'pending':       { c: 'var(--warning)', b: 'rgba(246,198,66,0.15)', label: 'Pending' },
   'processing':    { c: 'var(--brand-teal)', b: 'rgba(72,218,186,0.15)', label: 'Processing' },
   'ready':         { c: 'var(--success)', b: 'var(--accent-soft)', label: 'Ready' },
+  'rejected':      { c: 'var(--danger)', b: 'var(--danger-soft)', label: 'Rejected' },
 };
 const props = defineProps({
   status: { type: String, required: true },
