@@ -23,7 +23,7 @@ class LoginController extends Controller
             $request->session()->forget('auth_user_id');
         }
 
-        return Inertia::render('Login');
+        return Inertia::render('Auth/Login', ['step' => 'email']);
     }
 
     public function selectUser(Request $request)
@@ -60,7 +60,8 @@ class LoginController extends Controller
         $request->session()->put('pending_user_id', $user->id);
         $request->session()->forget("otp_attempts_{$user->id}");
 
-        return Inertia::render('Verify', [
+        return Inertia::render('Auth/Login', [
+            'step' => 'code',
             'userName' => $user->name,
             'userEmail' => $user->email,
         ]);
@@ -78,7 +79,8 @@ class LoginController extends Controller
             return redirect('/login');
         }
 
-        return Inertia::render('Verify', [
+        return Inertia::render('Auth/Login', [
+            'step' => 'code',
             'userName' => $user->name,
             'userEmail' => $user->email,
         ]);
@@ -119,14 +121,16 @@ class LoginController extends Controller
                 LoginCode::where('user_id', $user->id)->delete();
                 $request->session()->forget($attemptsKey);
                 session()->flash('error', 'Too many incorrect attempts. Please request a new code.');
-                return Inertia::render('Verify', [
+                return Inertia::render('Auth/Login', [
+                    'step' => 'code',
                     'userName' => $user->name,
                     'userEmail' => $user->email,
                 ]);
             }
 
             session()->flash('error', 'Invalid or expired code. Please try again.');
-            return Inertia::render('Verify', [
+            return Inertia::render('Auth/Login', [
+                'step' => 'code',
                 'userName' => $user->name,
                 'userEmail' => $user->email,
             ]);
