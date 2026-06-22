@@ -22,7 +22,7 @@ class MarketController extends Controller
         $isAdmin = $request->user()->role === 'admin';
 
         $query = Market::query()
-            ->withCount(['copies', 'copies as enabled_copies_count' => fn ($q) => $q->where('enabled', true)])
+            ->withCount(['copies', 'copies as enabled_copies_count' => fn ($q) => $q->where('enabled', true), 'deliveredClips'])
             ->orderBy('code');
         if (! $isAdmin) {
             $query->active();
@@ -47,6 +47,7 @@ class MarketController extends Controller
                 'enabled_count' => $m->enabled_copies_count,
                 'can_enable' => $m->enabled_copies_count > 0,
                 'has_disclaimer' => $m->has_disclaimer,
+                'delivered_count' => $m->delivered_clips_count,
                 'activated_at' => optional($m->activated_at)->toIso8601String(),
                 'last_synced_at' => optional($m->last_synced_at)->toIso8601String(),
             ];

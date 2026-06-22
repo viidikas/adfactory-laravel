@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\ClipController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\CopyController;
 use App\Http\Controllers\Api\CopyLineController;
+use App\Http\Controllers\Api\DeliveredClipController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
@@ -51,6 +52,14 @@ Route::middleware('auth')->group(function () {
     Route::put('/orders/{order}', [OrderController::class, 'update']);
     Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
 
+    // Delivered clips — final rendered creative, market-scoped. Reads are open to
+    // any authenticated user (leads see active markets only; enforced in the
+    // controller); the file/thumbnail stream through authenticated routes, never
+    // a public /storage URL.
+    Route::get('/delivered-clips', [DeliveredClipController::class, 'index']);
+    Route::get('/delivered-clips/{deliveredClip}/download', [DeliveredClipController::class, 'download']);
+    Route::get('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'thumbnail']);
+
     // Admin-only routes — restricted to super admins (the AD.FACTORY panel).
     Route::middleware('superadmin')->group(function () {
         // Claude proxy forwards to the Anthropic API using the server's key, so it
@@ -82,5 +91,11 @@ Route::middleware('auth')->group(function () {
         // flag is the content gate).
         Route::get('/markets/{market}/copies', [MarketController::class, 'copies']);
         Route::put('/markets/{market}/copies/{copy}', [MarketController::class, 'toggleCopy']);
+
+        // Delivered clips — upload / edit / replace-thumbnail / delete (admin).
+        Route::post('/delivered-clips', [DeliveredClipController::class, 'store']);
+        Route::put('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'update']);
+        Route::post('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'updateThumbnail']);
+        Route::delete('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'destroy']);
     });
 });
