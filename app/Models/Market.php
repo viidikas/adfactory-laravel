@@ -68,6 +68,11 @@ class Market extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function deliveredClips(): HasMany
+    {
+        return $this->hasMany(DeliveredClip::class);
+    }
+
     public function confirmations(): HasMany
     {
         return $this->hasMany(MarketConfirmation::class);

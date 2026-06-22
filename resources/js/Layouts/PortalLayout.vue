@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import AppLayout from './AppLayout.vue';
 import Drawer from '../Components/Drawer.vue';
@@ -21,6 +21,7 @@ const store = usePortalStore();
 const page = usePage();
 const markets = ref([]);
 const designs = ref([]);     // active project designs (all brands) for render-row calc
+const deliveredCount = ref(0); // delivered clips for the selected market (badge)
 const drawerOpen = ref(false);
 const note = ref('');
 const submitting = ref(false);
@@ -59,6 +60,18 @@ async function loadDesigns() {
 onMounted(async () => {
   try { await Promise.all([loadMarkets(), loadDesigns()]); } catch (e) { flash(e.message || 'Failed to load.'); }
 });
+
+// Delivered-clips count for the selected market — drives the badge next to the
+// selector (shown only when the market has any).
+async function loadDeliveredCount() {
+  deliveredCount.value = 0;
+  if (!store.market) return;
+  try {
+    const clips = await api.get('/api/delivered-clips?market_id=' + store.market.id);
+    deliveredCount.value = Array.isArray(clips) ? clips.length : 0;
+  } catch { deliveredCount.value = 0; }
+}
+watch(() => store.market?.id, loadDeliveredCount, { immediate: true });
 
 function onMarketChange(id) {
   const m = markets.value.find((x) => String(x.id) === String(id)) || null;
@@ -123,6 +136,9 @@ async function submit() {
       <span :style="{ fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', fontWeight: 700 }">Market</span>
       <div :style="{ width: '230px' }"><Select :model-value="store.market ? String(store.market.id) : ''" :options="marketOptions" @update:model-value="onMarketChange" /></div>
       <Tag v-if="store.market" :clickable="false">{{ store.market.brand }}</Tag>
+      <Button v-if="store.market && deliveredCount" size="sm" variant="secondary" icon="inbox" :style="{ marginLeft: 'auto' }" @click="router.visit('/portal/delivered')">
+        Delivered Clips ({{ deliveredCount }})
+      </Button>
     </div>
 
     <slot :market="store.market" />

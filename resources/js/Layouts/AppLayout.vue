@@ -37,6 +37,7 @@ const NAV = {
   admin: [
     { key: 'dashboard', label: 'Dashboard', icon: 'grid', href: '/' },
     { key: 'orders', label: 'Orders', icon: 'clipboard', href: '/orders' },
+    { key: 'delivered', label: 'Delivered clips', icon: 'inbox', href: '/delivered' },
     { key: 'markets', label: 'Markets', icon: 'globe', href: '/markets' },
     { key: 'projects', label: 'Projects', icon: 'folder', href: '/projects' },
     { key: 'clips', label: 'Clip library', icon: 'film', href: '/clips' },
