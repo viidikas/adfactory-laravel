@@ -11,7 +11,7 @@ import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
 import {
   buildTemplaterState, buildRows, estimateRows, rowsToCsv, slatesByCategory,
-  ALL_CATEGORIES, ALL_LANGS, defaultFilters, DEFAULT_VISIBLE_COLS,
+  ALL_CATEGORIES, ALL_LANGS, defaultFilters, DEFAULT_VISIBLE_COLS, TEMPLATER_EXPORT_COLS,
 } from '../../lib/templater.js';
 import { saveRows, saveFilters, saveVisibleCols } from '../../lib/genStore.js';
 
@@ -118,7 +118,7 @@ function build() {
 
 function exportCsv() {
   if (!rows.value.length) { flash('Build the sheet first.'); return; }
-  const csv = rowsToCsv(rows.value); // full Templater column set (not the slim preview cols)
+  const csv = rowsToCsv(rows.value, TEMPLATER_EXPORT_COLS);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `adfactory_${selectedMarket.value?.code || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
@@ -128,7 +128,7 @@ function exportCsv() {
 }
 async function exportGSheets() {
   if (!rows.value.length) { flash('Build the sheet first.'); return; }
-  const csv = rowsToCsv(rows.value); // full Templater column set (not the slim preview cols)
+  const csv = rowsToCsv(rows.value, TEMPLATER_EXPORT_COLS);
   try {
     await navigator.clipboard.writeText(csv);
     window.open('https://sheets.new', '_blank');

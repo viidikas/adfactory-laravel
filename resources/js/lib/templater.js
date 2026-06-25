@@ -72,6 +72,11 @@ export const PREVIEW_ALL_COLS = [
 
 export const DEFAULT_VISIBLE_COLS = ['line_nr', 'target', 'aef_footage', 'design', 'format', 'lang', 'brand', 'headline', 'filename', 'output'];
 
+// The exact Templater CSV columns + order the AE Templater consumes (the proven
+// "old that worked" format). CSV/Sheets export uses THIS — not the on-screen
+// preview columns (DEFAULT_VISIBLE_COLS) and not every column (PREVIEW_ALL_COLS).
+export const TEMPLATER_EXPORT_COLS = ['target', 'output', 'aef_footage', 'headline', 'brand', 'lang', 'design', 'format', 'slate', 'actor', 'filename'];
+
 const COMP_LANGS = ['EN', 'ET', 'DE', 'FR', 'ES'];
 const COMP_BRANDS = ['Creditstar', 'Monefit'];
 
@@ -246,7 +251,9 @@ export function buildRows({ clips, filters, tstate, copyFilter = null }) {
             const legacyVal = (brandComps && typeof brandComps[compKey] === 'string') ? brandComps[compKey] : null;
             const shortDesign = design.replace('design', 'd');
             const fmtLabel = FMT_LABEL[fmt] || fmt;
-            const compName = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand] || 'CS'}_${fmtLabel} ${shortDesign} ${lang}`;
+            // Comp name = configured name, else the legacy fallback WITHOUT a lang
+            // suffix (the AE comp is named e.g. "TEMPLATE_CS_16x9 d1").
+            const compName = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand] || 'CS'}_${fmtLabel} ${shortDesign}`;
 
             let copy;
             if (copyFilter && copyFilter[lang.toLowerCase()]) copy = copyFilter[lang.toLowerCase()];
@@ -273,8 +280,8 @@ export function buildRows({ clips, filters, tstate, copyFilter = null }) {
               disclaimer: lang.toLowerCase(),
               duration_full: clip.duration || '',
               status: 'pending',
-              filename: outputFilename.replace(/[\.\s]+/g, '_'),
-              output: `${folderPath}/${outputFilename}`.replace(/[\.\s]+/g, '_'),
+              filename: outputFilename,
+              output: `${folderPath}/${outputFilename}`,
               ae_output_path: aeOutputPath,
               design,
               lang,
