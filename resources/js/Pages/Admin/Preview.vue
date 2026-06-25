@@ -9,7 +9,7 @@ import Tag from '../../Components/Tag.vue';
 import SectionLabel from '../../Components/SectionLabel.vue';
 import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
-import { PREVIEW_ALL_COLS, DEFAULT_VISIBLE_COLS, rowsToCsv } from '../../lib/templater.js';
+import { PREVIEW_ALL_COLS, DEFAULT_VISIBLE_COLS, TEMPLATER_EXPORT_COLS, rowsToCsv } from '../../lib/templater.js';
 import { loadRows, loadVisibleCols, saveVisibleCols } from '../../lib/genStore.js';
 
 defineProps({ theme: { type: String, default: null }, density: { type: String, default: null } });
@@ -55,7 +55,7 @@ function toggleCol(key) {
 function exportCsv() {
   const data = filtered.value.length ? filtered.value : rows.value;
   if (!data.length) { flash('Nothing to export.'); return; }
-  const csv = rowsToCsv(data); // always export the full Templater column set
+  const csv = rowsToCsv(data, TEMPLATER_EXPORT_COLS);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `adfactory_preview_${new Date().toISOString().slice(0, 10)}.csv`;
@@ -66,7 +66,7 @@ function exportCsv() {
 async function exportGSheets() {
   const data = filtered.value.length ? filtered.value : rows.value;
   if (!data.length) { flash('Nothing to export.'); return; }
-  const csv = rowsToCsv(data); // always export the full Templater column set
+  const csv = rowsToCsv(data, TEMPLATER_EXPORT_COLS);
   try { await navigator.clipboard.writeText(csv); window.open('https://sheets.new', '_blank'); flash('CSV copied — paste into A1 (⌘V).'); }
   catch { exportCsv(); }
 }
