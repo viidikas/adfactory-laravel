@@ -281,7 +281,9 @@ export function buildRows({ clips, filters, tstate, copyFilter = null }) {
               duration_full: clip.duration || '',
               status: 'pending',
               filename: outputFilename,
-              output: `${folderPath}/${outputFilename}`,
+              // `output` mirrors the source-footage path the Templater expects:
+              // lang / category / slate / actor / clip-name, original spacing kept.
+              output: `${lang}/${clip.category || ''}/${slate}/${clip.actor || actorClean}/${clip.nameNoExt || clip.name || ''}`,
               ae_output_path: aeOutputPath,
               design,
               lang,
