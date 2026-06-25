@@ -180,4 +180,35 @@ class ClipTest extends TestCase
         $this->assertSame('Estonian', $shared['et']);
         $this->assertSame('Spanish', $shared['es']);
     }
+
+    /**
+     * market_id scopes clip copy to a single market (admin Generate, per-market):
+     * only that market's enabled copy is attached, not other active markets'.
+     */
+    public function test_market_id_scopes_clip_copy_to_that_market_only(): void
+    {
+        $user = $this->createAdmin();
+        $this->seedClips(); // includes a PU1 clip
+
+        $ee = $this->market(['code' => 'EE', 'active' => true]);
+        $this->copy($ee, ['copy_key' => 'EE_line', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Estonia copy', 'et' => 'Eesti']]);
+
+        $es = $this->market(['code' => 'ES', 'active' => true]);
+        $this->copy($es, ['copy_key' => 'ES_line', 'shot' => 'PU1', 'enabled' => true,
+            'copy_text' => ['en' => 'Spain copy', 'es' => 'Espana']]);
+
+        // Scoped to EE → only EE's copy line.
+        $pu1 = collect($this->asUser($user)->getJson('/api/clips?market_id='.$ee->id)->assertStatus(200)->json())
+            ->firstWhere('slate', 'PU1');
+        $keys = collect($pu1['copy'])->pluck('key');
+        $this->assertTrue($keys->contains('EE_line'));
+        $this->assertFalse($keys->contains('ES_line'));
+
+        // No market_id → merged across active markets (both present).
+        $pu1All = collect($this->asUser($user)->getJson('/api/clips')->json())->firstWhere('slate', 'PU1');
+        $keysAll = collect($pu1All['copy'])->pluck('key');
+        $this->assertTrue($keysAll->contains('EE_line'));
+        $this->assertTrue($keysAll->contains('ES_line'));
+    }
 }

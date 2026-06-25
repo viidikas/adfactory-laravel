@@ -50,7 +50,9 @@ class ClipController extends Controller
         // Copy comes from the LIVE per-market copies (enabled, in an active market),
         // not the stale legacy slate_data snapshot — so Generate and the clip
         // copy-key picker reflect exactly what's approved in Markets today.
-        [$copyBySlate, $copyByCategory] = $this->liveCopyMaps();
+        // An optional market_id scopes copy to a single market (admin Generate),
+        // so a build reflects exactly that market's approved copy + languages.
+        [$copyBySlate, $copyByCategory] = $this->liveCopyMaps($request->input('market_id'));
 
         return response()->json($query->get()->map(fn ($c) => [
             'id' => $c->id,
@@ -76,19 +78,25 @@ class ClipController extends Controller
      * a blank/codeless shot attaches category-wide. Replaces the stale legacy
      * slate_data copy snapshot that previously surfaced retired copy in Generate.
      *
+     * @param  int|string|null  $marketId  Scope to a single market (any state) instead of all active markets.
      * @return array{0: array<string, array<string, array>>, 1: array<string, array<string, array>>}
      */
-    private function liveCopyMaps(): array
+    private function liveCopyMaps($marketId = null): array
     {
         $bySlate = [];
         $byCategory = [];
 
-        $activeMarketIds = Market::where('active', true)->pluck('id');
-        if ($activeMarketIds->isEmpty()) {
+        // Default: merge across all ACTIVE markets. When a market_id is given
+        // (admin Generate is super-admin only), scope to exactly that market so
+        // the build carries only that market's approved copy and languages.
+        $marketIds = $marketId
+            ? Market::whereKey($marketId)->pluck('id')
+            : Market::where('active', true)->pluck('id');
+        if ($marketIds->isEmpty()) {
             return [$bySlate, $byCategory];
         }
 
-        $copies = Copy::whereIn('market_id', $activeMarketIds)->where('enabled', true)->get();
+        $copies = Copy::whereIn('market_id', $marketIds)->where('enabled', true)->get();
 
         foreach ($copies as $copy) {
             $text = $copy->copy_text ?? [];
