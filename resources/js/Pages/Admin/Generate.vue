@@ -118,7 +118,7 @@ function build() {
 
 function exportCsv() {
   if (!rows.value.length) { flash('Build the sheet first.'); return; }
-  const csv = rowsToCsv(rows.value, DEFAULT_VISIBLE_COLS);
+  const csv = rowsToCsv(rows.value); // full Templater column set (not the slim preview cols)
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `adfactory_${selectedMarket.value?.code || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
@@ -128,7 +128,7 @@ function exportCsv() {
 }
 async function exportGSheets() {
   if (!rows.value.length) { flash('Build the sheet first.'); return; }
-  const csv = rowsToCsv(rows.value, DEFAULT_VISIBLE_COLS);
+  const csv = rowsToCsv(rows.value); // full Templater column set (not the slim preview cols)
   try {
     await navigator.clipboard.writeText(csv);
     window.open('https://sheets.new', '_blank');

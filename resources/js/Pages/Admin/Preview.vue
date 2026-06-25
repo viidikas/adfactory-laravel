@@ -55,18 +55,18 @@ function toggleCol(key) {
 function exportCsv() {
   const data = filtered.value.length ? filtered.value : rows.value;
   if (!data.length) { flash('Nothing to export.'); return; }
-  const csv = rowsToCsv(data, visibleKeys.value);
+  const csv = rowsToCsv(data); // always export the full Templater column set
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `adfactory_preview_${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  flash(`Downloaded ${data.length} rows (${visibleKeys.value.length} cols).`);
+  flash(`Downloaded ${data.length} rows · full Templater columns.`);
 }
 async function exportGSheets() {
   const data = filtered.value.length ? filtered.value : rows.value;
   if (!data.length) { flash('Nothing to export.'); return; }
-  const csv = rowsToCsv(data, visibleKeys.value);
+  const csv = rowsToCsv(data); // always export the full Templater column set
   try { await navigator.clipboard.writeText(csv); window.open('https://sheets.new', '_blank'); flash('CSV copied — paste into A1 (⌘V).'); }
   catch { exportCsv(); }
 }
