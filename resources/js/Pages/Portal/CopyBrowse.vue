@@ -11,7 +11,6 @@ import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
 import { usePortalStore, addToBasket } from '../../lib/portalStore.js';
-import { ALL_LANGS } from '../../lib/templater.js';
 
 defineProps({ theme: { type: String, default: null }, density: { type: String, default: null } });
 
@@ -26,7 +25,6 @@ const step = ref(1);
 const cat = ref('All');
 const chosen = ref(null);        // chosen copy object
 const preview = ref(null);       // clip shown in the preview/configure modal
-const selLangs = ref(['EN']);    // per-clip languages (set in the modal)
 const selDesigns = ref([]);      // per-clip designs (set in the modal)
 
 const thumb = (c) => ({ ...c, poster: '/api/thumb?path=' + encodeURIComponent(c.relativePath || ''), aspect: undefined, duration: null });
@@ -57,12 +55,14 @@ function clipsForCopy(copy) {
   return list;
 }
 const stepClips = computed(() => clipsForCopy(chosen.value));
-const copyLangs = computed(() => {
-  const o = chosen.value;
-  if (!o) return ['EN'];
-  const present = ALL_LANGS.filter((l) => (o.copy_text?.[l.toLowerCase()] || o[l.toLowerCase()] || '').trim());
-  return present.includes('EN') ? present : ['EN', ...present];
-});
+// The order is produced in the MARKET's language — the copy's non-EN language
+// key (e.g. FI), or EN for an English-only market. The EN line in the modal is a
+// reference translation, not a separately ordered language.
+function marketLangCodes(o) {
+  const ct = o?.copy_text || {};
+  const local = Object.keys(ct).find((k) => k !== 'en' && String(ct[k] || '').trim());
+  return local ? [local.toUpperCase()] : ['EN'];
+}
 // Market-language text of the chosen copy, shown for context in the modal.
 const chosenLocalText = computed(() => {
   const ct = chosen.value?.copy_text || {};
@@ -73,20 +73,18 @@ const chosenLocalText = computed(() => {
 function chooseCopy(c) { chosen.value = c; step.value = 2; }
 function openPreview(c) {
   preview.value = c;
-  // Reset per-clip localization to defaults each time a clip is opened.
-  selLangs.value = ['EN'];
+  // Reset per-clip designs each time a clip is opened.
   selDesigns.value = designs.value.length === 1 ? [designs.value[0].key] : [];
 }
-function toggleLang(l) { const i = selLangs.value.indexOf(l); if (i === -1) selLangs.value.push(l); else if (selLangs.value.length > 1) selLangs.value.splice(i, 1); }
 function toggleDesign(k) { const i = selDesigns.value.indexOf(k); if (i === -1) selDesigns.value.push(k); else selDesigns.value.splice(i, 1); }
-function reset() { step.value = 1; chosen.value = null; preview.value = null; selLangs.value = ['EN']; selDesigns.value = []; cat.value = 'All'; }
+function reset() { step.value = 1; chosen.value = null; preview.value = null; selDesigns.value = []; cat.value = 'All'; }
 
 // Whether this clip is already in the basket for the chosen copy (grid hint).
 function inBasket(clip) {
   return store.basket.some((b) => b.clipId === clip.id && b.copyKey === chosen.value?.key);
 }
 
-const canAdd = computed(() => !!preview.value && selLangs.value.length && (!designs.value.length || selDesigns.value.length));
+const canAdd = computed(() => !!preview.value && (!designs.value.length || selDesigns.value.length));
 function addOne() {
   const o = chosen.value, clip = preview.value;
   if (!o || !clip) return;
@@ -94,7 +92,7 @@ function addOne() {
   addToBasket({
     clipId: clip.id,
     clip: { nameNoExt: clip.nameNoExt, name: clip.name, slate: clip.slate, category: clip.category, actor: clip.actor, relativePath: clip.relativePath },
-    copyKey: o.key, copyText, langs: [...selLangs.value], designs: [...selDesigns.value], requiresDisclaimer: !!o.requires_disclaimer,
+    copyKey: o.key, copyText, langs: marketLangCodes(o), designs: [...selDesigns.value], requiresDisclaimer: !!o.requires_disclaimer,
   });
   preview.value = null;
 }
@@ -140,7 +138,7 @@ function addOne() {
         <button @click="step = 1" :style="{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '13.5px', fontFamily: 'inherit' }"><Icon name="arrowleft" :size="16" /> Copy</button>
         <Card :style="{ background: 'var(--surface-2)' }">
           <div :style="{ fontSize: '15px', fontWeight: 700 }">{{ chosen.en }}</div>
-          <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '4px' }">Open a clip to preview it, pick languages &amp; designs, and add it to your order.</div>
+          <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '4px' }">Open a clip to preview it, pick designs, and add it to your order.</div>
         </Card>
         <Card v-if="!stepClips.length"><EmptyState icon="film" title="No clips for this copy" sub="No footage matches this copy's slates." /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
@@ -166,11 +164,6 @@ function addOne() {
             <div :style="{ marginTop: '5px', fontSize: '12px', color: 'var(--text-3)' }">EN · {{ chosen.en }}</div>
           </template>
           <template v-else>{{ chosen.en }}</template>
-        </div>
-
-        <SectionLabel :style="{ marginTop: '18px' }">Languages</SectionLabel>
-        <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
-          <Tag v-for="l in copyLangs" :key="l" :active="selLangs.includes(l)" @click="toggleLang(l)">{{ l }}</Tag>
         </div>
 
         <template v-if="designs.length">
