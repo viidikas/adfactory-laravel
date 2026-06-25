@@ -208,13 +208,61 @@ export function slatesByCategory(clips) {
   return map;
 }
 
+const PREFIX = { Creditstar: 'CS', Monefit: 'MF' };
+const FMT_LABEL = { '16x9': '16x9', '1x1': '1x1', '9x16': '9x16', '4x5v1': '4x5', '4x5v2': '4x5' };
+
+// One Templater row for a (clip, design, format, lang, brand, copy). Shared by
+// buildRows (bulk Generate) and buildOrderRows (per-order export) so both emit
+// the IDENTICAL Templater format.
+function templaterRow({ clip, design, fmt, lang, brand, copy, tstate, lineNr }) {
+  const t = tstate;
+  const compKey = `${design}_${fmt}`;
+  const brandComps = t.compNames[brand] || {};
+  const langBucket = (brandComps && typeof brandComps === 'object') ? (brandComps[lang] || brandComps.EN) : null;
+  const legacyVal = (brandComps && typeof brandComps[compKey] === 'string') ? brandComps[compKey] : null;
+  const shortDesign = design.replace('design', 'd');
+  const fmtLabel = FMT_LABEL[fmt] || fmt;
+  // Comp name = configured name, else the legacy fallback WITHOUT a lang suffix
+  // (the AE comp is named e.g. "TEMPLATE_CS_16x9 d1").
+  const compName = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand] || 'CS'}_${fmtLabel} ${shortDesign}`;
+  const actorClean = (clip.actor || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  const slate = clip.slate || '';
+  const outputFilename = buildOutputFilename(t.filenameParts, brand, slate, actorClean, design, fmt, lang, clip.category || '', copy);
+  const folderPath = buildFolderPath(t.folderParts, brand, slate, actorClean, design, fmt, lang, clip.category || '', copy);
+  const aeOutputPath = `${t.basePath}/${folderPath}/${outputFilename}.mp4`;
+  return {
+    line_nr: lineNr,
+    target: compName,
+    aef_output_name: `${slate}_${actorClean}_${fmt}_${shortDesign}_${PREFIX[brand] || 'CS'}`,
+    aef_duration: clip.duration || '',
+    trim_in: clip.trim_in || '0',
+    trim_out: clip.trim_out || clip.duration || '',
+    aef_footage: clip.name || clip.filename || '',
+    format: fmt,
+    headline: copy,
+    brand,
+    disclaimer: lang.toLowerCase(),
+    duration_full: clip.duration || '',
+    status: 'pending',
+    filename: outputFilename,
+    // `output` mirrors the source-footage path the Templater expects:
+    // lang / category / slate / actor / clip-name, original spacing kept.
+    output: `${lang}/${clip.category || ''}/${slate}/${clip.actor || actorClean}/${clip.nameNoExt || clip.name || ''}`,
+    ae_output_path: aeOutputPath,
+    design,
+    lang,
+    slate,
+    actor: actorClean,
+    category: clip.category,
+    markets: clip.markets || '',
+  };
+}
+
 // generate.js generateSheet — the canonical row builder whose output is
 // exported as the Templater CSV. Pure: same inputs → same rows.
 export function buildRows({ clips, filters, tstate, copyFilter = null }) {
   const f = filters;
   const t = tstate;
-  const PREFIX = { Creditstar: 'CS', Monefit: 'MF' };
-  const FMT_LABEL = { '16x9': '16x9', '1x1': '1x1', '9x16': '9x16', '4x5v1': '4x5', '4x5v2': '4x5' };
 
   let list = (clips || []).filter((c) => f.cat.includes(c.category));
 
@@ -245,54 +293,44 @@ export function buildRows({ clips, filters, tstate, copyFilter = null }) {
       for (const fmt of validFmts) {
         for (const lang of f.lang) {
           for (const brand of f.brand) {
-            const compKey = `${design}_${fmt}`;
-            const brandComps = t.compNames[brand] || {};
-            const langBucket = (brandComps && typeof brandComps === 'object') ? (brandComps[lang] || brandComps.EN) : null;
-            const legacyVal = (brandComps && typeof brandComps[compKey] === 'string') ? brandComps[compKey] : null;
-            const shortDesign = design.replace('design', 'd');
-            const fmtLabel = FMT_LABEL[fmt] || fmt;
-            // Comp name = configured name, else the legacy fallback WITHOUT a lang
-            // suffix (the AE comp is named e.g. "TEMPLATE_CS_16x9 d1").
-            const compName = (langBucket && langBucket[compKey]) || legacyVal || `TEMPLATE_${PREFIX[brand] || 'CS'}_${fmtLabel} ${shortDesign}`;
-
             let copy;
             if (copyFilter && copyFilter[lang.toLowerCase()]) copy = copyFilter[lang.toLowerCase()];
             else copy = getCopy(t, clip, brand, lang);
             if (!copy) continue; // omit rows with no copy assigned
 
-            const actorClean = (clip.actor || '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-            const slate = clip.slate || '';
-            const outputFilename = buildOutputFilename(t.filenameParts, brand, slate, actorClean, design, fmt, lang, clip.category || '', copy);
-            const folderPath = buildFolderPath(t.folderParts, brand, slate, actorClean, design, fmt, lang, clip.category || '', copy);
-            const aeOutputPath = `${t.basePath}/${folderPath}/${outputFilename}.mp4`;
-
-            rows.push({
-              line_nr: rows.length + 1,
-              target: compName,
-              aef_output_name: `${slate}_${actorClean}_${fmt}_${shortDesign}_${PREFIX[brand] || 'CS'}`,
-              aef_duration: clip.duration || '',
-              trim_in: clip.trim_in || '0',
-              trim_out: clip.trim_out || clip.duration || '',
-              aef_footage: clip.name || clip.filename || '',
-              format: fmt,
-              headline: copy,
-              brand,
-              disclaimer: lang.toLowerCase(),
-              duration_full: clip.duration || '',
-              status: 'pending',
-              filename: outputFilename,
-              // `output` mirrors the source-footage path the Templater expects:
-              // lang / category / slate / actor / clip-name, original spacing kept.
-              output: `${lang}/${clip.category || ''}/${slate}/${clip.actor || actorClean}/${clip.nameNoExt || clip.name || ''}`,
-              ae_output_path: aeOutputPath,
-              design,
-              lang,
-              slate,
-              actor: actorClean,
-              category: clip.category,
-              markets: clip.markets || '',
-            });
+            rows.push(templaterRow({ clip, design, fmt, lang, brand, copy, tstate: t, lineNr: rows.length + 1 }));
           }
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+// Build the Templater rows for ONE order's items. Each item (a chosen clip +
+// copy + langs + designs) expands into design × format × language rows, in the
+// same format as buildRows. `brand` is the order's brand; `clipsById` (optional)
+// supplies the clip's full filename + nameNoExt for the aef_footage/output paths.
+export function buildOrderRows(items, tstate, brand, clipsById = {}) {
+  const rows = [];
+  for (const item of (items || [])) {
+    const ref = clipsById[item.clipId] || {};
+    const clip = {
+      slate: item.slate || ref.slate || '',
+      category: item.category || ref.category || '',
+      actor: item.actor || ref.actor || '',
+      // aef_footage wants the full filename (with extension); output wants the
+      // name without extension. Fall back to the stored clip name if the clip
+      // is no longer in the active project.
+      name: ref.name || (item.clipName ? `${item.clipName}.mov` : ''),
+      nameNoExt: ref.nameNoExt || item.clipName || '',
+    };
+    for (const design of (item.designs || [])) {
+      for (const fmt of getDesignFmts(tstate.designs, design)) {
+        for (const lang of (item.langs || [])) {
+          const copy = item.copyText?.[lang.toLowerCase()] || item.copyText?.[lang] || '';
+          if (!copy) continue; // omit a language with no copy text
+          rows.push(templaterRow({ clip, design, fmt, lang, brand, copy, tstate, lineNr: rows.length + 1 }));
         }
       }
     }

@@ -11,7 +11,7 @@ import Drawer from '../../Components/Drawer.vue';
 import SectionLabel from '../../Components/SectionLabel.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
-import { ALL_LANGS } from '../../lib/templater.js';
+import { ALL_LANGS, buildTemplaterState, buildOrderRows, rowsToCsv, TEMPLATER_EXPORT_COLS } from '../../lib/templater.js';
 
 const props = defineProps({
   openId: { type: String, default: null },
@@ -273,21 +273,42 @@ async function saveEdit() {
   }
 }
 
-function exportItemsCsv() {
-  const o = detail.value;
-  if (!o) return;
-  const header = ['order', 'clip', 'slate', 'category', 'actor', 'copy_key', 'langs', 'designs'];
-  const rows = (o.items || []).map((it) => [
-    shortId(o.id), it.clipName, it.slate, it.category, it.actor, it.copyKey,
-    (it.langs || []).join('|'), (it.designs || []).join('|'),
+// Templater config + clips, loaded lazily on first export and cached.
+const tplConfig = ref(null);
+const tplClips = ref(null);
+async function ensureTemplaterData() {
+  const [cfg, clips] = await Promise.all([
+    tplConfig.value ? Promise.resolve(tplConfig.value) : api.get('/api/config'),
+    tplClips.value ? Promise.resolve(tplClips.value) : api.get('/api/clips'),
   ]);
-  const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `order_${shortId(o.id)}_items.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  tplConfig.value = cfg || {};
+  tplClips.value = Array.isArray(clips) ? clips : [];
+}
+
+// Export the full Templater CSV for this order — each item expanded into
+// design × format × language rows, ready for After Effects (not the slim items
+// dump). Reuses the same row engine as the Generate page.
+async function exportTemplaterCsv() {
+  const o = detail.value;
+  if (!o || !(o.items || []).length) return;
+  busy.value = true;
+  try {
+    await ensureTemplaterData();
+    const tstate = buildTemplaterState(tplConfig.value, tplClips.value);
+    const clipsById = Object.fromEntries(tplClips.value.map((c) => [c.id, c]));
+    const rows = buildOrderRows(o.items, tstate, o.brand, clipsById);
+    if (!rows.length) { alert('No Templater rows — the order items have no copy for their languages/designs.'); return; }
+    const csv = rowsToCsv(rows, TEMPLATER_EXPORT_COLS);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `order_${shortId(o.id)}_templater.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert(e.message || 'Export failed.');
+  } finally {
+    busy.value = false;
+  }
 }
 
 const itemRowStyle = { padding: '12px 0', borderTop: '1px solid var(--divider)' };
@@ -427,7 +448,7 @@ const editCardStyle = { padding: '14px', borderRadius: '12px', background: 'var(
           <SectionLabel>
             Items ({{ (detail.items || []).length }})
             <template #right>
-              <Button size="sm" variant="secondary" icon="download" :disabled="!(detail.items || []).length" @click="exportItemsCsv">Review CSV</Button>
+              <Button size="sm" variant="secondary" icon="download" :disabled="busy || !(detail.items || []).length" @click="exportTemplaterCsv">Templater CSV</Button>
             </template>
           </SectionLabel>
           <div :style="{ marginTop: '8px', marginBottom: '20px' }">
