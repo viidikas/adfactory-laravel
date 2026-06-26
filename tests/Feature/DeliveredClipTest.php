@@ -176,4 +176,99 @@ class DeliveredClipTest extends TestCase
 
         $this->asUser($this->lead())->getJson('/api/delivered-clips?market_id=' . $market->id)->assertStatus(403);
     }
+
+    // ── Batch upload + filename metadata ────────────────────────────
+
+    public function test_batch_upload_parses_metadata_and_format_from_filenames(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+
+        $res = $this->asUser($this->admin())->post('/api/delivered-clips/batch', [
+            'market_id' => $market->id,
+            'files' => [
+                UploadedFile::fake()->create('Creditstar_FI_Suunnittele_Pt_Hae_PU8_Kemal_design1_16x9.mp4', 1024, 'video/mp4'),
+                UploadedFile::fake()->create('Creditstar_FI_Tap_To_Invest_PU7_Lauri_design2_9x16.mp4', 1024, 'video/mp4'),
+            ],
+        ]);
+
+        $res->assertStatus(201)->assertJsonCount(2, 'clips')->assertJsonCount(0, 'errors');
+
+        $this->assertDatabaseCount('delivered_clips', 2);
+
+        // ffprobe can't read a fake file → format falls back to the filename token.
+        $a = DeliveredClip::where('slate', 'PU8')->firstOrFail();
+        $this->assertSame('Creditstar', $a->brand);
+        $this->assertSame('FI', $a->lang);
+        $this->assertSame('Suunnittele Pt Hae', $a->copy);
+        $this->assertSame('Kemal', $a->actor);
+        $this->assertSame('design1', $a->design);
+        $this->assertSame('16:9', $a->format);
+        $this->assertSame('Creditstar_FI_Suunnittele_Pt_Hae_PU8_Kemal_design1_16x9', $a->name);
+
+        $b = DeliveredClip::where('slate', 'PU7')->firstOrFail();
+        $this->assertSame('Lauri', $b->actor);
+        $this->assertSame('design2', $b->design);
+        $this->assertSame('9:16', $b->format);
+        $this->assertSame('Tap To Invest', $b->copy);
+    }
+
+    public function test_batch_upload_is_admin_only(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+
+        $this->asUser($this->lead())->postJson('/api/delivered-clips/batch', [
+            'market_id' => $market->id,
+            'files' => [UploadedFile::fake()->create('clip.mp4', 100, 'video/mp4')],
+        ])->assertStatus(403);
+    }
+
+    public function test_batch_upload_rejects_a_non_video(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+
+        $this->asUser($this->admin())->postJson('/api/delivered-clips/batch', [
+            'market_id' => $market->id,
+            'files' => [UploadedFile::fake()->create('doc.pdf', 50, 'application/pdf')],
+        ])->assertStatus(422)->assertJsonValidationErrors('files.0');
+
+        $this->assertDatabaseCount('delivered_clips', 0);
+    }
+
+    // ── Inline stream (authenticated, market-scoped) ────────────────
+
+    public function test_stream_requires_auth(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+        $clip = $this->makeClip($market);
+
+        $this->getJson("/api/delivered-clips/{$clip->id}/stream")->assertStatus(401);
+    }
+
+    public function test_authenticated_lead_streams_active_market_clip(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO-BYTES');
+        $clip = $this->makeClip($market, ['file_size' => 11]);
+
+        $this->asUser($this->lead())
+            ->get("/api/delivered-clips/{$clip->id}/stream")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'video/mp4');
+    }
+
+    public function test_lead_cannot_stream_clip_for_market_they_cannot_see(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($market);
+
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/stream")->assertStatus(403);
+        $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/stream")->assertOk();
+    }
 }
