@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Copy;
 use App\Models\DeliveredClip;
 use App\Models\Market;
 use App\Models\Order;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -46,7 +48,11 @@ class DeliveredClipController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json($clips->map(fn (DeliveredClip $c) => $this->present($c)));
+        // Load the market's copies once so each clip's copy slug can be resolved
+        // back to its full text without an N+1.
+        $copies = Copy::where('market_id', $market->id)->get();
+
+        return response()->json($clips->map(fn (DeliveredClip $c) => $this->present($c, $copies)));
     }
 
     /**
@@ -417,9 +423,46 @@ class DeliveredClipController extends Controller
         return null;
     }
 
-    /** @return array<string, mixed> */
-    private function present(DeliveredClip $c): array
+    /**
+     * Resolve a clip's parsed copy slug back to its full copy text by matching it
+     * against the market's copies (the same slugify the Templater used to name the
+     * file). Prefers the clip's own language. Returns null when nothing matches
+     * (copy edited/removed) — callers fall back to the slug.
+     */
+    private function resolveCopyFull(DeliveredClip $c, Collection $copies): ?string
     {
+        if (! $c->copy) {
+            return null;
+        }
+
+        $target = $this->normalizeSlug($c->copy);
+        $lang = strtolower((string) $c->lang);
+
+        foreach ($copies as $copy) {
+            $texts = is_array($copy->copy_text) ? $copy->copy_text : [];
+            foreach ($texts as $text) {
+                if ($text && $this->normalizeSlug(DeliveredClip::slugifyCopy($text)) === $target) {
+                    // Show the clip's language if the copy carries it, else the
+                    // language that actually matched.
+                    return ($lang && ! empty($texts[$lang])) ? $texts[$lang] : $text;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** Lowercase, treat spaces and underscores alike — for slug comparison. */
+    private function normalizeSlug(string $s): string
+    {
+        return strtolower(str_replace(' ', '_', trim($s)));
+    }
+
+    /** @return array<string, mixed> */
+    private function present(DeliveredClip $c, ?Collection $copies = null): array
+    {
+        $copies ??= Copy::where('market_id', $c->market_id)->get();
+
         return [
             'id' => $c->id,
             'market_id' => $c->market_id,
@@ -430,6 +473,7 @@ class DeliveredClipController extends Controller
             'actor' => $c->actor,
             'design' => $c->design,
             'copy' => $c->copy,
+            'copy_full' => $this->resolveCopyFull($c, $copies),
             'format' => $c->format,
             'file_size' => (int) $c->file_size,
             'order_id' => $c->order_id,

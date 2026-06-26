@@ -210,7 +210,7 @@ const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).joi
             <template v-else>
               <div :style="{ fontSize: '14.5px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.name">{{ c.name }}</div>
               <div v-if="metaLine(c)" :style="{ fontSize: '12.5px', color: 'var(--text-2)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ metaLine(c) }}</div>
-              <div v-if="c.copy" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.copy">“{{ c.copy }}”</div>
+              <div v-if="c.copy_full || c.copy" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.copy_full || c.copy">“{{ c.copy_full || c.copy }}”</div>
               <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }">
                 <Tag :clickable="false" v-if="c.format">{{ c.format }}</Tag>
                 <Tag :clickable="false">{{ fmtSize(c.file_size) }}</Tag>
@@ -244,7 +244,7 @@ const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).joi
           <span :style="{ color: 'var(--text-3)' }">Design</span><span>{{ playing.design || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Language</span><span>{{ playing.lang || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Brand</span><span>{{ playing.brand || market?.brand || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ playing.copy || '—' }}</span>
+          <span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ playing.copy_full || playing.copy || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Size</span><span>{{ fmtSize(playing.file_size) }}</span>
           <span :style="{ color: 'var(--text-3)' }">Order</span><span>{{ playing.order_short || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(playing.created_at) }}{{ playing.uploaded_by ? ' · ' + playing.uploaded_by : '' }}</span>

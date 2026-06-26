@@ -126,4 +126,38 @@ class DeliveredClip extends Model
 
         return $out;
     }
+
+    /**
+     * Slugify a copy line the way the Templater does when it names outputs:
+     * strip non-alphanumerics (so "Päätä" → "Pt"), then up to 3 words / 18 chars
+     * joined by underscores. Used to match a clip's parsed copy slug back to the
+     * full copy text. Mirrors slugifyCopy() in resources/js/lib/templater.js.
+     */
+    public static function slugifyCopy(?string $copy): string
+    {
+        if (! $copy) {
+            return '';
+        }
+        $clean = trim(preg_replace('/[^a-zA-Z0-9\s]/', '', $copy));
+        $words = preg_split('/\s+/', $clean, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (! $words) {
+            return '';
+        }
+
+        $slug = '';
+        $count = 0;
+        foreach ($words as $word) {
+            if ($count >= 3) {
+                break;
+            }
+            $next = $slug !== '' ? $slug.'_'.$word : $word;
+            if (strlen($next) > 18) {
+                break;
+            }
+            $slug = $next;
+            $count++;
+        }
+
+        return $slug !== '' ? $slug : substr($words[0], 0, 18);
+    }
 }

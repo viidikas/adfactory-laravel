@@ -95,7 +95,7 @@ const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).joi
           <span :style="{ color: 'var(--text-3)' }">Actor</span><span>{{ playing.actor || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Design</span><span>{{ playing.design || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Language</span><span>{{ playing.lang || '—' }}</span>
-          <span v-if="playing.copy" :style="{ color: 'var(--text-3)' }">Copy</span><span v-if="playing.copy">{{ playing.copy }}</span>
+          <span v-if="playing.copy_full || playing.copy" :style="{ color: 'var(--text-3)' }">Copy</span><span v-if="playing.copy_full || playing.copy">{{ playing.copy_full || playing.copy }}</span>
           <span :style="{ color: 'var(--text-3)' }">Size</span><span>{{ fmtSize(playing.file_size) || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Delivered</span><span>{{ fmtDate(playing.created_at) }}</span>
         </div>

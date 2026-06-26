@@ -213,6 +213,23 @@ class DeliveredClipTest extends TestCase
         $this->assertSame('Tap To Invest', $b->copy);
     }
 
+    public function test_index_resolves_copy_slug_to_full_text(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        // The Templater slugifies "Suunnittele. Päätä. Hae." → "Suunnittele_Pt_Hae".
+        $this->copy($market, ['copy_key' => 'Plan', 'shot' => 'PU8', 'enabled' => true,
+            'copy_text' => ['en' => 'Plan it', 'fi' => 'Suunnittele. Päätä. Hae.']]);
+        $this->makeClip($market, ['lang' => 'FI', 'slate' => 'PU8', 'copy' => 'Suunnittele Pt Hae']);
+
+        $clip = collect(
+            $this->asUser($this->lead())->getJson('/api/delivered-clips?market_id=' . $market->id)->assertOk()->json()
+        )->firstOrFail();
+
+        $this->assertSame('Suunnittele Pt Hae', $clip['copy']);
+        $this->assertSame('Suunnittele. Päätä. Hae.', $clip['copy_full']);
+    }
+
     public function test_batch_upload_is_admin_only(): void
     {
         Storage::fake('local');
