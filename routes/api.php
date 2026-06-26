@@ -58,6 +58,7 @@ Route::middleware('auth')->group(function () {
     // a public /storage URL.
     Route::get('/delivered-clips', [DeliveredClipController::class, 'index']);
     Route::get('/delivered-clips/{deliveredClip}/download', [DeliveredClipController::class, 'download']);
+    Route::get('/delivered-clips/{deliveredClip}/stream', [DeliveredClipController::class, 'stream']);
     Route::get('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'thumbnail']);
 
     // Admin-only routes — restricted to super admins (the AD.FACTORY panel).
@@ -94,6 +95,7 @@ Route::middleware('auth')->group(function () {
 
         // Delivered clips — upload / edit / replace-thumbnail / delete (admin).
         Route::post('/delivered-clips', [DeliveredClipController::class, 'store']);
+        Route::post('/delivered-clips/batch', [DeliveredClipController::class, 'storeBatch']);
         Route::put('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'update']);
         Route::post('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'updateThumbnail']);
         Route::delete('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'destroy']);
