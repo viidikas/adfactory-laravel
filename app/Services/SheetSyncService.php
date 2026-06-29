@@ -114,10 +114,16 @@ class SheetSyncService
             return $this->result($market, false, $market->copies()->count(), $market->has_disclaimer, ['Tab is empty or missing required EN column']);
         }
 
-        [$rows, $hasDisclaimerColumn, $approvalGated] = $parsed;
+        [$rows, $hasDisclaimerColumn, $approvalGated, $collisions] = $parsed;
 
         if (! $hasDisclaimerColumn) {
             $issues[] = 'Tab has no Disclaimer column';
+        }
+
+        // Surface any copy-key collisions that were auto-disambiguated, so an
+        // admin can reword the sheet for cleaner keys if they want to.
+        foreach ($collisions as $collision) {
+            $issues[] = $collision;
         }
 
         if (empty($rows)) {
@@ -264,8 +270,8 @@ class SheetSyncService
     /**
      * Parse a tab's CSV into normalized copy rows.
      *
-     * @return array{0: array<int, array<string, mixed>>, 1: bool, 2: bool}|null
-     *         [rows, hasDisclaimerColumn, approvalGated], or null if unusable.
+     * @return array{0: array<int, array<string, mixed>>, 1: bool, 2: bool, 3: array<int, string>}|null
+     *         [rows, hasDisclaimerColumn, approvalGated, collisionMessages], or null if unusable.
      */
     private function parseCsv(string $csv, string $marketCode): ?array
     {
@@ -365,6 +371,7 @@ class SheetSyncService
 
             $rows[] = [
                 'copy_key' => $this->slugify($en),
+                '_en' => $en, // kept only to disambiguate colliding keys, then dropped
                 'copy_text' => $copyText,
                 'category' => $this->normalizeCategory($this->cell($line, $col['category'])),
                 'shot' => $this->cell($line, $col['shot']),
@@ -374,7 +381,59 @@ class SheetSyncService
             ];
         }
 
-        return [$rows, $hasDisclaimerColumn, $approvalGated];
+        [$rows, $collisions] = $this->disambiguateKeys($rows);
+
+        return [$rows, $hasDisclaimerColumn, $approvalGated, $collisions];
+    }
+
+    /**
+     * Guarantee a UNIQUE copy_key per row within a tab. The base key is only the
+     * first 3 words / 18 chars of the English, so two distinct copies that start
+     * the same would otherwise collapse into one — and an approved copy would be
+     * silently lost. Colliding rows get a fuller key from more of their own text;
+     * rows with genuinely identical text keep one key (a real duplicate, merged).
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array{0: array<int, array<string, mixed>>, 1: array<int, string>}
+     *         [rows with unique copy_key, human-readable collision messages]
+     */
+    private function disambiguateKeys(array $rows): array
+    {
+        $baseCounts = array_count_values(array_column($rows, 'copy_key'));
+        $used = [];
+        $colliding = [];
+
+        foreach ($rows as &$row) {
+            $base = $row['copy_key'];
+            $en = $row['_en'];
+
+            if (($baseCounts[$base] ?? 0) > 1) {
+                $colliding[$base][] = $en;
+                $key = $this->slugify($en, 8, 60); // fuller slug from this row's text
+            } else {
+                $key = $base;
+            }
+
+            // Two DIFFERENT texts must never share a key; identical text may (merge).
+            while (isset($used[$key]) && $used[$key] !== $en) {
+                $key .= '_'.substr(md5($en.$key), 0, 4);
+            }
+
+            $row['copy_key'] = $key;
+            $used[$key] = $en;
+            unset($row['_en']);
+        }
+        unset($row);
+
+        $messages = [];
+        foreach ($colliding as $base => $texts) {
+            $unique = array_values(array_unique($texts));
+            if (count($unique) > 1) {
+                $messages[] = count($unique)." copies share the short key '{$base}', kept distinct: \"".implode('", "', $unique).'"';
+            }
+        }
+
+        return [$rows, $messages];
     }
 
     /**
@@ -439,12 +498,12 @@ class SheetSyncService
         return ucwords($lower);
     }
 
-    private function slugify(string $text): string
+    private function slugify(string $text, int $maxWords = 3, int $maxChars = 18): string
     {
         $text = preg_replace('/[^\w\s]/u', '', $text);
         $words = preg_split('/\s+/', trim($text));
-        $slug = implode('_', array_slice($words, 0, 3));
-        $slug = substr($slug, 0, 18);
+        $slug = implode('_', array_slice($words, 0, $maxWords));
+        $slug = substr($slug, 0, $maxChars);
 
         return rtrim($slug, '_');
     }
