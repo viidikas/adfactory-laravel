@@ -33,6 +33,13 @@ use Illuminate\Support\Facades\Http;
  * enabled straight from the sheet — no manual per-copy review. The raw draft
  * language column is ignored in favor of the approved text. Tabs without this
  * column keep the legacy manual-enablement behavior.
+ *
+ * Suggestion column: an optional "suggestion" review column may carry a corrected
+ * English version. On an approval-gated tab a filled Suggestion is the copy's
+ * English — it overrides the draft `en` column for both the stored en text and
+ * the copy_key; a blank cell falls back to `en`. Rows are still gated on the `en`
+ * column, so review-note rows (blank `en`, text only in Suggestion) never become
+ * copies.
  */
 class SheetSyncService
 {
@@ -293,6 +300,10 @@ class SheetSyncService
 
         $hasDisclaimerColumn = $col['disclaimer'] !== null;
 
+        // "Suggestion" review column: a filled cell carries the corrected English.
+        $suggestionIdx = array_search('suggestion', $headers, true);
+        $suggestionIdx = $suggestionIdx === false ? null : $suggestionIdx;
+
         // Approval column: "<market-code> copy approved" (e.g. "es copy approved")
         // or the bare "copy approved". When present it is the source of truth —
         // it holds the APPROVED local-language text; a blank cell means the copy
@@ -317,10 +328,18 @@ class SheetSyncService
         for ($i = 1; $i < count($lines); $i++) {
             $line = $lines[$i];
 
-            $en = $this->cell($line, $langCols['en']);
-            if ($en === '') {
+            // A row is a copy only when the EN column is filled — this keeps
+            // legend/note rows (blank en, text only in Suggestion) out of the set.
+            $enCol = $this->cell($line, $langCols['en']);
+            if ($enCol === '') {
                 continue;
             }
+
+            // The corrected English: on a gated tab a filled Suggestion overrides
+            // the draft `en` (which stays the fallback). Drives the stored en text
+            // and the copy_key.
+            $suggestion = $suggestionIdx !== null ? $this->cell($line, $suggestionIdx) : '';
+            $en = ($approvalGated && $suggestion !== '') ? $suggestion : $enCol;
 
             if ($approvalGated) {
                 // Only copies with a filled approval cell are usable. Rows with a

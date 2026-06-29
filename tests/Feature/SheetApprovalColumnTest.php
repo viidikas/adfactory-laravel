@@ -185,6 +185,93 @@ class SheetApprovalColumnTest extends TestCase
         $this->assertSame('Tap_to_invest', $response->json('copies.0.copy_key'));
     }
 
+    // ── Suggestion column = corrected English (gated tabs) ──────────
+
+    public function test_suggestion_column_overrides_en_for_english_and_key(): void
+    {
+        // A filled Suggestion is the correct English: it drives copy_text['en']
+        // AND the copy_key, while the local text still comes from the approval.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Suggestion,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Borrow smart build happy,Draft fi,Borrow wise build smart,no,Lainaa viisaasti\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $copy = $market->copies()->where('copy_key', 'Borrow_wise_build')->firstOrFail();
+        $this->assertSame('Borrow wise build smart', $copy->copy_text['en']);
+        $this->assertSame('Lainaa viisaasti', $copy->copy_text['fi']);
+        // The draft-en key must NOT exist — Suggestion replaced it.
+        $this->assertNull($market->copies()->where('copy_key', 'Borrow_smart_build')->first());
+    }
+
+    public function test_blank_suggestion_falls_back_to_en(): void
+    {
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Suggestion,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Plan Decide Apply,Draft,,no,Suunnittele Paata Hae\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $copy = $market->copies()->where('copy_key', 'Plan_Decide_Apply')->firstOrFail();
+        $this->assertSame('Plan Decide Apply', $copy->copy_text['en']);
+    }
+
+    public function test_suggestion_resolves_a_copy_key_collision(): void
+    {
+        // Two lines share the first three words ("Borrow smart build") — without
+        // Suggestion they'd collapse to one copy. The Suggestion on the first
+        // re-keys it, so BOTH survive.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Suggestion,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Borrow smart build happy,D1,Borrow wise build smart,no,Approved1\n".
+            "Product Usage,PU2,Creditstar,Borrow smart build with confidence,D2,,no,Approved2\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $this->assertSame(2, $market->copies()->count(), 'both copies survive — no collapse');
+        $this->assertNotNull($market->copies()->where('copy_key', 'Borrow_wise_build')->first());
+        $this->assertNotNull($market->copies()->where('copy_key', 'Borrow_smart_build')->first());
+    }
+
+    public function test_note_row_with_blank_en_but_filled_suggestion_is_ignored(): void
+    {
+        // A review-note row (blank en, text only in Suggestion) must not become a copy.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Suggestion,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Tap to invest,Draft,,no,Napauta\n".
+            ",,,,,Should be double checked,,\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $this->assertSame(1, $market->copies()->count(), 'the blank-en note row is not a copy');
+        $this->assertNotNull($market->copies()->where('copy_key', 'Tap_to_invest')->first());
+    }
+
+    public function test_ungated_tab_ignores_suggestion_column(): void
+    {
+        // The Suggestion override is scoped to the approval-gated flow; an ungated
+        // tab keeps using its `en` column for the key + English.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,et,Suggestion,Disclaimer\n".
+            "Product Usage,PU1,Creditstar,Tap to invest,Puuduta,Better tap line,no\n"
+        );
+        $market = $this->market(['code' => 'EE', 'active' => false]);
+
+        $this->sync($market);
+
+        $copy = $market->copies()->where('copy_key', 'Tap_to_invest')->firstOrFail();
+        $this->assertSame('Tap to invest', $copy->copy_text['en'], 'ungated en is unchanged by Suggestion');
+        $this->assertNull($market->copies()->where('copy_key', 'Better_tap_line')->first());
+    }
+
     // ── Tabs without the column keep the legacy manual gate ─────────
 
     public function test_tab_without_approved_column_does_not_auto_enable(): void
