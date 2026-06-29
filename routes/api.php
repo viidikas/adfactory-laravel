@@ -57,6 +57,8 @@ Route::middleware('auth')->group(function () {
     // controller); the file/thumbnail stream through authenticated routes, never
     // a public /storage URL.
     Route::get('/delivered-clips', [DeliveredClipController::class, 'index']);
+    // Zip a set of clips (a creative's formats) — declared before {deliveredClip}.
+    Route::get('/delivered-clips/set', [DeliveredClipController::class, 'downloadSet']);
     Route::get('/delivered-clips/{deliveredClip}/download', [DeliveredClipController::class, 'download']);
     Route::get('/delivered-clips/{deliveredClip}/stream', [DeliveredClipController::class, 'stream']);
     Route::get('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'thumbnail']);

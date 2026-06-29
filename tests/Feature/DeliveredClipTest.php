@@ -132,6 +132,47 @@ class DeliveredClipTest extends TestCase
         $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/download")->assertOk();
     }
 
+    // ── Download set (zip) ──────────────────────────────────────────
+
+    public function test_authenticated_lead_downloads_a_set_as_zip(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/a.mp4", 'AAAA');
+        Storage::disk('local')->put("delivered/{$market->id}/b.mp4", 'BBBB');
+        // A message set = same brand/lang/copy/actor, different designs/formats.
+        $base = ['brand' => 'Creditstar', 'lang' => 'FI', 'actor' => 'Kemal', 'copy' => 'Suunnittele Pt Hae', 'slate' => 'PU8'];
+        $a = $this->makeClip($market, $base + ['name' => 'a', 'design' => 'design1', 'format' => '16:9', 'file_path' => "delivered/{$market->id}/a.mp4"]);
+        $b = $this->makeClip($market, $base + ['name' => 'b', 'design' => 'design2', 'format' => '9:16', 'file_path' => "delivered/{$market->id}/b.mp4"]);
+
+        $this->asUser($this->lead())
+            ->get("/api/delivered-clips/set?ids={$a->id},{$b->id}")
+            ->assertOk()
+            ->assertDownload('Creditstar_FI_Suunnittele_Pt_Hae_Kemal.zip');
+    }
+
+    public function test_download_set_requires_auth(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+        $clip = $this->makeClip($market);
+
+        $this->getJson("/api/delivered-clips/set?ids={$clip->id}")->assertStatus(401);
+    }
+
+    public function test_download_set_forbidden_if_any_clip_is_in_an_invisible_market(): void
+    {
+        Storage::fake('local');
+        $visible = $this->market(['code' => 'FI', 'active' => true]);
+        $hidden = $this->market(['code' => 'NO', 'active' => false]);
+        Storage::disk('local')->put("delivered/{$visible->id}/a.mp4", 'A');
+        Storage::disk('local')->put("delivered/{$hidden->id}/b.mp4", 'B');
+        $a = $this->makeClip($visible, ['file_path' => "delivered/{$visible->id}/a.mp4"]);
+        $b = $this->makeClip($hidden, ['file_path' => "delivered/{$hidden->id}/b.mp4"]);
+
+        $this->asUser($this->lead())->get("/api/delivered-clips/set?ids={$a->id},{$b->id}")->assertStatus(403);
+    }
+
     // ── Delete ──────────────────────────────────────────────────────
 
     public function test_delete_removes_row_and_both_files(): void
