@@ -127,6 +127,10 @@
   color-scheme: light;
 }
 
+/* The Creditstar brand logo artwork is white (built for the dark UI). On the
+   light theme, flip it to dark so it stays legible on light surfaces. */
+[data-theme="light"] .cs-brand-logo { filter: invert(1); }
+
 /* ---------------- DENSITY ---------------- */
 [data-density="compact"] {
   --pad-card: 16px; --pad-screen: 22px; --row-h: 40px;
