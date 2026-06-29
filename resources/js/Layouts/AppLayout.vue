@@ -82,6 +82,10 @@ function logout() {
 
       <nav :style="{ flex: 1, padding: '4px 12px', display: 'flex', flexDirection: 'column', gap: '3px', overflowY: 'auto' }">
         <NavItem v-for="n in nav" :key="n.key" :item="n" :active="active === n.key" />
+        <!-- Layout-supplied extras (e.g. portal "Delivered clips"), set apart below the nav. -->
+        <div v-if="$slots['nav-extra']" :style="{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '3px' }">
+          <slot name="nav-extra" />
+        </div>
       </nav>
 
       <div :style="{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }">
