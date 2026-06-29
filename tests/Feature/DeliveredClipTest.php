@@ -269,6 +269,9 @@ class DeliveredClipTest extends TestCase
 
         $this->assertSame('Suunnittele Pt Hae', $clip['copy']);
         $this->assertSame('Suunnittele. Päätä. Hae.', $clip['copy_full']);
+        // The matched copy's key + category come along, for the by-copy browse.
+        $this->assertSame('Plan', $clip['copy_key']);
+        $this->assertSame('Product Usage', $clip['category']);
     }
 
     public function test_batch_upload_is_admin_only(): void
