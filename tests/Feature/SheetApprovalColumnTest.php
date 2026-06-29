@@ -325,6 +325,23 @@ class SheetApprovalColumnTest extends TestCase
         $this->assertSame(1, $market->copies()->count(), 'identical copies merge');
     }
 
+    public function test_cell_with_embedded_newline_does_not_corrupt_rows(): void
+    {
+        // A quoted approved cell with a line break must NOT split the row — a
+        // naive newline-split would drop this copy (the real FI 6th-copy bug).
+        $csv = "Category,Shot,Brand,en,fi,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Borrow for better devices,Draft,no,\"Lainaa harkittuihin\nhankintoihin.\"\n".
+            "Travel,TR1,Creditstar,Plan Decide Apply,Draft,no,Suunnittele Paata Hae\n";
+        $this->fakeSheet($csv);
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $this->assertSame(2, $market->copies()->count(), 'both copies survive an embedded newline');
+        $copy = $market->copies()->where('copy_key', 'Borrow_for_better')->firstOrFail();
+        $this->assertStringContainsString('hankintoihin', $copy->copy_text['fi']);
+    }
+
     // ── Tabs without the column keep the legacy manual gate ─────────
 
     public function test_tab_without_approved_column_does_not_auto_enable(): void

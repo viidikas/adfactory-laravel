@@ -275,7 +275,7 @@ class SheetSyncService
      */
     private function parseCsv(string $csv, string $marketCode): ?array
     {
-        $lines = array_map('str_getcsv', explode("\n", trim($csv)));
+        $lines = $this->csvToRows($csv);
         if (count($lines) < 2) {
             return null;
         }
@@ -434,6 +434,32 @@ class SheetSyncService
         }
 
         return [$rows, $messages];
+    }
+
+    /**
+     * Split a CSV string into rows with a real parser, so a quoted field that
+     * contains commas OR a newline stays in one cell. A naive
+     * explode("\n", ...) splits a cell that has a line break across two rows and
+     * corrupts the data — which silently dropped approved copies whose approved
+     * text was entered on two lines (e.g. FI's "Borrow for better devices").
+     *
+     * @return array<int, array<int, string>>
+     */
+    private function csvToRows(string $csv): array
+    {
+        $rows = [];
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, $csv);
+        rewind($handle);
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
+            if ($row === [null]) {
+                continue; // a truly blank line
+            }
+            $rows[] = $row;
+        }
+        fclose($handle);
+
+        return $rows;
     }
 
     /**
