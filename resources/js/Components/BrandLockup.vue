@@ -10,7 +10,7 @@
       :style="{ height: '20px', width: 'auto', display: 'block', flexShrink: 0 }" />
     <span :style="{ width: '1px', height: '18px', background: 'var(--border-strong)', flexShrink: 0 }" />
     <span :style="{ fontSize: '14px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-1)', whiteSpace: 'nowrap' }">
-      AD<span :style="{ color: 'var(--accent)' }">.</span>FACTORY
+      AD<span :style="{ color: 'var(--text-1)' }">.</span>FACTORY
     </span>
   </div>
 </template>
