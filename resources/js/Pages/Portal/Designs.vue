@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import PortalLayout from '../../Layouts/PortalLayout.vue';
 import Card from '../../Components/Card.vue';
 import Tag from '../../Components/Tag.vue';
@@ -26,6 +26,39 @@ onMounted(async () => { try { await load(); } catch (e) { error.value = e.messag
 
 const designs = computed(() => store.market ? allDesigns.value.filter((d) => !d.brand || d.brand === store.market.brand) : allDesigns.value);
 const ratio = (a) => (a === '16x9' ? '16/9' : a === '1x1' ? '1' : a === '9x16' ? '9/16' : '4/5');
+
+// Lightbox holds the design's available images + the current index, so arrow
+// keys / buttons step through that one design's formats without reopening.
+function designImages(d) {
+  return ASPECTS.filter((a) => d.images?.[a]).map((a) => ({ aspect: a, url: d.images[a] }));
+}
+function openLightbox(d, aspect) {
+  const images = designImages(d);
+  if (!images.length) return;
+  const index = Math.max(0, images.findIndex((x) => x.aspect === aspect));
+  lightbox.value = { label: d.label || d.key, images, index };
+}
+const current = computed(() => (lightbox.value ? lightbox.value.images[lightbox.value.index] : null));
+function step(dir) {
+  if (!lightbox.value) return;
+  const n = lightbox.value.images.length;
+  lightbox.value.index = (lightbox.value.index + dir + n) % n;
+}
+function closeLightbox() { lightbox.value = null; }
+function onKey(e) {
+  if (!lightbox.value) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+  else if (e.key === 'Escape') { closeLightbox(); }
+}
+onMounted(() => window.addEventListener('keydown', onKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+
+const navBtnStyle = (side) => ({
+  position: 'absolute', [side]: '20px', top: '50%', transform: 'translateY(-50%)',
+  width: '46px', height: '46px', borderRadius: '50%', border: 'none', color: '#fff',
+  background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', cursor: 'pointer',
+});
 </script>
 
 <template>
@@ -50,7 +83,7 @@ const ratio = (a) => (a === '16x9' ? '16/9' : a === '1x1' ? '1' : a === '9x16' ?
             <div v-for="a in ASPECTS" :key="a">
               <div :style="{ fontSize: '10.5px', color: 'var(--text-3)', marginBottom: '4px' }">{{ a }}</div>
               <div :style="{ aspectRatio: ratio(a), borderRadius: '9px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: d.images?.[a] ? 'zoom-in' : 'default' }"
-                @click="d.images?.[a] && (lightbox = d.images[a])">
+                @click="d.images?.[a] && openLightbox(d, a)">
                 <img v-if="d.images?.[a]" :src="d.images[a]" alt="" loading="lazy" :style="{ width: '100%', height: '100%', objectFit: 'cover' }" />
                 <Icon v-else name="sparkles" :size="16" :style="{ color: 'var(--text-3)' }" />
               </div>
@@ -60,8 +93,16 @@ const ratio = (a) => (a === '16x9' ? '16/9' : a === '1x1' ? '1' : a === '9x16' ?
       </div>
     </div>
 
-    <div v-if="lightbox" @click="lightbox = null" :style="{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.8)', display: 'grid', placeItems: 'center', padding: '40px', cursor: 'zoom-out' }">
-      <img :src="lightbox" alt="" :style="{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '12px' }" />
+    <div v-if="current" @click="closeLightbox" :style="{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.85)', display: 'grid', placeItems: 'center', padding: '40px', cursor: 'zoom-out' }">
+      <div @click.stop :style="{ position: 'absolute', top: '18px', left: 0, right: 0, textAlign: 'center', color: '#fff', fontSize: '13.5px', fontWeight: 600 }">
+        {{ lightbox.label }} · {{ current.aspect }}<span v-if="lightbox.images.length > 1" :style="{ opacity: 0.6 }"> · {{ lightbox.index + 1 }}/{{ lightbox.images.length }}</span>
+      </div>
+
+      <button v-if="lightbox.images.length > 1" @click.stop="step(-1)" title="Previous (←)" :style="navBtnStyle('left')"><Icon name="arrowleft" :size="24" /></button>
+      <img :src="current.url" alt="" @click.stop :style="{ maxWidth: '88vw', maxHeight: '86vh', borderRadius: '12px', cursor: 'default' }" />
+      <button v-if="lightbox.images.length > 1" @click.stop="step(1)" title="Next (→)" :style="navBtnStyle('right')"><Icon name="arrowright" :size="24" /></button>
+
+      <button @click.stop="closeLightbox" title="Close (Esc)" :style="{ position: 'absolute', top: '16px', right: '20px', width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.5)', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' }"><Icon name="x" :size="20" /></button>
     </div>
   </PortalLayout>
 </template>
