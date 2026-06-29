@@ -289,6 +289,58 @@ class DeliveredClipController extends Controller
         ]);
     }
 
+    /**
+     * Download several clips as a single zip — used to grab a whole "set" (a
+     * creative's formats) at once. Authenticated and market-scoped: every clip
+     * must belong to a market the user can see. Video is stored uncompressed in
+     * the zip (it's already compressed), so this is fast.
+     */
+    public function downloadSet(Request $request)
+    {
+        $validated = $request->validate(['ids' => 'required']);
+
+        $ids = is_array($validated['ids']) ? $validated['ids'] : explode(',', (string) $validated['ids']);
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        abort_if(! $ids, 422, 'No clips selected.');
+
+        $clips = DeliveredClip::with('market')->whereIn('id', $ids)->get();
+        abort_if($clips->isEmpty(), 404, 'No clips found.');
+
+        foreach ($clips as $clip) {
+            if (! $clip->market || ! $this->userCanSee($request, $clip->market)) {
+                abort(403, 'You do not have access to one of these clips.');
+            }
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'dset').'.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($tmp, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            abort(500, 'Could not create the archive.');
+        }
+
+        $used = [];
+        foreach ($clips as $clip) {
+            if (! Storage::disk(self::DISK)->exists($clip->file_path)) {
+                continue;
+            }
+            $ext = pathinfo($clip->file_path, PATHINFO_EXTENSION);
+            $entry = $clip->name.($ext ? '.'.$ext : '');
+            // De-duplicate identical names within the archive.
+            $base = $entry;
+            $n = 1;
+            while (isset($used[$entry])) {
+                $entry = pathinfo($base, PATHINFO_FILENAME).'_'.(++$n).($ext ? '.'.$ext : '');
+            }
+            $used[$entry] = true;
+
+            $zip->addFile(Storage::disk(self::DISK)->path($clip->file_path), $entry);
+            $zip->setCompressionName($entry, \ZipArchive::CM_STORE);
+        }
+        $zip->close();
+
+        return response()->download($tmp, $this->setZipName($clips))->deleteFileAfterSend(true);
+    }
+
     /** Serve the poster frame (authenticated, market-scoped). */
     public function thumbnail(Request $request, DeliveredClip $deliveredClip)
     {
@@ -321,6 +373,30 @@ class DeliveredClipController extends Controller
     private function orderInMarket(string $orderId, int $marketId): bool
     {
         return Order::where('id', $orderId)->where('market_id', $marketId)->exists();
+    }
+
+    /**
+     * Name a set zip after the message its clips share — brand_lang_copyslug_actor
+     * (e.g. Creditstar_FI_Suunnittele_Pt_Hae_Kemal.zip) — falling back to whatever
+     * is shared, else the market.
+     */
+    private function setZipName(Collection $clips): string
+    {
+        $shared = function (string $attr) use ($clips): ?string {
+            $vals = $clips->pluck($attr)->filter()->unique();
+            return $vals->count() === 1 ? (string) $vals->first() : null;
+        };
+
+        $copy = $shared('copy');
+        $copySlug = $copy ? preg_replace('/\s+/', '_', trim($copy)) : null;
+
+        $parts = array_filter([$shared('brand'), $shared('lang'), $copySlug, $shared('actor')]);
+        if ($parts) {
+            return implode('_', $parts).'.zip';
+        }
+
+        $code = optional($clips->first()->market)->code;
+        return ($code ? $code.'_delivered' : 'delivered_clips').'.zip';
     }
 
     /**
