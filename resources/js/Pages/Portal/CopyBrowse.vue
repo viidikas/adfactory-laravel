@@ -101,15 +101,9 @@ function addOne() {
 <template>
   <PortalLayout active="copy-browse" :theme="theme" :density="density">
     <div :style="{ padding: 'var(--pad-screen)', display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }">
-      <div :style="{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }">
-        <div>
-          <h1 :style="{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }">Browse by copy</h1>
-          <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">Pick a message, then open each clip to localize and add it to your order.</p>
-        </div>
-        <div :style="{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '13px', color: 'var(--text-3)' }">
-          <span :style="{ color: step >= 1 ? 'var(--accent)' : 'inherit', fontWeight: step === 1 ? 700 : 400 }">1 Copy</span><Icon name="chevright" :size="14" />
-          <span :style="{ color: step >= 2 ? 'var(--accent)' : 'inherit', fontWeight: step === 2 ? 700 : 400 }">2 Clips</span>
-        </div>
+      <div>
+        <h1 :style="{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }">Browse by copy</h1>
+        <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">Pick a message, then open each clip to localize and add it to your order.</p>
       </div>
 
       <div v-if="error" :style="{ padding: '14px 18px', borderRadius: '12px', background: 'var(--danger-soft)', color: 'var(--danger)', fontSize: '14px' }">{{ error }}</div>
