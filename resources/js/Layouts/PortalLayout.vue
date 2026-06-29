@@ -8,6 +8,7 @@ import Select from '../Components/Select.vue';
 import Tag from '../Components/Tag.vue';
 import Icon from '../Components/Icon.vue';
 import Thumb from '../Components/Thumb.vue';
+import NavItem from '../Components/NavItem.vue';
 import { api } from '../lib/api.js';
 import { usePortalStore, setMarket, removeFromBasket, clearBasket } from '../lib/portalStore.js';
 
@@ -131,14 +132,16 @@ async function submit() {
 
 <template>
   <AppLayout :active="active" workspace="portal" :theme="theme" :density="density">
+    <!-- Delivered clips lives in the left nav, set apart below the other items. -->
+    <template v-if="store.market && deliveredCount" #nav-extra>
+      <NavItem :item="{ label: `Delivered clips (${deliveredCount})`, icon: 'inbox', href: '/portal/delivered' }" :active="active === 'delivered'" />
+    </template>
+
     <!-- market selector bar -->
     <div :style="{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px var(--pad-screen)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }">
       <span :style="{ fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', fontWeight: 700 }">Market</span>
       <div :style="{ width: '230px' }"><Select :model-value="store.market ? String(store.market.id) : ''" :options="marketOptions" @update:model-value="onMarketChange" /></div>
       <Tag v-if="store.market" :clickable="false">{{ store.market.brand }}</Tag>
-      <Button v-if="store.market && deliveredCount" size="sm" variant="secondary" icon="inbox" :style="{ marginLeft: 'auto' }" @click="router.visit('/portal/delivered')">
-        Delivered Clips ({{ deliveredCount }})
-      </Button>
     </div>
 
     <slot :market="store.market" />
