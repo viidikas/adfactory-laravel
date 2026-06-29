@@ -272,6 +272,59 @@ class SheetApprovalColumnTest extends TestCase
         $this->assertNull($market->copies()->where('copy_key', 'Better_tap_line')->first());
     }
 
+    // ── Colliding keys: keep all copies, never silently drop ────────
+
+    public function test_colliding_copies_are_kept_distinct_not_dropped(): void
+    {
+        // Two approved copies share their first three words ("Borrow smart build")
+        // and have no Suggestion to separate them — both must still be stored.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Borrow smart build happy,A,no,Appr1\n".
+            "Product Usage,PU2,Creditstar,Borrow smart build strong,B,no,Appr2\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $this->assertSame(2, $market->copies()->count(), 'both colliding copies survive');
+        $keys = $market->copies()->pluck('copy_key')->all();
+        $this->assertSame(2, count(array_unique($keys)), 'their keys are distinct');
+    }
+
+    public function test_collision_is_reported_as_a_sync_issue(): void
+    {
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Borrow smart build happy,A,no,Appr1\n".
+            "Product Usage,PU2,Creditstar,Borrow smart build strong,B,no,Appr2\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $result = app(SheetSyncService::class)->syncMarket($market->fresh());
+
+        $this->assertNotEmpty($result['issues']);
+        $this->assertTrue(
+            collect($result['issues'])->contains(fn ($i) => str_contains($i, 'Borrow_smart_build')),
+            'the collision is surfaced in the sync report'
+        );
+    }
+
+    public function test_identical_text_rows_merge_into_one_copy(): void
+    {
+        // Genuinely identical English is the SAME copy — it should merge, not split.
+        $this->fakeSheet(
+            "Category,Shot,Brand,en,fi,Disclaimer,fi copy approved\n".
+            "Product Usage,PU1,Creditstar,Tap to invest,A,no,Appr1\n".
+            "Product Usage,PU1,Creditstar,Tap to invest,A,no,Appr1\n"
+        );
+        $market = $this->market(['code' => 'FI', 'active' => false]);
+
+        $this->sync($market);
+
+        $this->assertSame(1, $market->copies()->count(), 'identical copies merge');
+    }
+
     // ── Tabs without the column keep the legacy manual gate ─────────
 
     public function test_tab_without_approved_column_does_not_auto_enable(): void
