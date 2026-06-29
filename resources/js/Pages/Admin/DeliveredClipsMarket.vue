@@ -4,14 +4,10 @@ import { router } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Card from '../../Components/Card.vue';
 import Button from '../../Components/Button.vue';
-import Input from '../../Components/Input.vue';
 import Field from '../../Components/Field.vue';
 import Select from '../../Components/Select.vue';
-import Tag from '../../Components/Tag.vue';
-import Drawer from '../../Components/Drawer.vue';
-import SectionLabel from '../../Components/SectionLabel.vue';
-import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
+import DeliveredClipsBrowser from '../../Components/DeliveredClipsBrowser.vue';
 import { api, upload } from '../../lib/api.js';
 
 const props = defineProps({
@@ -32,13 +28,6 @@ const orderId = ref('');
 const files = ref([]);
 const fileInput = ref(null);
 const uploading = ref(false);
-
-// inline rename
-const editingId = ref(null);
-const editName = ref('');
-
-// player drawer
-const playing = ref(null);
 
 function flash(msg) { toast.value = msg; setTimeout(() => { if (toast.value === msg) toast.value = ''; }, 3500); }
 
@@ -66,13 +55,6 @@ const orderOptions = computed(() => [
   ...orders.value.map((o) => ({ value: String(o.id), label: `${String(o.id).slice(0, 8)} · ${o.user_name || 'Order'}` })),
 ]);
 
-const fmtSize = (b) => {
-  if (!b) return '—';
-  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
-  return (b / 1024 / 1024).toFixed(1) + ' MB';
-};
-const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—');
-
 function onFiles(e) { files.value = Array.from(e.target.files || []); }
 function clearFiles() { files.value = []; if (fileInput.value) fileInput.value.value = ''; }
 
@@ -98,18 +80,12 @@ async function uploadBatch() {
   }
 }
 
-function startRename(c) { editingId.value = c.id; editName.value = c.name; }
-async function saveRename(c) {
-  const name = editName.value.trim();
-  editingId.value = null;
-  if (!name || name === c.name) return;
-  try {
-    const updated = await api.put('/api/delivered-clips/' + c.id, { name });
-    Object.assign(c, updated);
-  } catch (e) { flash(e.message || 'Rename failed.'); }
+// ── management (emitted by the browser's player drawer) ──────────
+async function onRename({ clip, name }) {
+  try { const updated = await api.put('/api/delivered-clips/' + clip.id, { name }); Object.assign(clip, updated); flash('Renamed.'); }
+  catch (e) { flash(e.message || 'Rename failed.'); }
 }
-
-function pickThumb(c) {
+function onThumb(clip) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
@@ -119,27 +95,23 @@ function pickThumb(c) {
     try {
       const fd = new FormData();
       fd.append('image', f);
-      const updated = await upload('/api/delivered-clips/' + c.id + '/thumbnail', fd);
-      Object.assign(c, updated, { _bust: Date.now() });
+      const updated = await upload('/api/delivered-clips/' + clip.id + '/thumbnail', fd);
+      Object.assign(clip, updated);
+      // Bust the cached <img> (the URL is stable across replacements).
+      if (clip.thumbnail_url) clip.thumbnail_url = clip.thumbnail_url.split('?')[0] + '?t=' + Date.now();
       flash('Thumbnail updated.');
     } catch (e) { flash(e.message || 'Thumbnail upload failed.'); }
   };
   input.click();
 }
-
-async function removeClip(c) {
-  if (!confirm(`Delete "${c.name}"? This removes the file and its thumbnail from disk.`)) return;
+async function onDelete(clip) {
+  if (!confirm(`Delete "${clip.name}"? This removes the file and its thumbnail from disk.`)) return;
   try {
-    await api.del('/api/delivered-clips/' + c.id);
-    clips.value = clips.value.filter((x) => x.id !== c.id);
-    if (playing.value?.id === c.id) playing.value = null;
+    await api.del('/api/delivered-clips/' + clip.id);
+    clips.value = clips.value.filter((x) => x.id !== clip.id);
     flash('Deleted.');
   } catch (e) { flash(e.message || 'Delete failed.'); }
 }
-
-const thumbSrc = (c) => (c.thumbnail_url ? c.thumbnail_url + (c._bust ? '?t=' + c._bust : '') : null);
-// Sub-line of parsed metadata, e.g. "PU8 · Kemal · design1".
-const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).join(' · ');
 </script>
 
 <template>
@@ -188,72 +160,9 @@ const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).joi
           <p :style="{ color: 'var(--text-3)', fontSize: '12px', margin: '10px 0 0' }">MP4, MOV or WEBM · up to 500 MB each. Poster frames are generated automatically when possible.</p>
         </Card>
 
-        <!-- Grid -->
-        <Card v-if="!clips.length"><EmptyState icon="inbox" title="No delivered clips yet" sub="Upload the final rendered creative for this market above." /></Card>
-        <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--gap)' }">
-          <Card v-for="c in clips" :key="c.id">
-            <div @click="playing = c" :style="{ position: 'relative', aspectRatio: '16/9', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', marginBottom: '12px', cursor: 'pointer' }">
-              <img v-if="thumbSrc(c)" :src="thumbSrc(c)" alt="" loading="lazy" :style="{ width: '100%', height: '100%', objectFit: 'cover' }" />
-              <Icon v-else name="film" :size="22" :style="{ color: 'var(--text-3)' }" />
-              <div :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.18)' }">
-                <div :style="{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'grid', placeItems: 'center' }"><Icon name="play" :size="20" :style="{ color: '#fff' }" /></div>
-              </div>
-            </div>
-
-            <div v-if="editingId === c.id">
-              <Input v-model="editName" autofocus @keydown="(e) => e.key === 'Enter' && saveRename(c)" />
-              <div :style="{ display: 'flex', gap: '8px', marginTop: '8px' }">
-                <Button size="sm" @click="saveRename(c)">Save</Button>
-                <Button size="sm" variant="ghost" @click="editingId = null">Cancel</Button>
-              </div>
-            </div>
-            <template v-else>
-              <div :style="{ fontSize: '14.5px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.name">{{ c.name }}</div>
-              <div v-if="metaLine(c)" :style="{ fontSize: '12.5px', color: 'var(--text-2)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ metaLine(c) }}</div>
-              <div v-if="c.copy_full || c.copy" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.copy_full || c.copy">“{{ c.copy_full || c.copy }}”</div>
-              <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }">
-                <Tag :clickable="false" v-if="c.format">{{ c.format }}</Tag>
-                <Tag :clickable="false">{{ fmtSize(c.file_size) }}</Tag>
-                <Tag :clickable="false" v-if="c.order_short">order {{ c.order_short }}</Tag>
-              </div>
-              <div :style="{ fontSize: '12px', color: 'var(--text-3)' }">{{ fmtDate(c.created_at) }}{{ c.uploaded_by ? ' · ' + c.uploaded_by : '' }}</div>
-              <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '12px' }">
-                <Button size="sm" variant="secondary" icon="play" @click="playing = c">Play</Button>
-                <a :href="c.download_url" :style="{ textDecoration: 'none' }"><Button size="sm" variant="ghost" icon="download">Download</Button></a>
-                <Button size="sm" variant="ghost" icon="edit" @click="startRename(c)">Rename</Button>
-                <Button size="sm" variant="ghost" icon="sparkles" @click="pickThumb(c)">Thumbnail</Button>
-                <Button size="sm" variant="danger" icon="trash" @click="removeClip(c)">Delete</Button>
-              </div>
-            </template>
-          </Card>
-        </div>
+        <DeliveredClipsBrowser :clips="clips" manage @rename="onRename" @replace-thumb="onThumb" @delete="onDelete" />
       </template>
     </div>
-
-    <!-- Player drawer -->
-    <Drawer :open="!!playing" :title="playing ? (playing.name || 'Clip') : ''" :width="520" @close="playing = null">
-      <div v-if="playing">
-        <video :src="playing.stream_url" controls autoplay preload="metadata" :poster="playing.thumbnail_url || undefined"
-          :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '60vh' }" />
-
-        <SectionLabel :style="{ marginTop: '18px' }">Details</SectionLabel>
-        <div :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: '13px' }">
-          <span :style="{ color: 'var(--text-3)' }">Format</span><span>{{ playing.format || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Slate</span><span>{{ playing.slate || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Actor</span><span>{{ playing.actor || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Design</span><span>{{ playing.design || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Language</span><span>{{ playing.lang || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Brand</span><span>{{ playing.brand || market?.brand || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ playing.copy_full || playing.copy || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Size</span><span>{{ fmtSize(playing.file_size) }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Order</span><span>{{ playing.order_short || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(playing.created_at) }}{{ playing.uploaded_by ? ' · ' + playing.uploaded_by : '' }}</span>
-        </div>
-      </div>
-      <template #footer>
-        <a v-if="playing" :href="playing.download_url" :style="{ textDecoration: 'none' }"><Button full icon="download">Download</Button></a>
-      </template>
-    </Drawer>
 
     <div v-if="toast" :style="{ position: 'fixed', bottom: '28px', left: '50%', transform: 'translateX(-50%)', zIndex: 80, display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 20px', borderRadius: '14px', background: 'var(--surface-1)', border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-pop)', fontSize: '14px', fontWeight: 600 }">
       <Icon name="check_circle" :size="18" :style="{ color: 'var(--accent)' }" /> {{ toast }}

@@ -500,12 +500,15 @@ class DeliveredClipController extends Controller
     }
 
     /**
-     * Resolve a clip's parsed copy slug back to its full copy text by matching it
-     * against the market's copies (the same slugify the Templater used to name the
-     * file). Prefers the clip's own language. Returns null when nothing matches
-     * (copy edited/removed) — callers fall back to the slug.
+     * Resolve a clip's parsed copy slug back to the market copy that produced it,
+     * by re-slugifying each copy's text the way the Templater did when naming the
+     * file. Returns the full copy text (clip language preferred), the copy_key and
+     * the category — so delivered clips can be organised by copy/category like the
+     * copy picker. Null when nothing matches (copy edited/removed).
+     *
+     * @return array{full:string,key:?string,category:?string}|null
      */
-    private function resolveCopyFull(DeliveredClip $c, Collection $copies): ?string
+    private function resolveCopy(DeliveredClip $c, Collection $copies): ?array
     {
         if (! $c->copy) {
             return null;
@@ -518,9 +521,12 @@ class DeliveredClipController extends Controller
             $texts = is_array($copy->copy_text) ? $copy->copy_text : [];
             foreach ($texts as $text) {
                 if ($text && $this->normalizeSlug(DeliveredClip::slugifyCopy($text)) === $target) {
-                    // Show the clip's language if the copy carries it, else the
-                    // language that actually matched.
-                    return ($lang && ! empty($texts[$lang])) ? $texts[$lang] : $text;
+                    return [
+                        // The clip's language if the copy carries it, else the one that matched.
+                        'full' => ($lang && ! empty($texts[$lang])) ? $texts[$lang] : $text,
+                        'key' => $copy->copy_key,
+                        'category' => $copy->category,
+                    ];
                 }
             }
         }
@@ -538,6 +544,7 @@ class DeliveredClipController extends Controller
     private function present(DeliveredClip $c, ?Collection $copies = null): array
     {
         $copies ??= Copy::where('market_id', $c->market_id)->get();
+        $resolved = $this->resolveCopy($c, $copies);
 
         return [
             'id' => $c->id,
@@ -549,7 +556,9 @@ class DeliveredClipController extends Controller
             'actor' => $c->actor,
             'design' => $c->design,
             'copy' => $c->copy,
-            'copy_full' => $this->resolveCopyFull($c, $copies),
+            'copy_full' => $resolved['full'] ?? null,
+            'copy_key' => $resolved['key'] ?? null,
+            'category' => $resolved['category'] ?? null,
             'format' => $c->format,
             'file_size' => (int) $c->file_size,
             'order_id' => $c->order_id,
