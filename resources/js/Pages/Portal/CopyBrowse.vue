@@ -130,9 +130,14 @@ function addOne() {
       <!-- Step 2: clips -->
       <template v-else>
         <button @click="step = 1" :style="{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '13.5px', fontFamily: 'inherit' }"><Icon name="arrowleft" :size="16" /> Copy</button>
-        <Card :style="{ background: 'var(--surface-2)' }">
-          <div :style="{ fontSize: '15px', fontWeight: 700 }">{{ chosen.en }}</div>
-          <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '4px' }">Open a clip to preview it, pick designs, and add it to your order.</div>
+        <Card :style="{ background: 'var(--accent-soft)', borderColor: 'var(--accent)' }">
+          <div :style="{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }">
+            <Icon name="check_circle" :size="15" :style="{ color: 'var(--accent)' }" />
+            <span :style="{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--accent)' }">Selected copy</span>
+          </div>
+          <div :style="{ fontSize: '18px', fontWeight: 800, color: 'var(--text-1)', lineHeight: 1.3 }">{{ chosen.en }}</div>
+          <div v-if="chosenLocalText" :style="{ fontSize: '13.5px', color: 'var(--text-2)', marginTop: '4px' }">{{ chosenLocalText }}</div>
+          <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '8px' }">Open a clip to preview it, pick designs, and add it to your order.</div>
         </Card>
         <Card v-if="!stepClips.length"><EmptyState icon="film" title="No clips for this copy" sub="No footage matches this copy's slates." /></Card>
         <div v-else :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))', gap: 'var(--gap)' }">
