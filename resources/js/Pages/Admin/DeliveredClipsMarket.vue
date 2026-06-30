@@ -104,6 +104,25 @@ function onThumb(clip) {
   };
   input.click();
 }
+function onReplaceFile(clip) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm';
+  input.onchange = async () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    if (!confirm(`Replace the video for "${clip.name}"? This resets legal review to pending until it is approved again.`)) return;
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const updated = await upload('/api/delivered-clips/' + clip.id + '/file', fd);
+      Object.assign(clip, updated);
+      if (clip.thumbnail_url) clip.thumbnail_url = clip.thumbnail_url.split('?')[0] + '?t=' + Date.now();
+      flash('Video replaced — review reset to pending.');
+    } catch (e) { flash(e.message || 'Replace failed.'); }
+  };
+  input.click();
+}
 async function onDelete(clip) {
   if (!confirm(`Delete "${clip.name}"? This removes the file and its thumbnail from disk.`)) return;
   try {
@@ -160,7 +179,7 @@ async function onDelete(clip) {
           <p :style="{ color: 'var(--text-3)', fontSize: '12px', margin: '10px 0 0' }">MP4, MOV or WEBM · up to 500 MB each. Poster frames are generated automatically when possible.</p>
         </Card>
 
-        <DeliveredClipsBrowser :clips="clips" manage @rename="onRename" @replace-thumb="onThumb" @delete="onDelete" />
+        <DeliveredClipsBrowser :clips="clips" manage @rename="onRename" @replace-thumb="onThumb" @replace-file="onReplaceFile" @delete="onDelete" />
       </template>
     </div>
 

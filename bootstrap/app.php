@@ -23,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => \App\Http\Middleware\Authenticate::class,
             'admin' => \App\Http\Middleware\AdminOnly::class,
             'superadmin' => \App\Http\Middleware\SuperAdmin::class,
+            'legal' => \App\Http\Middleware\Legal::class,
+            'rejectlegal' => \App\Http\Middleware\RejectLegal::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -25,6 +25,16 @@ class User extends Model
     }
 
     /**
+     * Legal reviewers gate delivered-clip downloads (clip-by-clip review). Their
+     * surface is intentionally narrow (the /legal review view only): they are NOT
+     * super admins and cannot reach the operator panel or the portal as a lead.
+     */
+    public function isLegal(): bool
+    {
+        return $this->role === 'legal';
+    }
+
+    /**
      * Super admins are the only users allowed into the AD.FACTORY operator panel
      * and the markets / per-copy admin. Gated by a config email allowlist
      * (config/adfactory.php → super_admins), matched case-insensitively.
@@ -44,5 +54,10 @@ class User extends Model
     public function scopeGrowthLeads($query)
     {
         return $query->where('role', 'growth_lead');
+    }
+
+    public function scopeLegal($query)
+    {
+        return $query->where('role', 'legal');
     }
 }

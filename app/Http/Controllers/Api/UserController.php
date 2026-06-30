@@ -23,7 +23,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'email' => 'required|email|unique:users,email',
-            'role' => 'required|in:admin,growth_lead',
+            'role' => 'required|in:admin,growth_lead,legal',
             'market' => 'nullable|string|max:10',
         ]);
 
@@ -43,7 +43,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:100',
             'email' => 'sometimes|required|email|unique:users,email,' . $user->id,
-            'role' => 'sometimes|required|in:admin,growth_lead',
+            'role' => 'sometimes|required|in:admin,growth_lead,legal',
             'market' => 'nullable|string|max:10',
         ]);
 

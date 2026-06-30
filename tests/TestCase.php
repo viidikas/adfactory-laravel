@@ -69,6 +69,18 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * A legal reviewer (role = legal, never on the super-admin allowlist).
+     */
+    protected function legal(array $attrs = []): User
+    {
+        return User::create(array_merge([
+            'name' => 'Legal',
+            'email' => 'legal'.uniqid().'@test.com',
+            'role' => 'legal',
+        ], $attrs));
+    }
+
+    /**
      * Authenticate the next request as the given user (session-based auth).
      */
     protected function asUser(User $user): static

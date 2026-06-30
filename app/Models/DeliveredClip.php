@@ -4,9 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DeliveredClip extends Model
 {
+    /** Legal review states. A clip is only downloadable when APPROVED. */
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_DECLINED = 'declined';
+
     protected $fillable = [
         'market_id',
         'name',
@@ -22,13 +28,27 @@ class DeliveredClip extends Model
         'thumbnail_path',
         'order_id',
         'uploaded_by',
+        'review_status',
+        'reviewed_by',
+        'reviewed_at',
+        'decline_reason',
+    ];
+
+    protected $attributes = [
+        'review_status' => self::STATUS_PENDING,
     ];
 
     protected function casts(): array
     {
         return [
             'file_size' => 'integer',
+            'reviewed_at' => 'datetime',
         ];
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->review_status === self::STATUS_APPROVED;
     }
 
     public function market(): BelongsTo
@@ -44,6 +64,23 @@ class DeliveredClip extends Model
     public function uploadedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    /** Alias of uploadedBy() (spec name). */
+    public function uploader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** Append-only audit trail of legal decisions. */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(DeliveredClipReview::class);
     }
 
     /**

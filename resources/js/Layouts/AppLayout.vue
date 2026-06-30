@@ -51,6 +51,10 @@ const NAV = {
     { key: 'designs', label: 'Designs', icon: 'sparkles', href: '/portal/designs' },
     { key: 'orders', label: 'My orders', icon: 'clipboard', href: '/portal/orders' },
   ],
+  // Legal reviewers get a single, narrow surface: clip review.
+  legal: [
+    { key: 'review', label: 'Clip review', icon: 'eye', href: '/legal' },
+  ],
 };
 const nav = computed(() => NAV[props.workspace] || NAV.admin);
 const legacyHref = computed(() => (props.workspace === 'portal' ? '/portal/legacy' : '/legacy'));
@@ -89,7 +93,7 @@ function logout() {
       </nav>
 
       <div :style="{ padding: '12px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }">
-        <a :href="legacyHref"
+        <a v-if="workspace !== 'legal'" :href="legacyHref"
           :style="{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--text-3)', textDecoration: 'none' }">
           <Icon name="external" :size="14" /> Open classic UI
         </a>

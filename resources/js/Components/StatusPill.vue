@@ -11,6 +11,7 @@ const STATUS_STYLE = {
   'approved':      { c: 'var(--success)', b: 'var(--accent-soft)', label: 'Approved' },
   'review':        { c: 'var(--link)', b: 'var(--tint-violet)', label: 'In review' },
   'missing':       { c: 'var(--danger)', b: 'var(--danger-soft)', label: 'Missing' },
+  'declined':      { c: 'var(--danger)', b: 'var(--danger-soft)', label: 'Declined' },
   // Real backend order statuses.
   'pending':       { c: 'var(--warning)', b: 'rgba(246,198,66,0.15)', label: 'Pending' },
   'processing':    { c: 'var(--brand-teal)', b: 'rgba(72,218,186,0.15)', label: 'Processing' },
