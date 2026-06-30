@@ -290,9 +290,12 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
       <div v-if="playing">
         <video v-if="canPreview(playing)" :src="playing.stream_url" controls autoplay preload="metadata" :poster="playing.thumbnail_url || undefined"
           :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '60vh' }" />
-        <div v-else :style="{ borderRadius: '12px', background: 'var(--surface-3)', border: '1px solid var(--border)', padding: '28px', textAlign: 'center', color: 'var(--text-3)', fontSize: '13.5px' }">
-          <Icon name="film" :size="22" :style="{ display: 'block', margin: '0 auto 8px' }" />
-          {{ playing.review_status === 'declined' ? 'This clip was declined — see the reason below.' : 'Preview available once this clip is approved.' }}
+        <div v-else :style="{ position: 'relative', borderRadius: '12px', overflow: 'hidden', background: '#000', border: '1px solid var(--border)', minHeight: '180px', display: 'grid', placeItems: 'center' }">
+          <img v-if="playing.thumbnail_url" :src="playing.thumbnail_url" alt="" :style="{ width: '100%', maxHeight: '72vh', objectFit: 'contain', display: 'block' }" />
+          <Icon v-else name="film" :size="28" :style="{ color: 'var(--text-3)' }" />
+          <div :style="{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '10px 14px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }">
+            <Icon name="eye" :size="15" /> {{ playing.review_status === 'declined' ? 'Declined — not available to play. See the reason below.' : 'Awaiting legal review — preview once approved.' }}
+          </div>
         </div>
 
         <div v-if="manage && editingName" :style="{ marginTop: '14px', display: 'flex', gap: '8px' }">
