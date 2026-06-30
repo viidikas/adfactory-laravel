@@ -170,6 +170,39 @@ function play(c) {
 }
 function startRename() { editName.value = playing.value?.name || ''; editingName.value = true; }
 function doReplaceFile() { if (playing.value) emit('replace-file', playing.value); }
+
+// Drawer detail rows. Leads see a publish-oriented set (message + delivery
+// specs), message first; the production internals (slate/actor/design, uploader)
+// are admin-only. Decline reason is appended separately (highlighted).
+const detailRows = computed(() => {
+  const c = playing.value;
+  if (!c) return [];
+  const copy = c.copy_full || c.copy || '—';
+  const review = [c.review_status, c.reviewer, c.reviewed_at ? fmtDate(c.reviewed_at) : null].filter(Boolean).join(' · ') || '—';
+  if (props.manage) {
+    return [
+      ['Copy', copy],
+      ['Format', c.format || '—'],
+      ['Language', c.lang || '—'],
+      ['Category', c.category || '—'],
+      ['Slate', c.slate || '—'],
+      ['Actor', c.actor || '—'],
+      ['Design', c.design || '—'],
+      ['Size', fmtSize(c.file_size) || '—'],
+      ['Delivered', fmtDate(c.created_at) + (c.uploaded_by ? ' · ' + c.uploaded_by : '')],
+      ['Review', review],
+    ];
+  }
+  return [
+    ['Copy', copy],
+    ['Format', c.format || '—'],
+    ['Language', c.lang || '—'],
+    ['Category', c.category || '—'],
+    ['Size', fmtSize(c.file_size) || '—'],
+    ['Delivered', fmtDate(c.created_at)],
+    ['Review', review],
+  ];
+});
 function saveRename() {
   const n = editName.value.trim();
   editingName.value = false;
@@ -306,19 +339,9 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
 
         <SectionLabel :style="{ marginTop: '18px' }">Details</SectionLabel>
         <div :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: '13px' }">
-          <span :style="{ color: 'var(--text-3)' }">Format</span><span>{{ playing.format || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Slate</span><span>{{ playing.slate || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Actor</span><span>{{ playing.actor || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Design</span><span>{{ playing.design || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Language</span><span>{{ playing.lang || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Category</span><span>{{ playing.category || '—' }}</span>
-          <template v-if="playing.copy_full || playing.copy">
-            <span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ playing.copy_full || playing.copy }}</span>
+          <template v-for="row in detailRows" :key="row[0]">
+            <span :style="{ color: 'var(--text-3)' }">{{ row[0] }}</span><span>{{ row[1] }}</span>
           </template>
-          <span :style="{ color: 'var(--text-3)' }">Size</span><span>{{ fmtSize(playing.file_size) || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Delivered</span><span>{{ fmtDate(playing.created_at) }}{{ playing.uploaded_by ? ' · ' + playing.uploaded_by : '' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Review</span>
-          <span>{{ playing.review_status }}<template v-if="playing.reviewer"> · {{ playing.reviewer }}</template><template v-if="playing.reviewed_at"> · {{ fmtDate(playing.reviewed_at) }}</template></span>
           <template v-if="playing.decline_reason">
             <span :style="{ color: 'var(--text-3)' }">Decline reason</span><span :style="{ color: 'var(--danger)' }">{{ playing.decline_reason }}</span>
           </template>
