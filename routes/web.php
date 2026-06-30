@@ -46,8 +46,15 @@ Route::middleware('superadmin')->group(function () use ($chrome) {
     Route::get('/legacy', fn () => Inertia::render('AdFactory'))->name('legacy.admin');
 });
 
-// ── Growth Portal (any authenticated user) ──────────────────────────────────
-Route::middleware('auth')->group(function () use ($chrome) {
+// ── Legal clip review (legal role only) ─────────────────────────────────────
+// Narrow surface: clip-by-clip review of delivered creative. Legal users are
+// redirected here from / and /portal; everyone else is kept out (403/redirect).
+Route::middleware('legal')->group(function () use ($chrome) {
+    Route::get('/legal', fn (Request $r) => Inertia::render('Legal/Review', $chrome($r, 'legal')))->name('legal.review');
+});
+
+// ── Growth Portal (any authenticated user, except legal reviewers) ──────────
+Route::middleware(['auth', 'rejectlegal'])->group(function () use ($chrome) {
     Route::get('/portal', fn (Request $r) => Inertia::render('Portal/CopyBrowse', $chrome($r, 'portal')))->name('portal');
     Route::get('/portal/clips', fn (Request $r) => Inertia::render('Portal/Clips', $chrome($r, 'portal')));
     Route::get('/portal/designs', fn (Request $r) => Inertia::render('Portal/Designs', $chrome($r, 'portal')));

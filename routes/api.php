@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\CopyController;
 use App\Http\Controllers\Api\CopyLineController;
 use App\Http\Controllers\Api\DeliveredClipController;
+use App\Http\Controllers\Api\LegalReviewController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
@@ -95,11 +96,24 @@ Route::middleware('auth')->group(function () {
         Route::get('/markets/{market}/copies', [MarketController::class, 'copies']);
         Route::put('/markets/{market}/copies/{copy}', [MarketController::class, 'toggleCopy']);
 
-        // Delivered clips — upload / edit / replace-thumbnail / delete (admin).
+        // Delivered clips — upload / edit / replace-thumbnail / replace-file /
+        // delete (admin). Admin does NOT approve clips — only legal reviews.
         Route::post('/delivered-clips', [DeliveredClipController::class, 'store']);
         Route::post('/delivered-clips/batch', [DeliveredClipController::class, 'storeBatch']);
         Route::put('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'update']);
         Route::post('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'updateThumbnail']);
+        // Replacing the VIDEO resets review to pending (writes a reset audit row).
+        Route::post('/delivered-clips/{deliveredClip}/file', [DeliveredClipController::class, 'replaceFile']);
         Route::delete('/delivered-clips/{deliveredClip}', [DeliveredClipController::class, 'destroy']);
     });
+});
+
+// ── Legal clip review (legal role only) ─────────────────────────────────────
+// Clip-by-clip review surface. Approve/decline write append-only audit rows.
+// Legal can stream any clip (to watch before deciding) via the shared stream
+// route, but the DOWNLOAD route stays approved-only for everyone.
+Route::middleware('legal')->prefix('legal')->group(function () {
+    Route::get('/delivered-clips', [LegalReviewController::class, 'index']);
+    Route::post('/delivered-clips/{deliveredClip}/approve', [LegalReviewController::class, 'approve']);
+    Route::post('/delivered-clips/{deliveredClip}/decline', [LegalReviewController::class, 'decline']);
 });

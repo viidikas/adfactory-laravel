@@ -27,7 +27,7 @@ function flash(msg) { toast.value = msg; setTimeout(() => { if (toast.value === 
 // ── Users ───────────────────────────────────────────────────────
 const users = ref([]);
 const nu = reactive({ name: '', email: '', role: 'growth_lead', market: '' });
-const roleOptions = [{ value: 'growth_lead', label: 'Growth lead' }, { value: 'admin', label: 'Admin' }];
+const roleOptions = [{ value: 'growth_lead', label: 'Growth lead' }, { value: 'admin', label: 'Admin' }, { value: 'legal', label: 'Legal (clip review)' }];
 
 async function loadUsers() { users.value = await api.get('/api/users'); }
 async function addUser() {

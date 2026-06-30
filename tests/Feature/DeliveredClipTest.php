@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DeliveredClip;
+use App\Models\DeliveredClipReview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -111,7 +112,7 @@ class DeliveredClipTest extends TestCase
         Storage::fake('local');
         $market = $this->market(['code' => 'FI', 'active' => true]);
         Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO-BYTES');
-        $clip = $this->makeClip($market, ['name' => 'Hero', 'file_size' => 11]);
+        $clip = $this->makeClip($market, ['name' => 'Hero', 'file_size' => 11, 'review_status' => 'approved']);
 
         $this->asUser($this->lead())
             ->get("/api/delivered-clips/{$clip->id}/download")
@@ -124,11 +125,11 @@ class DeliveredClipTest extends TestCase
         Storage::fake('local');
         $market = $this->market(['code' => 'FI', 'active' => false]); // not visible to leads
         Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
-        $clip = $this->makeClip($market);
+        $clip = $this->makeClip($market, ['review_status' => 'approved']);
 
         $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
 
-        // Admins still can (they see every market).
+        // Admins still can (they see every market; clip is approved).
         $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/download")->assertOk();
     }
 
@@ -141,7 +142,7 @@ class DeliveredClipTest extends TestCase
         Storage::disk('local')->put("delivered/{$market->id}/a.mp4", 'AAAA');
         Storage::disk('local')->put("delivered/{$market->id}/b.mp4", 'BBBB');
         // A message set = same brand/lang/copy/actor, different designs/formats.
-        $base = ['brand' => 'Creditstar', 'lang' => 'FI', 'actor' => 'Kemal', 'copy' => 'Suunnittele Pt Hae', 'slate' => 'PU8'];
+        $base = ['brand' => 'Creditstar', 'lang' => 'FI', 'actor' => 'Kemal', 'copy' => 'Suunnittele Pt Hae', 'slate' => 'PU8', 'review_status' => 'approved'];
         $a = $this->makeClip($market, $base + ['name' => 'a', 'design' => 'design1', 'format' => '16:9', 'file_path' => "delivered/{$market->id}/a.mp4"]);
         $b = $this->makeClip($market, $base + ['name' => 'b', 'design' => 'design2', 'format' => '9:16', 'file_path' => "delivered/{$market->id}/b.mp4"]);
 
@@ -314,7 +315,7 @@ class DeliveredClipTest extends TestCase
         Storage::fake('local');
         $market = $this->market(['code' => 'FI', 'active' => true]);
         Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO-BYTES');
-        $clip = $this->makeClip($market, ['file_size' => 11]);
+        $clip = $this->makeClip($market, ['file_size' => 11, 'review_status' => 'approved']);
 
         $this->asUser($this->lead())
             ->get("/api/delivered-clips/{$clip->id}/stream")
@@ -331,5 +332,139 @@ class DeliveredClipTest extends TestCase
 
         $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/stream")->assertStatus(403);
         $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/stream")->assertOk();
+    }
+
+    // ── The legal review gate on download (the real, server-side gate) ──
+
+    public function test_pending_clip_download_is_blocked_even_with_direct_url(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($market, ['review_status' => 'pending']);
+
+        // Even a lead hitting the URL directly is blocked while pending.
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+        // And so is an admin — the gate is unconditional.
+        $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+    }
+
+    public function test_declined_clip_download_is_blocked(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($market, ['review_status' => 'declined', 'decline_reason' => 'Risky claim']);
+
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+    }
+
+    /**
+     * The two-gate rule: copy confirmation and clip review are independent. A clip
+     * in a fully copy-confirmed, ENABLED, active market is STILL blocked while its
+     * own review_status is pending. Copy confirmation never satisfies clip review.
+     */
+    public function test_pending_clip_in_confirmed_enabled_market_is_still_blocked(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        // Copy is enabled/confirmed for the market — the TEXT gate is fully open.
+        $this->copy($market, ['copy_key' => 'Tap_to_invest', 'enabled' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($market, ['review_status' => 'pending']);
+
+        // The VIDEO gate (clip review) is independent and still closed → 403.
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+    }
+
+    public function test_lead_cannot_stream_a_pending_clip(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($market, ['review_status' => 'pending']);
+
+        // Lead can't even preview unapproved video; legal/admin can (to review).
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/stream")->assertStatus(403);
+        $this->asUser($this->legal())->get("/api/delivered-clips/{$clip->id}/stream")->assertOk();
+        $this->asUser($this->admin())->get("/api/delivered-clips/{$clip->id}/stream")->assertOk();
+    }
+
+    public function test_set_download_only_includes_approved_clips(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$market->id}/a.mp4", 'A');
+        $approved = $this->makeClip($market, ['name' => 'a', 'file_path' => "delivered/{$market->id}/a.mp4", 'review_status' => 'approved']);
+        $pending = $this->makeClip($market, ['name' => 'b', 'file_path' => "delivered/{$market->id}/b.mp4", 'review_status' => 'pending']);
+
+        // The set contains one approved + one pending → zip succeeds (approved only).
+        $this->asUser($this->lead())->get("/api/delivered-clips/set?ids={$approved->id},{$pending->id}")->assertOk();
+
+        // A set of only non-approved clips → nothing to deliver.
+        $this->asUser($this->lead())->get("/api/delivered-clips/set?ids={$pending->id}")->assertStatus(404);
+    }
+
+    // ── Decline reason visibility (hidden from leads) ───────────────
+
+    public function test_decline_reason_hidden_from_leads_visible_to_admin(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI', 'active' => true]);
+        $this->makeClip($market, ['review_status' => 'declined', 'decline_reason' => 'Misleading APR']);
+
+        $leadClip = collect($this->asUser($this->lead())->getJson('/api/delivered-clips?market_id='.$market->id)->json())->first();
+        $this->assertSame('declined', $leadClip['review_status']);
+        $this->assertArrayNotHasKey('decline_reason', $leadClip, 'leads never receive the decline reason');
+
+        $adminClip = collect($this->asUser($this->admin())->getJson('/api/delivered-clips?market_id='.$market->id)->json())->first();
+        $this->assertSame('Misleading APR', $adminClip['decline_reason']);
+    }
+
+    // ── Admin re-upload resets the legal review ─────────────────────
+
+    public function test_reupload_of_approved_clip_resets_to_pending_with_audit(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+        Storage::disk('local')->put("delivered/{$market->id}/old.mp4", 'OLD');
+        $legal = $this->legal();
+        $clip = $this->makeClip($market, [
+            'file_path' => "delivered/{$market->id}/old.mp4",
+            'review_status' => 'approved',
+            'reviewed_by' => $legal->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->asUser($this->admin())->post("/api/delivered-clips/{$clip->id}/file", [
+            'file' => UploadedFile::fake()->create('new.mp4', 1024, 'video/mp4'),
+        ])->assertOk();
+
+        $clip->refresh();
+        $this->assertSame('pending', $clip->review_status);
+        $this->assertNull($clip->reviewed_by);
+        $this->assertNull($clip->reviewed_at);
+        $this->assertDatabaseHas('delivered_clip_reviews', [
+            'delivered_clip_id' => $clip->id,
+            'action' => 'reset_by_reupload',
+        ]);
+        // The old video file is gone; the swapped-in one is no longer downloadable.
+        Storage::disk('local')->assertMissing("delivered/{$market->id}/old.mp4");
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+    }
+
+    public function test_thumbnail_replace_does_not_reset_review(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+        $clip = $this->makeClip($market, ['review_status' => 'approved', 'reviewed_by' => $this->legal()->id]);
+
+        $this->asUser($this->admin())->post("/api/delivered-clips/{$clip->id}/thumbnail", [
+            'image' => UploadedFile::fake()->create('poster.jpg', 50, 'image/jpeg'),
+        ])->assertOk();
+
+        $clip->refresh();
+        $this->assertSame('approved', $clip->review_status, 'replacing only the thumbnail keeps approval');
+        $this->assertDatabaseMissing('delivered_clip_reviews', ['delivered_clip_id' => $clip->id]);
     }
 }

@@ -18,7 +18,7 @@ class LoginController extends Controller
         if ($request->session()->has('auth_user_id')) {
             $user = User::find($request->session()->get('auth_user_id'));
             if ($user) {
-                return redirect($user->isSuperAdmin() ? '/' : '/portal');
+                return redirect($this->homeFor($user));
             }
             $request->session()->forget('auth_user_id');
         }
@@ -144,7 +144,17 @@ class LoginController extends Controller
         $request->session()->forget('pending_user_id');
         $request->session()->forget($attemptsKey);
 
-        return redirect($user->isSuperAdmin() ? '/' : '/portal');
+        return redirect($this->homeFor($user));
+    }
+
+    /** Post-login landing page for a user's role. */
+    private function homeFor(User $user): string
+    {
+        if ($user->isLegal()) {
+            return '/legal';
+        }
+
+        return $user->isSuperAdmin() ? '/' : '/portal';
     }
 
     public function resend(Request $request)

@@ -11,11 +11,12 @@ import Icon from './Icon.vue';
 
 const props = defineProps({
   clips: { type: Array, default: () => [] },
-  // When true, the player drawer exposes rename / replace-thumbnail / delete,
-  // emitted to the parent which owns the API calls + list state.
+  // When true, the player drawer exposes rename / replace-thumbnail / replace-
+  // file / delete (admin), emitted to the parent which owns the API calls + list
+  // state. Admin (manage) can preview any clip; leads can only preview approved.
   manage: { type: Boolean, default: false },
 });
-const emit = defineEmits(['rename', 'replace-thumb', 'delete']);
+const emit = defineEmits(['rename', 'replace-thumb', 'replace-file', 'delete']);
 
 const viewMode = ref('copy'); // 'copy' (browse by copy) | 'list' (flat sortable)
 const sortBy = ref('theme');
@@ -40,6 +41,19 @@ const fmtSize = (b) => {
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 };
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—');
+
+// ── Legal review gate ────────────────────────────────────────────
+// A clip is downloadable only when approved. Leads can preview only approved
+// clips; admins (manage) can preview any (to check the file). The decline reason
+// is only present in the payload for admins — never shown to leads.
+const canDownload = (c) => c.review_status === 'approved';
+const canPreview = (c) => c.review_status === 'approved' || props.manage;
+const setDownloadable = (arr) => arr.some(canDownload);
+function reviewPill(c) {
+  if (c.review_status === 'pending') return { label: 'Pending legal review', c: 'var(--warning)', b: 'rgba(246,198,66,0.15)' };
+  if (c.review_status === 'declined') return { label: 'Declined', c: 'var(--danger)', b: 'var(--danger-soft)' };
+  return null; // approved → no badge in rows
+}
 
 const copyOf = (c) => c.copy_full || c.copy || '';
 const copySlugUnderscore = (c) => (c.copy || '').trim().replace(/\s+/g, '_');
@@ -137,8 +151,9 @@ function downloadIds(ids) {
   a.click();
   a.remove();
 }
-const downloadSet = (s) => downloadIds(s.items.map((c) => c.id));
-const downloadCopy = (g) => downloadIds(g.clips.map((c) => c.id));
+// Only approved clips are ever zipped (the server enforces this too).
+const downloadSet = (s) => downloadIds(s.items.filter(canDownload).map((c) => c.id));
+const downloadCopy = (g) => downloadIds(g.clips.filter(canDownload).map((c) => c.id));
 
 // ── Navigation / player ──────────────────────────────────────────
 function openCopy(g) { selectedCopyKey.value = g.key; }
@@ -146,8 +161,15 @@ function backToCopies() { selectedCopyKey.value = null; }
 watch(catFilter, () => { selectedCopyKey.value = null; });
 watch(viewMode, () => { selectedCopyKey.value = null; });
 
-function play(c) { playing.value = c; editingName.value = false; }
+function play(c) {
+  // Leads can only open the player for approved clips (unapproved video is never
+  // streamed to them — the server blocks it too).
+  if (!canPreview(c)) return;
+  playing.value = c;
+  editingName.value = false;
+}
 function startRename() { editName.value = playing.value?.name || ''; editingName.value = true; }
+function doReplaceFile() { if (playing.value) emit('replace-file', playing.value); }
 function saveRename() {
   const n = editName.value.trim();
   editingName.value = false;
@@ -204,28 +226,30 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
             <div :style="{ fontSize: '16px', fontWeight: 800 }">{{ selectedCopy.label }}</div>
             <div :style="{ fontSize: '12.5px', color: 'var(--text-3)', marginTop: '3px' }">{{ selectedCopy.category }} · {{ selectedCopy.clips.length }} clips</div>
           </div>
-          <Button size="sm" icon="download" @click="downloadCopy(selectedCopy)">Download all ({{ selectedCopy.clips.length }})</Button>
+          <Button size="sm" icon="download" :disabled="!setDownloadable(selectedCopy.clips)" @click="downloadCopy(selectedCopy)">Download all</Button>
         </Card>
 
         <Card v-for="s in selectedSets" :key="s.name" :pad="false" :style="{ overflow: 'hidden' }">
           <div :style="{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', padding: '12px 14px', background: 'var(--surface-2)' }">
             <div :style="{ fontSize: '13px', fontWeight: 800, fontFamily: 'var(--font-mono, ui-monospace, monospace)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="s.name">{{ s.name }}</div>
-            <Button size="sm" icon="download" @click="downloadSet(s)">Download set ({{ s.items.length }})</Button>
+            <Button size="sm" icon="download" :disabled="!setDownloadable(s.items)" @click="downloadSet(s)">Download set</Button>
           </div>
           <div v-for="c in s.items" :key="c.id" :style="rowStyle">
-            <div @click="play(c)" :style="{ position: 'relative', flex: '0 0 auto', width: '78px', height: '44px', borderRadius: '7px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer' }">
+            <div @click="play(c)" :style="{ position: 'relative', flex: '0 0 auto', width: '78px', height: '44px', borderRadius: '7px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: canPreview(c) ? 'pointer' : 'default' }">
               <img v-if="c.thumbnail_url" :src="c.thumbnail_url" alt="" loading="lazy" :style="{ width: '100%', height: '100%', objectFit: 'cover' }" />
               <Icon v-else name="film" :size="16" :style="{ color: 'var(--text-3)' }" />
-              <div :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.15)' }"><Icon name="play" :size="16" :style="{ color: '#fff' }" /></div>
+              <div v-if="canPreview(c)" :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.15)' }"><Icon name="play" :size="16" :style="{ color: '#fff' }" /></div>
             </div>
             <Tag :clickable="false" v-if="c.format" :style="{ flex: '0 0 auto' }">{{ c.format }}</Tag>
             <div :style="{ flex: '1 1 auto', minWidth: 0 }">
               <div :style="{ fontSize: '13.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.name">{{ c.name }}</div>
               <div v-if="rowMeta(c)" :style="{ fontSize: '12px', color: 'var(--text-3)' }">{{ rowMeta(c) }}</div>
             </div>
+            <span v-if="reviewPill(c)" :style="{ flex: '0 0 auto', fontSize: '11px', fontWeight: 600, padding: '3px 9px', borderRadius: 'var(--r-pill)', color: reviewPill(c).c, background: reviewPill(c).b, whiteSpace: 'nowrap' }">{{ reviewPill(c).label }}</span>
             <span :style="{ flex: '0 0 auto', fontSize: '12px', color: 'var(--text-3)', minWidth: '54px', textAlign: 'right' }">{{ fmtSize(c.file_size) }}</span>
-            <Button size="sm" variant="ghost" icon="play" @click="play(c)">Preview</Button>
-            <a :href="c.download_url" :style="{ textDecoration: 'none', flex: '0 0 auto' }"><Button size="sm" variant="secondary" icon="download">Download</Button></a>
+            <Button size="sm" variant="ghost" icon="play" :disabled="!canPreview(c)" @click="play(c)">Preview</Button>
+            <a v-if="canDownload(c)" :href="c.download_url" :style="{ textDecoration: 'none', flex: '0 0 auto' }"><Button size="sm" variant="secondary" icon="download">Download</Button></a>
+            <Button v-else size="sm" variant="secondary" icon="download" disabled :style="{ flex: '0 0 auto' }">Download</Button>
           </div>
         </Card>
       </template>
@@ -239,22 +263,24 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
             <div :style="{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'var(--font-mono, ui-monospace, monospace)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="r.group.name">{{ r.group.name }}</div>
             <div v-if="r.group.copy" :style="{ fontSize: '12.5px', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ r.group.copy }} · {{ r.group.items.length }} clips</div>
           </div>
-          <Button size="sm" icon="download" @click="downloadSet(r.group)">Download set ({{ r.group.items.length }})</Button>
+          <Button size="sm" icon="download" :disabled="!setDownloadable(r.group.items)" @click="downloadSet(r.group)">Download set</Button>
         </div>
         <div v-else :style="rowStyle">
-          <div @click="play(r.clip)" :style="{ position: 'relative', flex: '0 0 auto', width: '78px', height: '44px', borderRadius: '7px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer' }">
+          <div @click="play(r.clip)" :style="{ position: 'relative', flex: '0 0 auto', width: '78px', height: '44px', borderRadius: '7px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: canPreview(r.clip) ? 'pointer' : 'default' }">
             <img v-if="r.clip.thumbnail_url" :src="r.clip.thumbnail_url" alt="" loading="lazy" :style="{ width: '100%', height: '100%', objectFit: 'cover' }" />
             <Icon v-else name="film" :size="16" :style="{ color: 'var(--text-3)' }" />
-            <div :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.15)' }"><Icon name="play" :size="16" :style="{ color: '#fff' }" /></div>
+            <div v-if="canPreview(r.clip)" :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.15)' }"><Icon name="play" :size="16" :style="{ color: '#fff' }" /></div>
           </div>
           <Tag :clickable="false" v-if="r.clip.format" :style="{ flex: '0 0 auto' }">{{ r.clip.format }}</Tag>
           <div :style="{ flex: '1 1 auto', minWidth: 0 }">
             <div :style="{ fontSize: '13.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="r.clip.name">{{ r.clip.name }}</div>
             <div v-if="rowMeta(r.clip)" :style="{ fontSize: '12px', color: 'var(--text-3)' }">{{ rowMeta(r.clip) }}</div>
           </div>
+          <span v-if="reviewPill(r.clip)" :style="{ flex: '0 0 auto', fontSize: '11px', fontWeight: 600, padding: '3px 9px', borderRadius: 'var(--r-pill)', color: reviewPill(r.clip).c, background: reviewPill(r.clip).b, whiteSpace: 'nowrap' }">{{ reviewPill(r.clip).label }}</span>
           <span :style="{ flex: '0 0 auto', fontSize: '12px', color: 'var(--text-3)', minWidth: '54px', textAlign: 'right' }">{{ fmtSize(r.clip.file_size) }}</span>
-          <Button size="sm" variant="ghost" icon="play" @click="play(r.clip)">Preview</Button>
-          <a :href="r.clip.download_url" :style="{ textDecoration: 'none', flex: '0 0 auto' }"><Button size="sm" variant="secondary" icon="download">Download</Button></a>
+          <Button size="sm" variant="ghost" icon="play" :disabled="!canPreview(r.clip)" @click="play(r.clip)">Preview</Button>
+          <a v-if="canDownload(r.clip)" :href="r.clip.download_url" :style="{ textDecoration: 'none', flex: '0 0 auto' }"><Button size="sm" variant="secondary" icon="download">Download</Button></a>
+          <Button v-else size="sm" variant="secondary" icon="download" disabled :style="{ flex: '0 0 auto' }">Download</Button>
         </div>
       </template>
     </Card>
@@ -262,8 +288,11 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
     <!-- Player drawer -->
     <Drawer :open="!!playing" :title="playing ? (playing.name || 'Clip') : ''" :width="520" @close="playing = null">
       <div v-if="playing">
-        <video :src="playing.stream_url" controls autoplay preload="metadata" :poster="playing.thumbnail_url || undefined"
+        <video v-if="canPreview(playing)" :src="playing.stream_url" controls autoplay preload="metadata" :poster="playing.thumbnail_url || undefined"
           :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '60vh' }" />
+        <div v-else :style="{ borderRadius: '12px', background: 'var(--surface-3)', border: '1px solid var(--border)', padding: '28px', textAlign: 'center', color: 'var(--text-3)', fontSize: '13.5px' }">
+          <Icon name="film" :size="22" :style="{ display: 'block', margin: '0 auto 8px' }" /> Preview available once this clip is approved.
+        </div>
 
         <div v-if="manage && editingName" :style="{ marginTop: '14px', display: 'flex', gap: '8px' }">
           <input v-model="editName" :style="{ flex: 1, height: 'var(--ctrl-h)', padding: '0 12px', borderRadius: 'var(--r-input)', background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '14px', fontFamily: 'inherit' }" @keydown.enter="saveRename" />
@@ -284,13 +313,20 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
           </template>
           <span :style="{ color: 'var(--text-3)' }">Size</span><span>{{ fmtSize(playing.file_size) || '—' }}</span>
           <span :style="{ color: 'var(--text-3)' }">Delivered</span><span>{{ fmtDate(playing.created_at) }}{{ playing.uploaded_by ? ' · ' + playing.uploaded_by : '' }}</span>
+          <span :style="{ color: 'var(--text-3)' }">Review</span>
+          <span>{{ playing.review_status }}<template v-if="manage && playing.reviewer"> · {{ playing.reviewer }}</template><template v-if="manage && playing.reviewed_at"> · {{ fmtDate(playing.reviewed_at) }}</template></span>
+          <template v-if="manage && playing.decline_reason">
+            <span :style="{ color: 'var(--text-3)' }">Decline reason</span><span :style="{ color: 'var(--danger)' }">{{ playing.decline_reason }}</span>
+          </template>
         </div>
       </div>
       <template #footer>
         <div v-if="playing" :style="{ display: 'flex', flexDirection: 'column', gap: '8px' }">
-          <a :href="playing.download_url" :style="{ textDecoration: 'none' }"><Button full icon="download">Download</Button></a>
-          <div v-if="manage" :style="{ display: 'flex', gap: '8px' }">
+          <a v-if="canDownload(playing)" :href="playing.download_url" :style="{ textDecoration: 'none' }"><Button full icon="download">Download</Button></a>
+          <Button v-else full icon="download" disabled>{{ playing.review_status === 'declined' ? 'Declined — not downloadable' : 'Pending legal review' }}</Button>
+          <div v-if="manage" :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap' }">
             <Button size="sm" variant="ghost" icon="edit" @click="startRename">Rename</Button>
+            <Button size="sm" variant="ghost" icon="upload" @click="doReplaceFile">Replace video</Button>
             <Button size="sm" variant="ghost" icon="sparkles" @click="doThumb">Thumbnail</Button>
             <Button size="sm" variant="danger" icon="trash" @click="doDelete">Delete</Button>
           </div>

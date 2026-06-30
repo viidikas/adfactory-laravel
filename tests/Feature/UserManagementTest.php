@@ -41,6 +41,17 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'newlead@test.com']);
     }
 
+    public function test_admin_can_create_a_legal_reviewer(): void
+    {
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.com', 'role' => 'admin']);
+
+        $this->withSession(['auth_user_id' => $admin->id])
+            ->postJson('/api/users', ['name' => 'Legal', 'email' => 'legal@test.com', 'role' => 'legal'])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('users', ['email' => 'legal@test.com', 'role' => 'legal']);
+    }
+
     public function test_admin_can_update_user(): void
     {
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@test.com', 'role' => 'admin']);

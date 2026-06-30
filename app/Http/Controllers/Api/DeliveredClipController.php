@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Copy;
 use App\Models\DeliveredClip;
+use App\Models\DeliveredClipReview;
 use App\Models\Market;
 use App\Models\Order;
 use Illuminate\Support\Collection;
@@ -43,7 +44,7 @@ class DeliveredClipController extends Controller
             return response()->json(['message' => 'You do not have access to this market.'], 403);
         }
 
-        $clips = DeliveredClip::with('uploadedBy')
+        $clips = DeliveredClip::with(['uploadedBy', 'reviewer'])
             ->where('market_id', $market->id)
             ->orderByDesc('created_at')
             ->get();
@@ -52,7 +53,11 @@ class DeliveredClipController extends Controller
         // back to its full text without an N+1.
         $copies = Copy::where('market_id', $market->id)->get();
 
-        return response()->json($clips->map(fn (DeliveredClip $c) => $this->present($c, $copies)));
+        // Admins see the full review trail (incl. decline reason); leads get only
+        // the review_status for their badge.
+        $forReviewer = $request->user()->role === 'admin';
+
+        return response()->json($clips->map(fn (DeliveredClip $c) => $this->present($c, $copies, $forReviewer)));
     }
 
     /**
@@ -89,7 +94,7 @@ class DeliveredClipController extends Controller
             return response()->json(['message' => $e->getMessage()], 500);
         }
 
-        return response()->json($this->present($clip->fresh('uploadedBy')), 201);
+        return response()->json($this->present($clip->fresh(['uploadedBy', 'reviewer']), null, true), 201);
     }
 
     /**
@@ -124,7 +129,7 @@ class DeliveredClipController extends Controller
                     $validated['order_id'] ?? null,
                     $request->user()->id,
                 );
-                $created[] = $this->present($clip->fresh('uploadedBy'));
+                $created[] = $this->present($clip->fresh(['uploadedBy', 'reviewer']), null, true);
             } catch (\Throwable $e) {
                 Log::warning('DeliveredClip batch: a file failed', [
                     'name' => $file->getClientOriginalName(),
@@ -208,7 +213,7 @@ class DeliveredClipController extends Controller
 
         $deliveredClip->update($validated);
 
-        return response()->json($this->present($deliveredClip->fresh('uploadedBy')));
+        return response()->json($this->present($deliveredClip->fresh(['uploadedBy', 'reviewer']), null, true));
     }
 
     /** Replace/set the poster frame with a manually uploaded image (admin). */
@@ -232,7 +237,72 @@ class DeliveredClipController extends Controller
         }
         $deliveredClip->update(['thumbnail_path' => $path]);
 
-        return response()->json($this->present($deliveredClip->fresh('uploadedBy')));
+        return response()->json($this->present($deliveredClip->fresh(['uploadedBy', 'reviewer']), null, true));
+    }
+
+    /**
+     * Replace a clip's VIDEO file (admin re-upload). This invalidates any prior
+     * legal decision: review_status is reset to pending, the reviewer/decision is
+     * cleared, and a reset_by_reupload audit row is written. A previously approved
+     * clip becomes NON-downloadable until re-approved. (Replacing only the
+     * THUMBNAIL — updateThumbnail — does NOT reset review.)
+     */
+    public function replaceFile(Request $request, DeliveredClip $deliveredClip)
+    {
+        $request->validate([
+            'file' => 'required|file|mimetypes:video/mp4,video/quicktime,video/webm|max:500000',
+        ], [
+            'file.mimetypes' => 'Only MP4, MOV or WEBM video files are allowed.',
+            'file.max' => 'The video may not be larger than 500 MB.',
+        ]);
+
+        $file = $request->file('file');
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'mp4');
+        $dir = "delivered/{$deliveredClip->market_id}";
+        $filename = Str::random(24).'.'.$ext;
+
+        $stored = $file->storeAs($dir, $filename, self::DISK);
+        $path = "{$dir}/{$filename}";
+        if ($stored === false || ! Storage::disk(self::DISK)->exists($path)) {
+            return response()->json(['message' => 'Storage write failed — check permissions on storage/app.'], 500);
+        }
+
+        $oldPath = $deliveredClip->file_path;
+        $oldThumb = $deliveredClip->thumbnail_path;
+
+        // Swap the file + reset the review gate. The new video has not been
+        // reviewed, so it is pending until legal approves it again.
+        $deliveredClip->update([
+            'file_path' => $path,
+            'file_size' => Storage::disk(self::DISK)->size($path),
+            'format' => $this->detectFormat(Storage::disk(self::DISK)->path($path), $deliveredClip->format),
+            'review_status' => DeliveredClip::STATUS_PENDING,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+            'decline_reason' => null,
+        ]);
+
+        // Drop the previous video file we owned.
+        if ($oldPath && $oldPath !== $path && Storage::disk(self::DISK)->exists($oldPath)) {
+            Storage::disk(self::DISK)->delete($oldPath);
+        }
+
+        // Refresh the poster from the new video (best-effort); keep the old one if
+        // generation fails so the card still has a thumbnail.
+        if ($thumb = $this->generateThumbnail($deliveredClip)) {
+            if ($oldThumb && Storage::disk(self::DISK)->exists($oldThumb)) {
+                Storage::disk(self::DISK)->delete($oldThumb);
+            }
+            $deliveredClip->update(['thumbnail_path' => $thumb]);
+        }
+
+        DeliveredClipReview::create([
+            'delivered_clip_id' => $deliveredClip->id,
+            'user_id' => $request->user()->id,
+            'action' => DeliveredClipReview::ACTION_RESET,
+        ]);
+
+        return response()->json($this->present($deliveredClip->fresh(['uploadedBy', 'reviewer']), null, true));
     }
 
     /** Delete the row and both files from disk (admin). */
@@ -249,12 +319,22 @@ class DeliveredClipController extends Controller
     }
 
     /**
-     * Stream the original file as an authenticated download. Any authenticated
-     * user may download, subject to market visibility. Streamed, not buffered.
+     * Stream the original file as an authenticated download.
+     *
+     * TWO-GATE MODEL — copy confirmation and legal clip review are independent by
+     * design: copy confirmation clears the TEXT for production; legal clip review
+     * clears the finished VIDEO for distribution, because motion/context can
+     * change the legal reading. A delivered clip is downloadable ONLY when its
+     * own review_status === approved. No path — admin action, market enable, copy
+     * confirmation, bulk op, API, or direct URL — bypasses this. The gate is
+     * enforced here, server-side, unconditionally (this block is the real gate,
+     * not the hidden button).
      */
     public function download(Request $request, DeliveredClip $deliveredClip)
     {
         $this->authorizeView($request, $deliveredClip);
+
+        abort_unless($deliveredClip->isApproved(), 403, 'This clip has not been approved for download.');
 
         abort_unless(Storage::disk(self::DISK)->exists($deliveredClip->file_path), 404, 'File not found.');
 
@@ -273,6 +353,14 @@ class DeliveredClipController extends Controller
     public function stream(Request $request, DeliveredClip $deliveredClip)
     {
         $this->authorizeView($request, $deliveredClip);
+
+        // Unapproved video is streamable only by its reviewers (legal) and admins
+        // — legal must watch a pending clip to decide. Leads can play a clip in
+        // the portal only once it is approved (the download gate applied to the
+        // in-app player too, so unapproved creative is never distributed).
+        if (! $deliveredClip->isApproved() && ! $this->isReviewerOrAdmin($request)) {
+            abort(403, 'This clip is awaiting legal review.');
+        }
 
         abort_unless(Storage::disk(self::DISK)->exists($deliveredClip->file_path), 404, 'File not found.');
 
@@ -311,6 +399,10 @@ class DeliveredClipController extends Controller
                 abort(403, 'You do not have access to one of these clips.');
             }
         }
+
+        // Two-gate rule applies to bulk too: only approved clips are ever zipped.
+        $clips = $clips->filter(fn (DeliveredClip $c) => $c->isApproved())->values();
+        abort_if($clips->isEmpty(), 404, 'No approved clips in this set.');
 
         $tmp = tempnam(sys_get_temp_dir(), 'dset').'.zip';
         $zip = new \ZipArchive();
@@ -360,6 +452,12 @@ class DeliveredClipController extends Controller
     {
         // Admins see every market; leads only active ones (copy-visibility rule).
         return $request->user()->role === 'admin' || $market->active;
+    }
+
+    /** Admins and legal reviewers may view unapproved video (manage / review). */
+    private function isReviewerOrAdmin(Request $request): bool
+    {
+        return in_array($request->user()->role ?? null, ['admin', 'legal'], true);
     }
 
     private function authorizeView(Request $request, DeliveredClip $clip): void
@@ -540,13 +638,18 @@ class DeliveredClipController extends Controller
         return strtolower(str_replace(' ', '_', trim($s)));
     }
 
-    /** @return array<string, mixed> */
-    private function present(DeliveredClip $c, ?Collection $copies = null): array
+    /**
+     * @param  bool  $forReviewer  When true (admin/legal views), include the full
+     *   review trail (reviewer, reviewed_at, decline_reason). Leads NEVER receive
+     *   the decline reason — only the review_status, for the badge.
+     * @return array<string, mixed>
+     */
+    private function present(DeliveredClip $c, ?Collection $copies = null, bool $forReviewer = false): array
     {
         $copies ??= Copy::where('market_id', $c->market_id)->get();
         $resolved = $this->resolveCopy($c, $copies);
 
-        return [
+        $out = [
             'id' => $c->id,
             'market_id' => $c->market_id,
             'name' => $c->name,
@@ -569,6 +672,17 @@ class DeliveredClipController extends Controller
             'download_url' => "/api/delivered-clips/{$c->id}/download",
             'uploaded_by' => optional($c->uploadedBy)->name,
             'created_at' => optional($c->created_at)->toIso8601String(),
+            // Status is always exposed (drives the lead-facing badge + the gate).
+            'review_status' => $c->review_status,
         ];
+
+        if ($forReviewer) {
+            // Reviewer/admin only — the decline reason is never sent to leads.
+            $out['reviewer'] = optional($c->reviewer)->name;
+            $out['reviewed_at'] = optional($c->reviewed_at)->toIso8601String();
+            $out['decline_reason'] = $c->decline_reason;
+        }
+
+        return $out;
     }
 }
