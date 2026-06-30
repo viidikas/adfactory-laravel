@@ -4,7 +4,7 @@ import AppLayout from '../../Layouts/AppLayout.vue';
 import Card from '../../Components/Card.vue';
 import Button from '../../Components/Button.vue';
 import Tag from '../../Components/Tag.vue';
-import Drawer from '../../Components/Drawer.vue';
+import IconButton from '../../Components/IconButton.vue';
 import SectionLabel from '../../Components/SectionLabel.vue';
 import StatusPill from '../../Components/StatusPill.vue';
 import EmptyState from '../../Components/EmptyState.vue';
@@ -157,45 +157,62 @@ async function decline(c) {
       </template>
     </div>
 
-    <!-- Review drawer: watch, then decide -->
-    <Drawer :open="!!reviewing" :title="reviewing ? (reviewing.name || 'Clip') : ''" :width="540" @close="reviewing = null">
-      <div v-if="reviewing">
-        <video :src="reviewing.stream_url" controls autoplay preload="metadata" :poster="reviewing.thumbnail_url || undefined"
-          :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '58vh' }" />
-
-        <SectionLabel :style="{ marginTop: '18px' }">Details</SectionLabel>
-        <div :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: '13px' }">
-          <span :style="{ color: 'var(--text-3)' }">Market</span><span>{{ reviewing.market?.code }} · {{ reviewing.market?.name }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Format</span><span>{{ reviewing.format || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Slate · Actor</span><span>{{ [reviewing.slate, reviewing.actor].filter(Boolean).join(' · ') || '—' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Design · Lang</span><span>{{ [reviewing.design, reviewing.lang].filter(Boolean).join(' · ') || '—' }}</span>
-          <span v-if="reviewing.copy" :style="{ color: 'var(--text-3)' }">Copy</span><span v-if="reviewing.copy">{{ reviewing.copy }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(reviewing.created_at) }}{{ reviewing.uploaded_by ? ' · ' + reviewing.uploaded_by : '' }}</span>
-          <span :style="{ color: 'var(--text-3)' }">Status</span><span>{{ reviewing.review_status }}{{ reviewing.reviewer ? ' · ' + reviewing.reviewer : '' }}{{ reviewing.reviewed_at ? ' · ' + fmtDate(reviewing.reviewed_at) : '' }}</span>
-        </div>
-        <div v-if="reviewing.decline_reason" :style="{ marginTop: '10px', padding: '10px 12px', background: 'var(--danger-soft)', color: 'var(--danger)', borderRadius: '10px', fontSize: '13px' }">
-          Previous decline reason: {{ reviewing.decline_reason }}
+    <!-- Review modal: centered, video on the left, data + decision on the right. -->
+    <div v-if="reviewing" @click="reviewing = null" :style="{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.7)', display: 'grid', placeItems: 'center', padding: '28px' }">
+      <div @click.stop :style="{ width: 'min(1080px, 95vw)', maxHeight: '90vh', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '16px', boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }">
+        <!-- header -->
+        <div :style="{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', padding: '16px 20px', borderBottom: '1px solid var(--border)' }">
+          <div :style="{ minWidth: 0 }">
+            <div :style="{ fontSize: '16px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="reviewing.name">{{ reviewing.name }}</div>
+            <div :style="{ fontSize: '12.5px', color: 'var(--text-3)' }">{{ reviewing.market?.code }} · {{ reviewing.market?.name }}</div>
+          </div>
+          <IconButton name="x" @click="reviewing = null" />
         </div>
 
-        <template v-if="declineMode">
-          <SectionLabel :style="{ marginTop: '18px' }">Reason for declining (required)</SectionLabel>
-          <textarea v-model="declineReason" rows="3" placeholder="Why is this clip declined?"
-            :style="{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '13.5px', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }" />
-        </template>
+        <!-- body: video left, data + inputs right -->
+        <div :style="{ display: 'flex', gap: '20px', padding: '20px', overflowY: 'auto', flexWrap: 'wrap' }">
+          <div :style="{ flex: '1 1 460px', minWidth: '300px' }">
+            <video :src="reviewing.stream_url" controls autoplay preload="metadata" :poster="reviewing.thumbnail_url || undefined"
+              :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '72vh' }" />
+          </div>
+
+          <div :style="{ flex: '1 1 320px', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '14px' }">
+            <div>
+              <SectionLabel>Details</SectionLabel>
+              <div :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: '13px' }">
+                <span :style="{ color: 'var(--text-3)' }">Format</span><span>{{ reviewing.format || '—' }}</span>
+                <span :style="{ color: 'var(--text-3)' }">Slate · Actor</span><span>{{ [reviewing.slate, reviewing.actor].filter(Boolean).join(' · ') || '—' }}</span>
+                <span :style="{ color: 'var(--text-3)' }">Design · Lang</span><span>{{ [reviewing.design, reviewing.lang].filter(Boolean).join(' · ') || '—' }}</span>
+                <template v-if="reviewing.copy"><span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ reviewing.copy }}</span></template>
+                <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(reviewing.created_at) }}{{ reviewing.uploaded_by ? ' · ' + reviewing.uploaded_by : '' }}</span>
+                <span :style="{ color: 'var(--text-3)' }">Status</span><span>{{ reviewing.review_status }}{{ reviewing.reviewer ? ' · ' + reviewing.reviewer : '' }}{{ reviewing.reviewed_at ? ' · ' + fmtDate(reviewing.reviewed_at) : '' }}</span>
+              </div>
+            </div>
+
+            <div v-if="reviewing.decline_reason" :style="{ padding: '10px 12px', background: 'var(--danger-soft)', color: 'var(--danger)', borderRadius: '10px', fontSize: '13px' }">
+              Previous decline reason: {{ reviewing.decline_reason }}
+            </div>
+
+            <div v-if="declineMode">
+              <SectionLabel>Reason for declining (required)</SectionLabel>
+              <textarea v-model="declineReason" rows="4" placeholder="Why is this clip declined?"
+                :style="{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '13.5px', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }" />
+            </div>
+
+            <div :style="{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '6px' }">
+              <template v-if="!declineMode">
+                <Button variant="danger" icon="x" :disabled="busy" @click="declineMode = true">Decline</Button>
+                <Button full icon="check_circle" :disabled="busy" @click="approve(reviewing)">{{ busy ? 'Saving…' : 'Approve' }}</Button>
+              </template>
+              <template v-else>
+                <Button variant="ghost" :disabled="busy" @click="declineMode = false">Cancel</Button>
+                <Button full variant="danger" icon="x" :disabled="busy || !declineReason.trim()" @click="decline(reviewing)">{{ busy ? 'Saving…' : 'Confirm decline' }}</Button>
+              </template>
+            </div>
+          </div>
+        </div>
       </div>
-      <template #footer>
-        <div v-if="reviewing" :style="{ display: 'flex', gap: '8px', width: '100%' }">
-          <template v-if="!declineMode">
-            <Button variant="danger" icon="x" :disabled="busy" @click="declineMode = true">Decline</Button>
-            <Button full icon="check_circle" :disabled="busy" @click="approve(reviewing)">{{ busy ? 'Saving…' : 'Approve' }}</Button>
-          </template>
-          <template v-else>
-            <Button variant="ghost" :disabled="busy" @click="declineMode = false">Cancel</Button>
-            <Button full variant="danger" icon="x" :disabled="busy || !declineReason.trim()" @click="decline(reviewing)">{{ busy ? 'Saving…' : 'Confirm decline' }}</Button>
-          </template>
-        </div>
-      </template>
-    </Drawer>
+    </div>
 
     <div v-if="toast" :style="{ position: 'fixed', bottom: '28px', left: '50%', transform: 'translateX(-50%)', zIndex: 80, display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 20px', borderRadius: '14px', background: 'var(--surface-1)', border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-pop)', fontSize: '14px', fontWeight: 600 }">
       <Icon name="check_circle" :size="18" :style="{ color: 'var(--accent)' }" /> {{ toast }}
