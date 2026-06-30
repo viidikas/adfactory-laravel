@@ -2,6 +2,7 @@
    Preflight (global reset) is disabled in tailwind.config.js; the design's
    own reset is scoped under `.af-app` in theme.css so the legacy pages are
    untouched. */
+@import './fonts.css';
 @import './theme.css';
 
 @tailwind base;
