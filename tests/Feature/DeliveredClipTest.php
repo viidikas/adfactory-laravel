@@ -407,15 +407,18 @@ class DeliveredClipTest extends TestCase
 
     // ── Decline reason visibility (hidden from leads) ───────────────
 
-    public function test_decline_reason_hidden_from_leads_visible_to_admin(): void
+    public function test_decline_reason_visible_to_leads_and_admin(): void
     {
         Storage::fake('local');
         $market = $this->market(['code' => 'FI', 'active' => true]);
-        $this->makeClip($market, ['review_status' => 'declined', 'decline_reason' => 'Misleading APR']);
+        $legal = $this->legal(['name' => 'Reviewer Rita']);
+        $this->makeClip($market, ['review_status' => 'declined', 'decline_reason' => 'Misleading APR', 'reviewed_by' => $legal->id]);
 
+        // Leads may open a declined clip to see who reviewed it and why.
         $leadClip = collect($this->asUser($this->lead())->getJson('/api/delivered-clips?market_id='.$market->id)->json())->first();
         $this->assertSame('declined', $leadClip['review_status']);
-        $this->assertArrayNotHasKey('decline_reason', $leadClip, 'leads never receive the decline reason');
+        $this->assertSame('Misleading APR', $leadClip['decline_reason']);
+        $this->assertSame('Reviewer Rita', $leadClip['reviewer']);
 
         $adminClip = collect($this->asUser($this->admin())->getJson('/api/delivered-clips?market_id='.$market->id)->json())->first();
         $this->assertSame('Misleading APR', $adminClip['decline_reason']);
