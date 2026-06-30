@@ -79,13 +79,13 @@ onMounted(() => { if (props.step === 'code') nextTick(() => inputs.value[0]?.foc
       <BrandLockup />
       <div :style="{ position: 'relative', zIndex: 2, maxWidth: '460px' }">
         <div :style="{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '999px', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: '12.5px', fontWeight: 700, marginBottom: '24px' }">
-          <Icon name="zap" :size="14" fill="currentColor" :stroke="0" /> Video ad production, in-house
+          <Icon name="zap" :size="14" fill="currentColor" :stroke="0" /> Creditstar growth portal
         </div>
         <h1 :style="{ fontSize: '44px', lineHeight: 1.05, letterSpacing: '-0.03em', fontWeight: 800, margin: '0 0 18px' }">
-          Ship on-brand video ads <span :style="{ color: 'var(--accent)' }">at the speed of growth.</span>
+          On-brand video ads for your market, <span :style="{ color: 'var(--accent)' }">made to order.</span>
         </h1>
         <p :style="{ fontSize: '16.5px', color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }">
-          Build clip libraries, map localized copy, and generate Templater-ready exports — across every Creditstar brand and market.
+          Pick an approved message, choose your clips and designs, and submit. The production team delivers the finished, localized videos for your market — ready to download and publish.
         </p>
       </div>
       <div :style="{ position: 'relative', zIndex: 2, fontSize: '12.5px', color: 'var(--text-3)' }">Creditstar · Monefit</div>
