@@ -672,16 +672,15 @@ class DeliveredClipController extends Controller
             'download_url' => "/api/delivered-clips/{$c->id}/download",
             'uploaded_by' => optional($c->uploadedBy)->name,
             'created_at' => optional($c->created_at)->toIso8601String(),
-            // Status is always exposed (drives the lead-facing badge + the gate).
+            // Status + review trail are exposed to everyone (incl. leads): the
+            // status drives the badge + download gate, and leads may open a clip
+            // to see who reviewed it and why it was declined. ($forReviewer is
+            // retained for call-site compatibility; nothing is hidden now.)
             'review_status' => $c->review_status,
+            'reviewer' => optional($c->reviewer)->name,
+            'reviewed_at' => optional($c->reviewed_at)->toIso8601String(),
+            'decline_reason' => $c->decline_reason,
         ];
-
-        if ($forReviewer) {
-            // Reviewer/admin only — the decline reason is never sent to leads.
-            $out['reviewer'] = optional($c->reviewer)->name;
-            $out['reviewed_at'] = optional($c->reviewed_at)->toIso8601String();
-            $out['decline_reason'] = $c->decline_reason;
-        }
 
         return $out;
     }
