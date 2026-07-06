@@ -334,13 +334,16 @@ const sortOptions = [
             </div>
 
             <div :style="{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '6px' }">
-              <template v-if="!declineMode">
-                <Button variant="danger" icon="x" :disabled="busy" @click="declineMode = true">Decline</Button>
-                <Button full icon="check_circle" :disabled="busy" @click="approve(reviewing)">{{ busy ? 'Saving…' : 'Approve' }}</Button>
+              <template v-if="declineMode">
+                <Button variant="ghost" :disabled="busy" @click="declineMode = false">Cancel</Button>
+                <Button full variant="danger" icon="x" :disabled="busy || !declineReason.trim()" @click="decline(reviewing)">{{ busy ? 'Saving…' : (reviewing.review_status === 'declined' ? 'Save reason' : 'Confirm decline') }}</Button>
               </template>
               <template v-else>
-                <Button variant="ghost" :disabled="busy" @click="declineMode = false">Cancel</Button>
-                <Button full variant="danger" icon="x" :disabled="busy || !declineReason.trim()" @click="decline(reviewing)">{{ busy ? 'Saving…' : 'Confirm decline' }}</Button>
+                <!-- Decline only when not already declined; Edit reason for a declined clip. -->
+                <Button v-if="reviewing.review_status !== 'declined'" variant="danger" icon="x" :disabled="busy" @click="declineMode = true; declineReason = ''">Decline</Button>
+                <Button v-else variant="ghost" icon="edit" :disabled="busy" @click="declineMode = true; declineReason = reviewing.decline_reason || ''">Edit reason</Button>
+                <!-- Approve unless it's already approved. -->
+                <Button v-if="reviewing.review_status !== 'approved'" full icon="check_circle" :disabled="busy" @click="approve(reviewing)">{{ busy ? 'Saving…' : 'Approve' }}</Button>
               </template>
             </div>
           </div>
