@@ -526,4 +526,115 @@ class DeliveredClipTest extends TestCase
         $this->assertSame(2, $keys->filter(fn ($k) => $k === 'Creditstar_FI_Msg_PU8_Kemal_design1')->count());
         $this->assertSame(1, $keys->filter(fn ($k) => $k === 'Creditstar_FI_Msg_PU8_Kemal_design2')->count());
     }
+
+    // ── Lead-editable ad copy ───────────────────────────────────────
+
+    public function test_lead_edits_ad_copy_in_visible_market_not_invisible(): void
+    {
+        $active = $this->market(['code' => 'FI', 'active' => true]);
+        $clip = $this->makeClip($active, ['review_status' => 'pending']);
+
+        $this->asUser($this->lead())
+            ->putJson("/api/delivered-clips/{$clip->id}/ad-copy", ['ad_title' => 'Buy now', 'ad_description' => 'Great deal'])
+            ->assertOk()->assertJsonPath('ad_title', 'Buy now')->assertJsonPath('ad_description', 'Great deal');
+        $this->assertSame('Buy now', $clip->fresh()->ad_title);
+
+        $hidden = $this->market(['code' => 'NO', 'active' => false]);
+        $hiddenClip = $this->makeClip($hidden);
+        $this->asUser($this->lead())->putJson("/api/delivered-clips/{$hiddenClip->id}/ad-copy", ['ad_title' => 'x'])->assertStatus(403);
+    }
+
+    public function test_ad_copy_endpoint_ignores_other_fields(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $clip = $this->makeClip($m, ['name' => 'Original', 'format' => '16:9', 'review_status' => 'pending']);
+
+        $this->asUser($this->lead())->putJson("/api/delivered-clips/{$clip->id}/ad-copy", [
+            'ad_title' => 'T', 'name' => 'Hacked', 'format' => '9:16', 'review_status' => 'approved',
+        ])->assertOk();
+
+        $clip->refresh();
+        $this->assertSame('T', $clip->ad_title);
+        $this->assertSame('Original', $clip->name);
+        $this->assertSame('16:9', $clip->format);
+        $this->assertSame('pending', $clip->review_status, 'the ad-copy endpoint cannot flip review_status');
+    }
+
+    public function test_editing_approved_ad_copy_resets_to_pending_with_audit_and_blocks_download(): void
+    {
+        Storage::fake('local');
+        $m = $this->market(['code' => 'FI', 'active' => true]);
+        Storage::disk('local')->put("delivered/{$m->id}/clip.mp4", 'VIDEO');
+        $clip = $this->makeClip($m, ['review_status' => 'approved', 'reviewed_by' => $this->legal()->id, 'reviewed_at' => now(), 'ad_title' => 'Old']);
+
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertOk();
+
+        // Direct API call (no pop-up) — the reset is enforced server-side.
+        $lead = $this->lead();
+        $this->asUser($lead)->putJson("/api/delivered-clips/{$clip->id}/ad-copy", ['ad_title' => 'New'])->assertOk();
+
+        $clip->refresh();
+        $this->assertSame('pending', $clip->review_status);
+        $this->assertNull($clip->reviewed_by);
+        $this->assertNull($clip->reviewed_at);
+        $this->assertDatabaseHas('delivered_clip_reviews', [
+            'delivered_clip_id' => $clip->id, 'user_id' => $lead->id, 'action' => 'reset_by_copy_edit',
+        ]);
+        $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertStatus(403);
+    }
+
+    public function test_unchanged_ad_copy_does_not_reset_review(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $clip = $this->makeClip($m, ['review_status' => 'approved', 'ad_title' => 'Same', 'ad_description' => 'Desc']);
+
+        $this->asUser($this->lead())->putJson("/api/delivered-clips/{$clip->id}/ad-copy", ['ad_title' => 'Same', 'ad_description' => 'Desc'])->assertOk();
+
+        $this->assertSame('approved', $clip->fresh()->review_status);
+        $this->assertDatabaseCount('delivered_clip_reviews', 0);
+    }
+
+    public function test_admin_update_edits_full_fields_and_resets_on_ad_copy_change(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $admin = $this->admin();
+
+        $clip = $this->makeClip($m, ['name' => 'N', 'review_status' => 'approved', 'ad_title' => 'Old']);
+        $this->asUser($admin)->putJson("/api/delivered-clips/{$clip->id}", ['name' => 'N2', 'ad_title' => 'NewTitle'])->assertOk();
+        $clip->refresh();
+        $this->assertSame('N2', $clip->name);
+        $this->assertSame('NewTitle', $clip->ad_title);
+        $this->assertSame('pending', $clip->review_status);
+        $this->assertDatabaseHas('delivered_clip_reviews', ['delivered_clip_id' => $clip->id, 'action' => 'reset_by_copy_edit']);
+
+        // Renaming only (no ad-copy change) does NOT reset an approved clip.
+        $other = $this->makeClip($m, ['review_status' => 'approved', 'ad_title' => 'Keep']);
+        $this->asUser($admin)->putJson("/api/delivered-clips/{$other->id}", ['name' => 'Renamed'])->assertOk();
+        $this->assertSame('approved', $other->fresh()->review_status);
+    }
+
+    public function test_upload_accepts_ad_copy_and_payload_includes_it(): void
+    {
+        Storage::fake('local');
+        $m = $this->market(['code' => 'FI', 'active' => true]);
+
+        $this->asUser($this->admin())->post('/api/delivered-clips/batch', [
+            'market_id' => $m->id,
+            'ad_title' => 'Batch title',
+            'ad_description' => 'Batch desc',
+            'files' => [
+                UploadedFile::fake()->create('a.mp4', 256, 'video/mp4'),
+                UploadedFile::fake()->create('b.mp4', 256, 'video/mp4'),
+            ],
+        ])->assertStatus(201);
+
+        foreach (DeliveredClip::all() as $c) {
+            $this->assertSame('Batch title', $c->ad_title);
+            $this->assertSame('Batch desc', $c->ad_description);
+        }
+
+        $row = collect($this->asUser($this->lead())->getJson('/api/delivered-clips?market_id='.$m->id)->json())->first();
+        $this->assertSame('Batch title', $row['ad_title']);
+        $this->assertArrayHasKey('ad_description', $row);
+    }
 }

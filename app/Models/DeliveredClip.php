@@ -34,6 +34,8 @@ class DeliveredClip extends Model
         'reviewed_by',
         'reviewed_at',
         'decline_reason',
+        'ad_title',
+        'ad_description',
     ];
 
     protected $attributes = [
