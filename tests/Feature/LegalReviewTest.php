@@ -251,4 +251,43 @@ class LegalReviewTest extends TestCase
         // …now downloadable.
         $this->asUser($this->lead())->get("/api/delivered-clips/{$clip->id}/download")->assertOk();
     }
+
+    // ── Three states + batch/creative filtering ─────────────────────
+
+    public function test_index_serves_pending_approved_declined_distinctly_with_counts(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $this->makeClip($m, ['name' => 'p', 'review_status' => 'pending']);
+        $this->makeClip($m, ['name' => 'a', 'review_status' => 'approved']);
+        $this->makeClip($m, ['name' => 'd', 'review_status' => 'declined', 'decline_reason' => 'x']);
+        $u = $this->legal();
+
+        $p = $this->asUser($u)->getJson('/api/legal/delivered-clips?status=pending')->assertOk()->json();
+        $this->assertSame(['p'], collect($p['data'])->pluck('name')->all());
+        $this->assertSame(['a'], collect($this->asUser($u)->getJson('/api/legal/delivered-clips?status=approved')->json('data'))->pluck('name')->all());
+        $this->assertSame(['d'], collect($this->asUser($u)->getJson('/api/legal/delivered-clips?status=declined')->json('data'))->pluck('name')->all());
+
+        $this->assertSame(['pending' => 1, 'approved' => 1, 'declined' => 1], $p['counts']);
+    }
+
+    public function test_creative_and_batch_filters_return_matching_and_combine(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $a16 = $this->makeClip($m, ['name' => 'A16', 'creative_key' => 'creativeA', 'upload_batch_id' => 'batch-1', 'format' => '16:9']);
+        $a9 = $this->makeClip($m, ['name' => 'A9', 'creative_key' => 'creativeA', 'upload_batch_id' => 'batch-1', 'format' => '9:16']);
+        $b16 = $this->makeClip($m, ['name' => 'B16', 'creative_key' => 'creativeB', 'upload_batch_id' => 'batch-2', 'format' => '16:9']);
+        $u = $this->legal();
+
+        $byCreative = $this->asUser($u)->getJson('/api/legal/delivered-clips?status=pending&creative=creativeA')->assertOk()->json();
+        $this->assertEqualsCanonicalizing([$a16->id, $a9->id], collect($byCreative['data'])->pluck('id')->all());
+        // Option lists come from the full status set, not the filtered rows.
+        $this->assertEqualsCanonicalizing(['creativeA', 'creativeB'], $byCreative['filters']['creatives']);
+
+        $byBatch = $this->asUser($u)->getJson('/api/legal/delivered-clips?status=pending&batch=batch-2')->json();
+        $this->assertSame([$b16->id], collect($byBatch['data'])->pluck('id')->all());
+
+        // Combine creative + format (AND).
+        $combined = $this->asUser($u)->getJson('/api/legal/delivered-clips?status=pending&creative=creativeA&format=9:16')->json();
+        $this->assertSame([$a9->id], collect($combined['data'])->pluck('id')->all());
+    }
 }

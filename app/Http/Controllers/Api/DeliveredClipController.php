@@ -119,6 +119,8 @@ class DeliveredClipController extends Controller
             return response()->json(['message' => 'That order does not belong to this market.'], 422);
         }
 
+        // One batch id shared by every clip created in this storeBatch() call.
+        $batchId = (string) Str::uuid();
         $created = [];
         $errors = [];
         foreach ($request->file('files') as $file) {
@@ -128,6 +130,9 @@ class DeliveredClipController extends Controller
                     (int) $validated['market_id'],
                     $validated['order_id'] ?? null,
                     $request->user()->id,
+                    null,
+                    null,
+                    $batchId,
                 );
                 $created[] = $this->present($clip->fresh(['uploadedBy', 'reviewer']), null, true);
             } catch (\Throwable $e) {
@@ -154,9 +159,11 @@ class DeliveredClipController extends Controller
         ?int $userId,
         ?string $nameOverride = null,
         ?string $formatOverride = null,
+        ?string $uploadBatchId = null,
     ): DeliveredClip {
         $originalNoExt = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $meta = DeliveredClip::parseFilename($originalNoExt);
+        $name = $nameOverride ?: ($originalNoExt ?: 'Clip');
 
         $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'mp4');
         $dir = "delivered/{$marketId}";
@@ -175,7 +182,7 @@ class DeliveredClipController extends Controller
 
         $clip = DeliveredClip::create([
             'market_id' => $marketId,
-            'name' => $nameOverride ?: ($originalNoExt ?: 'Clip'),
+            'name' => $name,
             'brand' => $meta['brand'],
             'lang' => $meta['lang'],
             'slate' => $meta['slate'],
@@ -187,6 +194,8 @@ class DeliveredClipController extends Controller
             'format' => $format,
             'order_id' => $orderId ?: null,
             'uploaded_by' => $userId,
+            'upload_batch_id' => $uploadBatchId,
+            'creative_key' => DeliveredClip::creativeKey($name),
         ]);
 
         // Best-effort poster frame — never fail the upload if ffmpeg is missing.
