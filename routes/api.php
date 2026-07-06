@@ -63,6 +63,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/delivered-clips/{deliveredClip}/download', [DeliveredClipController::class, 'download']);
     Route::get('/delivered-clips/{deliveredClip}/stream', [DeliveredClipController::class, 'stream']);
     Route::get('/delivered-clips/{deliveredClip}/thumbnail', [DeliveredClipController::class, 'thumbnail']);
+    // Lead-safe: edit ONLY ad_title/ad_description (market-scoped). Editing an
+    // approved/declined clip's copy resets it to pending (enforced in controller).
+    Route::put('/delivered-clips/{deliveredClip}/ad-copy', [DeliveredClipController::class, 'updateAdCopy']);
 
     // Admin-only routes — restricted to super admins (the AD.FACTORY panel).
     Route::middleware('superadmin')->group(function () {

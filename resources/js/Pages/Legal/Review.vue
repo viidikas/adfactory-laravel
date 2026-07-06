@@ -318,6 +318,8 @@ const sortOptions = [
                 <span :style="{ color: 'var(--text-3)' }">Design · Lang</span><span>{{ [reviewing.design, reviewing.lang].filter(Boolean).join(' · ') || '—' }}</span>
                 <template v-if="reviewing.creative_key"><span :style="{ color: 'var(--text-3)' }">Creative</span><span :style="{ fontFamily: 'var(--font-mono, ui-monospace, monospace)', fontSize: '12px' }">{{ reviewing.creative_key }}</span></template>
                 <template v-if="reviewing.copy_full || reviewing.copy"><span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ reviewing.copy_full || reviewing.copy }}</span></template>
+                <span :style="{ color: 'var(--text-3)' }">Ad title</span><span :style="{ color: reviewing.ad_title ? 'var(--text-1)' : 'var(--text-3)' }">{{ reviewing.ad_title || '— none provided —' }}</span>
+                <span :style="{ color: 'var(--text-3)' }">Ad description</span><span :style="{ whiteSpace: 'pre-wrap', color: reviewing.ad_description ? 'var(--text-1)' : 'var(--text-3)' }">{{ reviewing.ad_description || '— none provided —' }}</span>
                 <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(reviewing.created_at) }}{{ reviewing.uploaded_by ? ' · ' + reviewing.uploaded_by : '' }}</span>
                 <span :style="{ color: 'var(--text-3)' }">Status</span><span>{{ reviewing.review_status }}{{ reviewing.reviewer ? ' · ' + reviewing.reviewer : '' }}{{ reviewing.reviewed_at ? ' · ' + fmtDate(reviewing.reviewed_at) : '' }}</span>
               </div>

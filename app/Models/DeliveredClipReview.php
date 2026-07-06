@@ -14,6 +14,7 @@ class DeliveredClipReview extends Model
     public const ACTION_APPROVED = 'approved';
     public const ACTION_DECLINED = 'declined';
     public const ACTION_RESET = 'reset_by_reupload';
+    public const ACTION_RESET_BY_COPY_EDIT = 'reset_by_copy_edit';
 
     protected $fillable = [
         'delivered_clip_id',

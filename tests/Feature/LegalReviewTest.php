@@ -290,4 +290,14 @@ class LegalReviewTest extends TestCase
         $combined = $this->asUser($u)->getJson('/api/legal/delivered-clips?status=pending&creative=creativeA&format=9:16')->json();
         $this->assertSame([$a9->id], collect($combined['data'])->pluck('id')->all());
     }
+
+    public function test_legal_present_includes_ad_copy(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $this->makeClip($m, ['review_status' => 'pending', 'ad_title' => 'AT', 'ad_description' => 'AD']);
+
+        $row = collect($this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=pending')->json('data'))->first();
+        $this->assertSame('AT', $row['ad_title']);
+        $this->assertSame('AD', $row['ad_description']);
+    }
 }

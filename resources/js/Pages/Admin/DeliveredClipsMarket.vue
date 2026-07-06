@@ -6,6 +6,7 @@ import Card from '../../Components/Card.vue';
 import Button from '../../Components/Button.vue';
 import Field from '../../Components/Field.vue';
 import Select from '../../Components/Select.vue';
+import Input from '../../Components/Input.vue';
 import Icon from '../../Components/Icon.vue';
 import DeliveredClipsBrowser from '../../Components/DeliveredClipsBrowser.vue';
 import { api, upload } from '../../lib/api.js';
@@ -25,6 +26,8 @@ const toast = ref('');
 
 // batch upload
 const orderId = ref('');
+const adTitle = ref('');
+const adDescription = ref('');
 const files = ref([]);
 const fileInput = ref(null);
 const uploading = ref(false);
@@ -65,12 +68,16 @@ async function uploadBatch() {
     const fd = new FormData();
     fd.append('market_id', market.value.id);
     if (orderId.value) fd.append('order_id', orderId.value);
+    if (adTitle.value.trim()) fd.append('ad_title', adTitle.value.trim());
+    if (adDescription.value.trim()) fd.append('ad_description', adDescription.value.trim());
     files.value.forEach((f) => fd.append('files[]', f));
     const res = await upload('/api/delivered-clips/batch', fd);
     const created = res?.clips || [];
     clips.value = [...created, ...clips.value];
     clearFiles();
     orderId.value = '';
+    adTitle.value = '';
+    adDescription.value = '';
     const failed = res?.errors?.length || 0;
     flash(`Uploaded ${created.length} clip${created.length === 1 ? '' : 's'}` + (failed ? ` · ${failed} failed` : '. Format & metadata read from each file.'));
   } catch (e) {
@@ -161,6 +168,17 @@ async function onDelete(clip) {
             </div>
             <input ref="fileInput" type="file" multiple accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" @change="onFiles"
               :style="{ fontSize: '13px', color: 'var(--text-2)', flex: '1 1 260px' }" />
+          </div>
+
+          <div :style="{ display: 'flex', gap: '12px', alignItems: 'start', flexWrap: 'wrap', marginTop: '12px' }">
+            <div :style="{ flex: '1 1 240px', minWidth: '200px' }">
+              <Field label="Ad title (optional, applies to the whole batch)"><Input v-model="adTitle" placeholder="Ad title…" /></Field>
+            </div>
+            <div :style="{ flex: '2 1 320px', minWidth: '220px' }">
+              <Field label="Ad description (optional)">
+                <textarea v-model="adDescription" rows="2" placeholder="Ad description…" :style="{ width: '100%', padding: '9px 12px', borderRadius: 'var(--r-input)', background: 'var(--surface-1)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }" />
+              </Field>
+            </div>
           </div>
 
           <div v-if="files.length" :style="{ marginTop: '12px', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: '10px', fontSize: '12.5px', color: 'var(--text-2)' }">

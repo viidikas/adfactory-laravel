@@ -3,11 +3,13 @@ import { ref, computed, watch } from 'vue';
 import Card from './Card.vue';
 import Button from './Button.vue';
 import Select from './Select.vue';
+import Input from './Input.vue';
 import Tag from './Tag.vue';
 import Drawer from './Drawer.vue';
 import SectionLabel from './SectionLabel.vue';
 import EmptyState from './EmptyState.vue';
 import Icon from './Icon.vue';
+import { api } from '../lib/api.js';
 
 const props = defineProps({
   clips: { type: Array, default: () => [] },
@@ -167,9 +169,41 @@ function play(c) {
   // player stays gated below: unapproved video is never streamed to leads).
   playing.value = c;
   editingName.value = false;
+  adTitle.value = c.ad_title || '';
+  adDescription.value = c.ad_description || '';
 }
 function startRename() { editName.value = playing.value?.name || ''; editingName.value = true; }
 function doReplaceFile() { if (playing.value) emit('replace-file', playing.value); }
+
+// ── Ad copy (lead-editable; owners of the ad wording) ────────────
+const adTitle = ref('');
+const adDescription = ref('');
+const adSaving = ref(false);
+const adCopyDirty = computed(() => {
+  const c = playing.value;
+  if (!c) return false;
+  return adTitle.value !== (c.ad_title || '') || adDescription.value !== (c.ad_description || '');
+});
+async function saveAdCopy() {
+  const c = playing.value;
+  if (!c || !adCopyDirty.value) return;
+  // An approved clip loses approval + goes back to legal on any copy change.
+  if (c.review_status === 'approved'
+    && !window.confirm('This clip is approved by legal. Changing the title or description will remove its approval and send it back to legal for review before it can be downloaded again. Continue?')) {
+    return;
+  }
+  adSaving.value = true;
+  try {
+    const updated = await api.put(`/api/delivered-clips/${c.id}/ad-copy`, { ad_title: adTitle.value, ad_description: adDescription.value });
+    Object.assign(c, updated); // status may flip to pending → gate + badge update
+    adTitle.value = c.ad_title || '';
+    adDescription.value = c.ad_description || '';
+  } catch (e) {
+    alert(e.message || 'Could not save the ad copy.');
+  } finally {
+    adSaving.value = false;
+  }
+}
 
 // Drawer detail rows. Leads see a publish-oriented set (message + delivery
 // specs), message first; the production internals (slate/actor/design, uploader)
@@ -346,6 +380,18 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
             <span :style="{ color: 'var(--text-3)' }">Decline reason</span><span :style="{ color: 'var(--danger)' }">{{ playing.decline_reason }}</span>
           </template>
         </div>
+
+        <!-- Ad copy — editable by leads (they own the ad wording). -->
+        <SectionLabel :style="{ marginTop: '18px' }">Ad copy</SectionLabel>
+        <div :style="{ fontSize: '12px', color: 'var(--text-3)', marginBottom: '4px' }">Title</div>
+        <Input v-model="adTitle" placeholder="Ad title…" />
+        <div :style="{ fontSize: '12px', color: 'var(--text-3)', margin: '10px 0 4px' }">Description</div>
+        <textarea v-model="adDescription" rows="4" placeholder="Ad description…"
+          :style="{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '13.5px', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }" />
+        <div v-if="playing.review_status === 'approved'" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '6px' }">
+          Editing this sends the clip back to legal review.
+        </div>
+        <Button :disabled="!adCopyDirty || adSaving" icon="check_circle" :style="{ marginTop: '10px' }" @click="saveAdCopy">{{ adSaving ? 'Saving…' : 'Save ad copy' }}</Button>
       </div>
       <template #footer>
         <div v-if="playing" :style="{ display: 'flex', flexDirection: 'column', gap: '8px' }">

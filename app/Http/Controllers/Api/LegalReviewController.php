@@ -299,6 +299,8 @@ class LegalReviewController extends Controller
             'category' => $category,
             'copy' => $c->copy,
             'copy_full' => $copyFull,
+            'ad_title' => $c->ad_title,
+            'ad_description' => $c->ad_description,
             'upload_batch_id' => $c->upload_batch_id,
             'creative_key' => $c->creative_key,
             'file_size' => (int) $c->file_size,

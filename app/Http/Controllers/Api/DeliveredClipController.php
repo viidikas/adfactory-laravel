@@ -72,6 +72,8 @@ class DeliveredClipController extends Controller
             'file' => 'required|file|mimetypes:video/mp4,video/quicktime,video/webm|max:500000',
             'format' => 'nullable|in:'.implode(',', self::FORMATS),
             'order_id' => 'nullable|string|exists:orders,id',
+            'ad_title' => 'nullable|string|max:200',
+            'ad_description' => 'nullable|string|max:5000',
         ], [
             'file.mimetypes' => 'Only MP4, MOV or WEBM video files are allowed.',
             'file.max' => 'The video may not be larger than 500 MB.',
@@ -89,6 +91,9 @@ class DeliveredClipController extends Controller
                 $request->user()->id,
                 $validated['name'] ?? null,
                 $validated['format'] ?? null,
+                null,
+                $validated['ad_title'] ?? null,
+                $validated['ad_description'] ?? null,
             );
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 500);
@@ -110,6 +115,8 @@ class DeliveredClipController extends Controller
             'files' => 'required|array|min:1|max:50',
             'files.*' => 'file|mimetypes:video/mp4,video/quicktime,video/webm|max:500000',
             'order_id' => 'nullable|string|exists:orders,id',
+            'ad_title' => 'nullable|string|max:200',
+            'ad_description' => 'nullable|string|max:5000',
         ], [
             'files.*.mimetypes' => 'Only MP4, MOV or WEBM video files are allowed.',
             'files.*.max' => 'Each video may not be larger than 500 MB.',
@@ -133,6 +140,8 @@ class DeliveredClipController extends Controller
                     null,
                     null,
                     $batchId,
+                    $validated['ad_title'] ?? null,
+                    $validated['ad_description'] ?? null,
                 );
                 $created[] = $this->present($clip->fresh(['uploadedBy', 'reviewer']), null, true);
             } catch (\Throwable $e) {
@@ -160,6 +169,8 @@ class DeliveredClipController extends Controller
         ?string $nameOverride = null,
         ?string $formatOverride = null,
         ?string $uploadBatchId = null,
+        ?string $adTitle = null,
+        ?string $adDescription = null,
     ): DeliveredClip {
         $originalNoExt = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $meta = DeliveredClip::parseFilename($originalNoExt);
@@ -196,6 +207,8 @@ class DeliveredClipController extends Controller
             'uploaded_by' => $userId,
             'upload_batch_id' => $uploadBatchId,
             'creative_key' => DeliveredClip::creativeKey($name),
+            'ad_title' => $adTitle,
+            'ad_description' => $adDescription,
         ]);
 
         // Best-effort poster frame — never fail the upload if ffmpeg is missing.
@@ -206,13 +219,15 @@ class DeliveredClipController extends Controller
         return $clip;
     }
 
-    /** Rename / change format / relink order (admin). */
+    /** Rename / change format / relink order / edit ad copy (admin, full edit). */
     public function update(Request $request, DeliveredClip $deliveredClip)
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'format' => 'sometimes|nullable|in:'.implode(',', self::FORMATS),
             'order_id' => 'sometimes|nullable|string|exists:orders,id',
+            'ad_title' => 'sometimes|nullable|string|max:200',
+            'ad_description' => 'sometimes|nullable|string|max:5000',
         ]);
 
         if (array_key_exists('order_id', $validated) && ! empty($validated['order_id'])
@@ -220,7 +235,39 @@ class DeliveredClipController extends Controller
             return response()->json(['message' => 'That order does not belong to this market.'], 422);
         }
 
-        $deliveredClip->update($validated);
+        // Non-ad fields update freely; an ad-copy change resets review (shared rule).
+        $attrs = array_intersect_key($validated, array_flip(['name', 'format', 'order_id']));
+        $didReset = $this->mergeAdCopy($deliveredClip, $validated, $attrs);
+        $deliveredClip->update($attrs);
+        if ($didReset) {
+            $this->auditCopyReset($deliveredClip, $request->user()->id);
+        }
+
+        return response()->json($this->present($deliveredClip->fresh(['uploadedBy', 'reviewer']), null, true));
+    }
+
+    /**
+     * Lead-safe ad-copy edit: growth leads (and admins) may edit ONLY ad_title +
+     * ad_description of a clip in a market they can see. Nothing else — name,
+     * format, order, file, thumbnail, review_status, market — can be changed here.
+     * Editing an approved/declined clip's copy sends it back to legal review (the
+     * shared reset), enforced server-side regardless of the client.
+     */
+    public function updateAdCopy(Request $request, DeliveredClip $deliveredClip)
+    {
+        $this->authorizeView($request, $deliveredClip);
+
+        $validated = $request->validate([
+            'ad_title' => 'sometimes|nullable|string|max:200',
+            'ad_description' => 'sometimes|nullable|string|max:5000',
+        ]);
+
+        $attrs = [];
+        $didReset = $this->mergeAdCopy($deliveredClip, $validated, $attrs);
+        $deliveredClip->update($attrs);
+        if ($didReset) {
+            $this->auditCopyReset($deliveredClip, $request->user()->id);
+        }
 
         return response()->json($this->present($deliveredClip->fresh(['uploadedBy', 'reviewer']), null, true));
     }
@@ -483,6 +530,49 @@ class DeliveredClipController extends Controller
     }
 
     /**
+     * Merge ad_title/ad_description from a validated payload into $attrs. If the
+     * copy ACTUALLY changes on an already-reviewed (approved/declined) clip, also
+     * reset its review to pending — clearing reviewer/decision — and return true
+     * so the caller writes the audit row. Unchanged copy never resets. This is the
+     * single reset rule shared by the admin update() and the lead ad-copy edit,
+     * so approval can't be silently kept after a copy change from any client.
+     *
+     * @param  array<string, mixed>  $validated
+     * @param  array<string, mixed>  $attrs
+     */
+    private function mergeAdCopy(DeliveredClip $clip, array $validated, array &$attrs): bool
+    {
+        $newTitle = array_key_exists('ad_title', $validated) ? $validated['ad_title'] : $clip->ad_title;
+        $newDescription = array_key_exists('ad_description', $validated) ? $validated['ad_description'] : $clip->ad_description;
+        $attrs['ad_title'] = $newTitle;
+        $attrs['ad_description'] = $newDescription;
+
+        $changed = (string) $clip->ad_title !== (string) $newTitle
+            || (string) $clip->ad_description !== (string) $newDescription;
+        $wasReviewed = in_array($clip->review_status, [DeliveredClip::STATUS_APPROVED, DeliveredClip::STATUS_DECLINED], true);
+
+        if ($changed && $wasReviewed) {
+            $attrs['review_status'] = DeliveredClip::STATUS_PENDING;
+            $attrs['reviewed_by'] = null;
+            $attrs['reviewed_at'] = null;
+            $attrs['decline_reason'] = null;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function auditCopyReset(DeliveredClip $clip, int $userId): void
+    {
+        DeliveredClipReview::create([
+            'delivered_clip_id' => $clip->id,
+            'user_id' => $userId,
+            'action' => DeliveredClipReview::ACTION_RESET_BY_COPY_EDIT,
+        ]);
+    }
+
+    /**
      * Name a set zip after the message its clips share — brand_lang_copyslug_actor
      * (e.g. Creditstar_FI_Suunnittele_Pt_Hae_Kemal.zip) — falling back to whatever
      * is shared, else the market.
@@ -689,6 +779,9 @@ class DeliveredClipController extends Controller
             'reviewer' => optional($c->reviewer)->name,
             'reviewed_at' => optional($c->reviewed_at)->toIso8601String(),
             'decline_reason' => $c->decline_reason,
+            // Ad wording — lead-editable (see the ad-copy endpoint).
+            'ad_title' => $c->ad_title,
+            'ad_description' => $c->ad_description,
         ];
 
         return $out;
