@@ -1,98 +1,154 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Card from '../../Components/Card.vue';
 import Button from '../../Components/Button.vue';
 import Tag from '../../Components/Tag.vue';
+import Select from '../../Components/Select.vue';
+import Input from '../../Components/Input.vue';
 import IconButton from '../../Components/IconButton.vue';
 import SectionLabel from '../../Components/SectionLabel.vue';
 import StatusPill from '../../Components/StatusPill.vue';
 import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
+import { legalState, setPendingCount, refreshPendingCount } from '../../lib/legalStore.js';
 
 defineProps({ theme: { type: String, default: null }, density: { type: String, default: null } });
 
-const clips = ref([]);
-const loading = ref(true);
+const tab = ref('pending'); // 'pending' | 'reviewed'
+const loading = ref(false);
 const error = ref('');
 const toast = ref('');
-const tab = ref('queue');
 
-// review drawer
+// review modal
 const reviewing = ref(null);
 const declineMode = ref(false);
 const declineReason = ref('');
 const busy = ref(false);
 
-function flash(msg) { toast.value = msg; setTimeout(() => { if (toast.value === msg) toast.value = ''; }, 3500); }
+const blank = () => ({ market: '', format: '', category: '', language: '', brand: '', search: '', sort: 'walk', outcome: '', page: 1 });
+// Independent filter/sort/page state per section.
+const filters = reactive({ pending: blank(), reviewed: { ...blank(), sort: 'recent' } });
+const result = reactive({
+  pending: { data: [], total: 0, last_page: 1, options: {} },
+  reviewed: { data: [], total: 0, last_page: 1, options: {} },
+});
 
-async function load() {
+const SKEY = 'legal_review_state';
+function persist() {
+  try { sessionStorage.setItem(SKEY, JSON.stringify({ tab: tab.value, filters })); } catch { /* ignore */ }
+}
+function restore() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(SKEY) || 'null');
+    if (!s) return;
+    if (s.tab === 'reviewed' || s.tab === 'pending') tab.value = s.tab;
+    Object.assign(filters.pending, s.filters?.pending || {});
+    Object.assign(filters.reviewed, s.filters?.reviewed || {});
+  } catch { /* ignore */ }
+}
+
+function queryFor(section) {
+  const f = filters[section];
+  const p = new URLSearchParams();
+  p.set('status', section);
+  for (const k of ['market', 'format', 'category', 'language', 'brand', 'search']) if (f[k]) p.set(k, f[k]);
+  if (section === 'reviewed' && f.outcome) p.set('outcome', f.outcome);
+  p.set('sort', f.sort);
+  p.set('page', String(f.page));
+  return p.toString();
+}
+
+async function load(section = tab.value) {
   loading.value = true;
   error.value = '';
   try {
-    const data = await api.get('/api/legal/delivered-clips');
-    clips.value = Array.isArray(data) ? data : [];
+    const r = await api.get('/api/legal/delivered-clips?' + queryFor(section));
+    result[section].data = r.data || [];
+    result[section].total = r.total || 0;
+    result[section].last_page = r.last_page || 1;
+    result[section].options = r.filters || {};
+    if (typeof r.pending_count === 'number') setPendingCount(r.pending_count);
   } catch (e) {
     error.value = e.message || 'Failed to load clips.';
   } finally {
     loading.value = false;
   }
 }
-onMounted(load);
+
+onMounted(() => { restore(); load(tab.value); refreshPendingCount(); });
+
+function switchTab(t) { if (t === tab.value) return; tab.value = t; persist(); load(t); }
+function setFilter(field, v) { const f = filters[tab.value]; f[field] = v; f.page = 1; persist(); load(tab.value); }
+let searchTimer;
+function onSearch(v) {
+  const f = filters[tab.value];
+  f.search = v;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { f.page = 1; persist(); load(tab.value); }, 300);
+}
+function goPage(n) { const f = filters[tab.value]; f.page = n; persist(); load(tab.value); }
+function resetFilters() { const keepSort = filters[tab.value].sort; Object.assign(filters[tab.value], blank(), { sort: keepSort }); persist(); load(tab.value); }
 
 const fmtSize = (b) => (!b ? '' : b < 1024 * 1024 ? (b / 1024).toFixed(0) + ' KB' : (b / 1024 / 1024).toFixed(1) + ' MB');
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
-const metaLine = (c) => [c.slate, c.actor, c.design, c.lang].filter(Boolean).join(' · ');
+const metaLine = (c) => [c.category, c.slate, c.actor, c.design, c.lang].filter(Boolean).join(' · ');
 
-const pending = computed(() => clips.value.filter((c) => c.review_status === 'pending'));
-const reviewed = computed(() => clips.value.filter((c) => c.review_status !== 'pending'));
-
-// Pending queue grouped by market, oldest first (FIFO review order).
-const queueByMarket = computed(() => {
-  const map = new Map();
-  for (const c of pending.value) {
-    const k = c.market?.code || '—';
-    if (!map.has(k)) map.set(k, { market: c.market, clips: [] });
-    map.get(k).clips.push(c);
+// Pending page grouped by market (data already arrives market-ordered).
+const pendingGroups = computed(() => {
+  const out = [];
+  let cur = null;
+  for (const c of result.pending.data) {
+    const code = c.market?.code || '—';
+    if (!cur || cur.code !== code) { cur = { code, name: c.market?.name, clips: [] }; out.push(cur); }
+    cur.clips.push(c);
   }
-  for (const g of map.values()) g.clips.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-  return [...map.values()].sort((a, b) => (a.market?.code || '').localeCompare(b.market?.code || ''));
+  return out;
 });
 
-const reviewedSorted = computed(() => reviewed.value.slice().sort((a, b) => new Date(b.reviewed_at || 0) - new Date(a.reviewed_at || 0)));
+const cur = computed(() => result[tab.value]);
+const curFilters = computed(() => filters[tab.value]);
+const hasActiveFilters = computed(() => {
+  const f = filters[tab.value];
+  return !!(f.market || f.format || f.category || f.language || f.brand || f.search || (tab.value === 'reviewed' && f.outcome));
+});
+const opt = (list, allLabel) => [{ value: '', label: allLabel }, ...(list || []).map((x) => ({ value: x, label: x }))];
 
+function flash(msg) { toast.value = msg; setTimeout(() => { if (toast.value === msg) toast.value = ''; }, 3500); }
 function openReview(c) { reviewing.value = c; declineMode.value = false; declineReason.value = ''; }
 
-function applyUpdate(updated) {
-  const i = clips.value.findIndex((c) => c.id === updated.id);
-  if (i !== -1) clips.value[i] = updated;
+async function afterDecision(msg) {
+  reviewing.value = null;
+  flash(msg);
+  await load(tab.value);      // active section reflects the change
+  await refreshPendingCount(); // decrement the nav badge live
 }
 
 async function approve(c) {
   busy.value = true;
   try {
-    const updated = await api.post(`/api/legal/delivered-clips/${c.id}/approve`, {});
-    applyUpdate(updated);
-    reviewing.value = null;
-    flash('Approved.');
+    await api.post(`/api/legal/delivered-clips/${c.id}/approve`, {});
+    await afterDecision('Approved.');
   } catch (e) { flash(e.message || 'Approve failed.'); }
   finally { busy.value = false; }
 }
-
 async function decline(c) {
   const reason = declineReason.value.trim();
   if (!reason) { flash('A reason is required to decline.'); return; }
   busy.value = true;
   try {
-    const updated = await api.post(`/api/legal/delivered-clips/${c.id}/decline`, { reason });
-    applyUpdate(updated);
-    reviewing.value = null;
-    flash('Declined.');
+    await api.post(`/api/legal/delivered-clips/${c.id}/decline`, { reason });
+    await afterDecision('Declined.');
   } catch (e) { flash(e.message || 'Decline failed.'); }
   finally { busy.value = false; }
 }
 
+const sortOptions = [
+  { value: 'walk', label: 'Walk-through' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'newest', label: 'Newest first' },
+];
 </script>
 
 <template>
@@ -100,22 +156,42 @@ async function decline(c) {
     <div :style="{ padding: 'var(--pad-screen)', display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }">
       <div>
         <h1 :style="{ fontSize: '27px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }">Clip review</h1>
-        <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">Watch each delivered clip and approve or decline it. Only approved clips become downloadable.</p>
+        <p :style="{ color: 'var(--text-2)', margin: '6px 0 0', fontSize: '14.5px' }">
+          <template v-if="legalState.pendingCount">{{ legalState.pendingCount }} clip{{ legalState.pendingCount === 1 ? '' : 's' }} awaiting review.</template>
+          <template v-else>Nothing awaiting review.</template>
+          Only approved clips become downloadable.
+        </p>
       </div>
 
+      <!-- Section tabs -->
       <div :style="{ display: 'flex', gap: '8px' }">
-        <Tag :active="tab === 'queue'" @click="tab = 'queue'">Queue ({{ pending.length }})</Tag>
-        <Tag :active="tab === 'reviewed'" @click="tab = 'reviewed'">Reviewed ({{ reviewed.length }})</Tag>
+        <Tag :active="tab === 'pending'" @click="switchTab('pending')">Pending queue ({{ legalState.pendingCount }})</Tag>
+        <Tag :active="tab === 'reviewed'" @click="switchTab('reviewed')">Reviewed history</Tag>
       </div>
+
+      <!-- Filter bar (per-section) -->
+      <Card :style="{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }">
+        <div :style="{ flex: '1 1 200px', minWidth: '160px' }"><Input :model-value="curFilters.search" placeholder="Search name…" icon="search" @update:model-value="onSearch" /></div>
+        <div :style="{ width: '130px' }"><Select :model-value="curFilters.market" :options="opt(cur.options.markets, 'All markets')" @update:model-value="(v) => setFilter('market', v)" /></div>
+        <div :style="{ width: '140px' }"><Select :model-value="curFilters.category" :options="opt(cur.options.categories, 'All categories')" @update:model-value="(v) => setFilter('category', v)" /></div>
+        <div :style="{ width: '110px' }"><Select :model-value="curFilters.format" :options="opt(cur.options.formats, 'All formats')" @update:model-value="(v) => setFilter('format', v)" /></div>
+        <div :style="{ width: '120px' }"><Select :model-value="curFilters.language" :options="opt(cur.options.languages, 'All languages')" @update:model-value="(v) => setFilter('language', v)" /></div>
+        <div :style="{ width: '130px' }"><Select :model-value="curFilters.brand" :options="opt(cur.options.brands, 'All brands')" @update:model-value="(v) => setFilter('brand', v)" /></div>
+        <div v-if="tab === 'reviewed'" :style="{ width: '140px' }">
+          <Select :model-value="curFilters.outcome" :options="[{ value: '', label: 'All outcomes' }, { value: 'approved', label: 'Approved' }, { value: 'declined', label: 'Declined' }]" @update:model-value="(v) => setFilter('outcome', v)" />
+        </div>
+        <div v-if="tab === 'pending'" :style="{ width: '150px' }"><Select :model-value="curFilters.sort" :options="sortOptions" @update:model-value="(v) => setFilter('sort', v)" /></div>
+        <Button v-if="hasActiveFilters" size="sm" variant="ghost" icon="x" @click="resetFilters">Clear</Button>
+      </Card>
 
       <div v-if="error" :style="{ padding: '14px 18px', borderRadius: '12px', background: 'var(--danger-soft)', color: 'var(--danger)', fontSize: '14px' }">{{ error }}</div>
       <div v-else-if="loading" :style="{ color: 'var(--text-3)', fontSize: '14px' }">Loading…</div>
 
-      <!-- Queue -->
-      <template v-else-if="tab === 'queue'">
-        <Card v-if="!pending.length"><EmptyState icon="check_circle" title="Nothing to review" sub="No clips are awaiting review." /></Card>
-        <div v-for="g in queueByMarket" :key="g.market?.code || 'none'" :style="{ display: 'flex', flexDirection: 'column', gap: '10px' }">
-          <SectionLabel>{{ g.market?.code }} <span :style="{ color: 'var(--text-3)', fontWeight: 400 }">· {{ g.market?.name }}</span></SectionLabel>
+      <!-- ── PENDING QUEUE ─────────────────────────────────────── -->
+      <template v-else-if="tab === 'pending'">
+        <Card v-if="!result.pending.data.length"><EmptyState icon="check_circle" title="Nothing to review" :sub="hasActiveFilters ? 'No pending clips match these filters.' : 'No clips are awaiting review.'" /></Card>
+        <div v-for="g in pendingGroups" :key="g.code" :style="{ display: 'flex', flexDirection: 'column', gap: '10px' }">
+          <SectionLabel>{{ g.code }} <span :style="{ color: 'var(--text-3)', fontWeight: 400 }">· {{ g.name }}</span></SectionLabel>
           <div :style="{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--gap)' }">
             <Card v-for="c in g.clips" :key="c.id">
               <div @click="openReview(c)" :style="{ position: 'relative', aspectRatio: '16/9', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', marginBottom: '12px', cursor: 'pointer' }">
@@ -124,7 +200,7 @@ async function decline(c) {
                 <div :style="{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.18)' }"><div :style="{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'grid', placeItems: 'center' }"><Icon name="play" :size="20" :style="{ color: '#fff' }" /></div></div>
               </div>
               <div :style="{ fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="c.name">{{ c.name }}</div>
-              <div v-if="metaLine(c)" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '3px' }">{{ metaLine(c) }}</div>
+              <div v-if="metaLine(c)" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">{{ metaLine(c) }}</div>
               <div :style="{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }">
                 <Tag v-if="c.format" :clickable="false">{{ c.format }}</Tag>
                 <Tag :clickable="false">{{ fmtSize(c.file_size) }}</Tag>
@@ -136,11 +212,11 @@ async function decline(c) {
         </div>
       </template>
 
-      <!-- Reviewed (read-only history) -->
+      <!-- ── REVIEWED HISTORY ──────────────────────────────────── -->
       <template v-else>
-        <Card v-if="!reviewed.length"><EmptyState icon="inbox" title="No reviewed clips yet" sub="Approved and declined clips will appear here." /></Card>
+        <Card v-if="!result.reviewed.data.length"><EmptyState icon="inbox" title="No reviewed clips" :sub="hasActiveFilters ? 'No reviewed clips match these filters.' : 'Approved and declined clips will appear here.'" /></Card>
         <Card v-else :pad="false" :style="{ overflow: 'hidden' }">
-          <div v-for="(c, i) in reviewedSorted" :key="c.id" :style="{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', borderTop: i ? '1px solid var(--divider)' : 'none' }">
+          <div v-for="(c, i) in result.reviewed.data" :key="c.id" :style="{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', borderTop: i ? '1px solid var(--divider)' : 'none' }">
             <div @click="openReview(c)" :style="{ flex: '0 0 auto', width: '78px', height: '44px', borderRadius: '7px', overflow: 'hidden', background: 'var(--surface-3)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer' }">
               <img v-if="c.thumbnail_url" :src="c.thumbnail_url" alt="" loading="lazy" :style="{ width: '100%', height: '100%', objectFit: 'cover' }" />
               <Icon v-else name="film" :size="16" :style="{ color: 'var(--text-3)' }" />
@@ -155,12 +231,18 @@ async function decline(c) {
           </div>
         </Card>
       </template>
+
+      <!-- Pagination -->
+      <div v-if="!loading && cur.last_page > 1" :style="{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }">
+        <Button size="sm" variant="ghost" :disabled="curFilters.page <= 1" @click="goPage(curFilters.page - 1)">‹ Prev</Button>
+        <span :style="{ fontSize: '13px', color: 'var(--text-2)' }">Page {{ curFilters.page }} / {{ cur.last_page }}</span>
+        <Button size="sm" variant="ghost" :disabled="curFilters.page >= cur.last_page" @click="goPage(curFilters.page + 1)">Next ›</Button>
+      </div>
     </div>
 
-    <!-- Review modal: centered, video on the left, data + decision on the right. -->
+    <!-- Review modal: centered, video left, data + decision right. -->
     <div v-if="reviewing" @click="reviewing = null" :style="{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.7)', display: 'grid', placeItems: 'center', padding: '28px' }">
       <div @click.stop :style="{ width: 'min(1080px, 95vw)', maxHeight: '90vh', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '16px', boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }">
-        <!-- header -->
         <div :style="{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', padding: '16px 20px', borderBottom: '1px solid var(--border)' }">
           <div :style="{ minWidth: 0 }">
             <div :style="{ fontSize: '16px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }" :title="reviewing.name">{{ reviewing.name }}</div>
@@ -169,7 +251,6 @@ async function decline(c) {
           <IconButton name="x" @click="reviewing = null" />
         </div>
 
-        <!-- body: video left, data + inputs right -->
         <div :style="{ display: 'flex', gap: '20px', padding: '20px', overflowY: 'auto', flexWrap: 'wrap' }">
           <div :style="{ flex: '1 1 460px', minWidth: '300px' }">
             <video :src="reviewing.stream_url" controls autoplay preload="metadata" :poster="reviewing.thumbnail_url || undefined"
@@ -181,9 +262,10 @@ async function decline(c) {
               <SectionLabel>Details</SectionLabel>
               <div :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', fontSize: '13px' }">
                 <span :style="{ color: 'var(--text-3)' }">Format</span><span>{{ reviewing.format || '—' }}</span>
+                <span :style="{ color: 'var(--text-3)' }">Category</span><span>{{ reviewing.category || '—' }}</span>
                 <span :style="{ color: 'var(--text-3)' }">Slate · Actor</span><span>{{ [reviewing.slate, reviewing.actor].filter(Boolean).join(' · ') || '—' }}</span>
                 <span :style="{ color: 'var(--text-3)' }">Design · Lang</span><span>{{ [reviewing.design, reviewing.lang].filter(Boolean).join(' · ') || '—' }}</span>
-                <template v-if="reviewing.copy"><span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ reviewing.copy }}</span></template>
+                <template v-if="reviewing.copy_full || reviewing.copy"><span :style="{ color: 'var(--text-3)' }">Copy</span><span>{{ reviewing.copy_full || reviewing.copy }}</span></template>
                 <span :style="{ color: 'var(--text-3)' }">Uploaded</span><span>{{ fmtDate(reviewing.created_at) }}{{ reviewing.uploaded_by ? ' · ' + reviewing.uploaded_by : '' }}</span>
                 <span :style="{ color: 'var(--text-3)' }">Status</span><span>{{ reviewing.review_status }}{{ reviewing.reviewer ? ' · ' + reviewing.reviewer : '' }}{{ reviewing.reviewed_at ? ' · ' + fmtDate(reviewing.reviewed_at) : '' }}</span>
               </div>

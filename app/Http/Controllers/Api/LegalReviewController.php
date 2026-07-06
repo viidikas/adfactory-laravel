@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Copy;
 use App\Models\DeliveredClip;
 use App\Models\DeliveredClipReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Legal clip-by-clip review. Gated by the `legal` middleware (role = legal only).
@@ -17,18 +19,173 @@ use Illuminate\Support\Carbon;
  */
 class LegalReviewController extends Controller
 {
+    /** Logical walk-through order for formats. */
+    private const FORMAT_ORDER = ['16:9', '1:1', '9:16', '4:5'];
+
     /**
-     * Every delivered clip across ALL markets, with its review trail, for the
-     * review queue (pending) and the read-only reviewed history. Legal is not
-     * market-scoped (single global reviewer); say the word to scope by assignment.
+     * The clip-review list, split by status and filtered/sorted/paginated
+     * server-side (still ALL markets — legal is a single global reviewer).
+     *
+     *  status=pending  → pending queue (default). Sort: walk (market→category→
+     *                    slate→format→name, default) | oldest | newest.
+     *  status=reviewed → approved + declined history, reviewed_at desc; may be
+     *                    filtered by outcome=approved|declined.
+     *
+     * Field filters (market code, format, category, language, brand) + name
+     * search combine with AND. Category is derived from the matching market copy.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $clips = DeliveredClip::with(['market', 'uploadedBy', 'reviewer'])
-            ->orderByDesc('created_at')
+        $status = $request->query('status') === 'reviewed' ? 'reviewed' : 'pending';
+
+        // Whole status set (the only DB-level filter); everything else is applied
+        // in PHP so the derived `category` participates uniformly.
+        $set = DeliveredClip::with(['market', 'uploadedBy', 'reviewer'])
+            ->when($status === 'reviewed',
+                fn ($q) => $q->whereIn('review_status', [DeliveredClip::STATUS_APPROVED, DeliveredClip::STATUS_DECLINED]),
+                fn ($q) => $q->where('review_status', DeliveredClip::STATUS_PENDING))
             ->get();
 
-        return response()->json($clips->map(fn (DeliveredClip $c) => $this->present($c)));
+        // Resolve the derived copy meta (category + full text) once, N+1-free.
+        $copiesByMarket = Copy::whereIn('market_id', $set->pluck('market_id')->unique()->all())
+            ->get()->groupBy('market_id');
+        $set->each(function (DeliveredClip $c) use ($copiesByMarket) {
+            $meta = $this->resolveCopy($c, $copiesByMarket->get($c->market_id) ?? collect());
+            $c->setAttribute('_category', $meta['category']);
+            $c->setAttribute('_copy_full', $meta['full']);
+        });
+
+        // Filter option lists — from the full status set, so dropdowns are stable
+        // regardless of which other filters are active.
+        $options = [
+            'markets' => $set->map(fn ($c) => optional($c->market)->code)->filter()->unique()->sort()->values(),
+            'formats' => $set->pluck('format')->filter()->unique()
+                ->sortBy(fn ($f) => $this->formatRank($f))->values(),
+            'categories' => $set->pluck('_category')->filter()->unique()->sort()->values(),
+            'languages' => $set->pluck('lang')->filter()->unique()->sort()->values(),
+            'brands' => $set->pluck('brand')->filter()->unique()->sort()->values(),
+        ];
+
+        // Field filters (AND).
+        $rows = $set;
+        if ($v = $request->query('market')) {
+            $rows = $rows->filter(fn ($c) => optional($c->market)->code === $v);
+        }
+        if ($v = $request->query('format')) {
+            $rows = $rows->filter(fn ($c) => $c->format === $v);
+        }
+        if ($v = $request->query('category')) {
+            $rows = $rows->filter(fn ($c) => $c->getAttribute('_category') === $v);
+        }
+        if ($v = $request->query('language')) {
+            $rows = $rows->filter(fn ($c) => $c->lang === $v);
+        }
+        if ($v = $request->query('brand')) {
+            $rows = $rows->filter(fn ($c) => $c->brand === $v);
+        }
+        if (($v = trim((string) $request->query('search'))) !== '') {
+            $needle = mb_strtolower($v);
+            $rows = $rows->filter(fn ($c) => str_contains(mb_strtolower((string) $c->name), $needle));
+        }
+        if ($status === 'reviewed'
+            && in_array($request->query('outcome'), [DeliveredClip::STATUS_APPROVED, DeliveredClip::STATUS_DECLINED], true)) {
+            $rows = $rows->filter(fn ($c) => $c->review_status === $request->query('outcome'));
+        }
+
+        // Sort.
+        if ($status === 'reviewed') {
+            $rows = $rows->sortByDesc(fn ($c) => optional($c->reviewed_at)->timestamp ?? 0);
+        } else {
+            $sort = $request->query('sort', 'walk');
+            $rows = match ($sort) {
+                'oldest' => $rows->sortBy(fn ($c) => optional($c->created_at)->timestamp ?? 0),
+                'newest' => $rows->sortByDesc(fn ($c) => optional($c->created_at)->timestamp ?? 0),
+                default => $rows->sortBy(fn ($c) => $this->walkKey($c)),
+            };
+        }
+        $rows = $rows->values();
+
+        // Paginate.
+        $perPage = min(max((int) $request->query('per_page', 60), 1), 200);
+        $page = max((int) $request->query('page', 1), 1);
+        $total = $rows->count();
+        $data = $rows->forPage($page, $perPage)->values()->map(fn (DeliveredClip $c) => $this->present($c));
+
+        return response()->json([
+            'data' => $data,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'pending_count' => $this->pendingTotal(),
+            'filters' => $options,
+        ]);
+    }
+
+    /** Count of clips awaiting review — drives the nav badge + header count. */
+    public function pendingCount()
+    {
+        return response()->json(['count' => $this->pendingTotal()]);
+    }
+
+    private function pendingTotal(): int
+    {
+        return DeliveredClip::where('review_status', DeliveredClip::STATUS_PENDING)->count();
+    }
+
+    /** Composite sort key: market → category → slate → format → name. */
+    private function walkKey(DeliveredClip $c): string
+    {
+        return implode('|', [
+            mb_strtolower((string) optional($c->market)->code),
+            mb_strtolower((string) $c->getAttribute('_category')),
+            mb_strtolower((string) $c->slate),
+            $this->formatRank($c->format),
+            mb_strtolower((string) $c->name),
+        ]);
+    }
+
+    private function formatRank(?string $format): int
+    {
+        $i = array_search($format, self::FORMAT_ORDER, true);
+
+        return $i === false ? 9 : $i;
+    }
+
+    /**
+     * Derive a clip's matching market copy (full text + category) by re-slugifying
+     * each copy's text the way the Templater named the file — same match used for
+     * the portal/admin copy resolution. Display-only; does not affect any gate.
+     *
+     * @return array{full:?string,category:?string}
+     */
+    private function resolveCopy(DeliveredClip $c, Collection $copies): array
+    {
+        if (! $c->copy) {
+            return ['full' => null, 'category' => null];
+        }
+
+        $target = $this->normalizeSlug($c->copy);
+        $lang = strtolower((string) $c->lang);
+
+        foreach ($copies as $copy) {
+            $texts = is_array($copy->copy_text) ? $copy->copy_text : [];
+            foreach ($texts as $text) {
+                if ($text && $this->normalizeSlug(DeliveredClip::slugifyCopy($text)) === $target) {
+                    return [
+                        'full' => ($lang && ! empty($texts[$lang])) ? $texts[$lang] : $text,
+                        'category' => $copy->category,
+                    ];
+                }
+            }
+        }
+
+        return ['full' => null, 'category' => null];
+    }
+
+    private function normalizeSlug(string $s): string
+    {
+        return strtolower(str_replace(' ', '_', trim($s)));
     }
 
     /** Approve a clip — one decision per clip. Writes an approved audit row. */
@@ -80,6 +237,18 @@ class LegalReviewController extends Controller
     /** @return array<string, mixed> */
     private function present(DeliveredClip $c): array
     {
+        // Use the pre-resolved copy meta from index(); resolve on the fly for the
+        // single-clip approve/decline responses (no _category set there).
+        $attrs = $c->getAttributes();
+        if (array_key_exists('_category', $attrs)) {
+            $category = $attrs['_category'];
+            $copyFull = $attrs['_copy_full'] ?? null;
+        } else {
+            $meta = $this->resolveCopy($c, Copy::where('market_id', $c->market_id)->get());
+            $category = $meta['category'];
+            $copyFull = $meta['full'];
+        }
+
         return [
             'id' => $c->id,
             'name' => $c->name,
@@ -88,7 +257,10 @@ class LegalReviewController extends Controller
             'actor' => $c->actor,
             'design' => $c->design,
             'lang' => $c->lang,
+            'brand' => $c->brand,
+            'category' => $category,
             'copy' => $c->copy,
+            'copy_full' => $copyFull,
             'file_size' => (int) $c->file_size,
             'order_short' => $c->order_id ? substr((string) $c->order_id, 0, 8) : null,
             'market' => $c->market ? [
