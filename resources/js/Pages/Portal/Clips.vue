@@ -201,7 +201,7 @@ function add() {
     <!-- detail drawer: configure & add -->
     <Drawer :open="!!sel" :title="sel ? (sel.slate || 'Clip') : ''" :width="480" @close="sel = null">
       <div v-if="sel">
-        <video :src="videoUrl(sel)" controls preload="metadata" :poster="thumbUrl(sel)" :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '320px' }" />
+        <video :src="videoUrl(sel)" controls muted preload="metadata" @loadstart="$event.target.muted = true" :poster="thumbUrl(sel)" :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '320px' }" />
         <h2 :style="{ fontSize: '18px', fontWeight: 800, margin: '14px 0 10px' }">{{ sel.nameNoExt || sel.name }}</h2>
 
         <SectionLabel>Copy</SectionLabel>

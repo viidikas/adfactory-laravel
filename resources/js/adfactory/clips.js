@@ -387,7 +387,7 @@ function openClipModal(clipId) {
       <div class="modal-player">
         <div class="modal-filename" title="${esc(clip.relativePath)}">📁 ${esc(clip.relativePath)}</div>
         <div class="modal-video-wrap">
-          <video id="modal-video" src="${clip.url || '/api/video?path=' + encodeURIComponent(clip.relativePath)}" controls preload="metadata"
+          <video id="modal-video" src="${clip.url || '/api/video?path=' + encodeURIComponent(clip.relativePath)}" controls muted preload="metadata"
             style="width:100%;border-radius:6px;max-height:400px;"></video>
         </div>
         <div class="modal-controls">

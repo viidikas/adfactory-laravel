@@ -125,7 +125,7 @@
     <div class="modal-overlay hidden" id="order-clip-modal">
       <div class="clip-modal">
         <div class="clip-modal-video">
-          <video id="ocm-video" controls style="width:100%;border-radius:8px;background:#000;"></video>
+          <video id="ocm-video" controls muted style="width:100%;border-radius:8px;background:#000;"></video>
           <div class="cm-nav">
             <button class="btn btn-ghost" id="ocm-prev" onclick="orderClipNav(-1)">&#8249; Prev</button>
             <span id="ocm-nav-label" style="font-size:10px;color:var(--muted2);"></span>
