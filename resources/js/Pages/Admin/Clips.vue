@@ -219,7 +219,7 @@ function clearFilters() { q.value = ''; cat.value = 'All'; status.value = ''; }
     <!-- preview drawer -->
     <Drawer :open="!!preview" :title="preview ? (preview.slate || 'Clip') : ''" :width="520" @close="preview = null">
       <div v-if="preview">
-        <video :src="videoUrl(preview)" controls preload="metadata" :poster="thumbUrl(preview)"
+        <video :src="videoUrl(preview)" controls muted preload="metadata" @loadstart="$event.target.muted = true" :poster="thumbUrl(preview)"
           :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '360px' }" />
         <h2 :style="{ fontSize: '19px', fontWeight: 800, letterSpacing: '-0.02em', margin: '16px 0 6px' }">{{ preview.nameNoExt || preview.name }}</h2>
         <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }">

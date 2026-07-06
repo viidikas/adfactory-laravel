@@ -152,7 +152,7 @@ function addOne() {
     <!-- Clip preview + configure modal (same drawer style as Browse clips) -->
     <Drawer :open="!!preview" :title="preview ? (preview.slate || 'Clip') : ''" :width="480" @close="preview = null">
       <div v-if="preview">
-        <video :src="videoUrl(preview)" controls preload="metadata" :poster="thumbUrl(preview)" :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '320px' }" />
+        <video :src="videoUrl(preview)" controls muted preload="metadata" @loadstart="$event.target.muted = true" :poster="thumbUrl(preview)" :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '320px' }" />
         <h2 :style="{ fontSize: '18px', fontWeight: 800, margin: '14px 0 6px' }">{{ preview.nameNoExt || preview.name }}</h2>
         <div :style="{ fontSize: '12.5px', color: 'var(--text-3)' }">{{ preview.slate || '—' }} · {{ preview.category || '—' }} · {{ preview.actor || '—' }}</div>
 

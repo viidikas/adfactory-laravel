@@ -304,7 +304,7 @@ const sortOptions = [
 
         <div :style="{ display: 'flex', gap: '20px', padding: '20px', overflowY: 'auto', flexWrap: 'wrap' }">
           <div :style="{ flex: '1 1 460px', minWidth: '300px' }">
-            <video :src="reviewing.stream_url" controls autoplay preload="metadata" :poster="reviewing.thumbnail_url || undefined"
+            <video :src="reviewing.stream_url" controls autoplay muted preload="metadata" @loadstart="$event.target.muted = true" :poster="reviewing.thumbnail_url || undefined"
               :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '72vh' }" />
           </div>
 

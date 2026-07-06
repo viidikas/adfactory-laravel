@@ -355,7 +355,7 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
     <!-- Player drawer -->
     <Drawer :open="!!playing" :title="playing ? (playing.name || 'Clip') : ''" :width="520" @close="playing = null">
       <div v-if="playing">
-        <video v-if="canPreview(playing)" :src="playing.stream_url" controls autoplay preload="metadata" :poster="playing.thumbnail_url || undefined"
+        <video v-if="canPreview(playing)" :src="playing.stream_url" controls autoplay muted preload="metadata" @loadstart="$event.target.muted = true" :poster="playing.thumbnail_url || undefined"
           :style="{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '60vh' }" />
         <div v-else :style="{ position: 'relative', borderRadius: '12px', overflow: 'hidden', background: '#000', border: '1px solid var(--border)', minHeight: '180px', display: 'grid', placeItems: 'center' }">
           <img v-if="playing.thumbnail_url" :src="playing.thumbnail_url" alt="" :style="{ width: '100%', maxHeight: '72vh', objectFit: 'contain', display: 'block' }" />
