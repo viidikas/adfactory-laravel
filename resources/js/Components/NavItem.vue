@@ -26,6 +26,7 @@ const style = computed(() => ({
     @mouseenter="h = true" @mouseleave="h = false"
   >
     <span :style="{ color: active ? 'var(--accent)' : 'inherit', display: 'flex' }"><Icon :name="item.icon" :size="19" /></span>
-    {{ item.label }}
+    <span :style="{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">{{ item.label }}</span>
+    <span v-if="item.badge" :style="{ flexShrink: 0, minWidth: '20px', height: '20px', padding: '0 6px', borderRadius: '999px', background: 'var(--danger)', color: '#fff', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }">{{ item.badge }}</span>
   </component>
 </template>

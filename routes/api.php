@@ -114,6 +114,7 @@ Route::middleware('auth')->group(function () {
 // route, but the DOWNLOAD route stays approved-only for everyone.
 Route::middleware('legal')->prefix('legal')->group(function () {
     Route::get('/delivered-clips', [LegalReviewController::class, 'index']);
+    Route::get('/pending-count', [LegalReviewController::class, 'pendingCount']);
     Route::post('/delivered-clips/{deliveredClip}/approve', [LegalReviewController::class, 'approve']);
     Route::post('/delivered-clips/{deliveredClip}/decline', [LegalReviewController::class, 'decline']);
 });

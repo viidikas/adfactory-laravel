@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Copy;
 use App\Models\DeliveredClip;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -122,9 +123,116 @@ class LegalReviewTest extends TestCase
         $market = $this->market(['code' => 'FI']);
         $this->makeClip($market, ['review_status' => 'declined', 'decline_reason' => 'Reason X']);
 
-        $row = collect($this->asUser($this->legal())->getJson('/api/legal/delivered-clips')->assertOk()->json())->first();
+        $json = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=reviewed')->assertOk()->json();
+        $row = collect($json['data'])->first();
         $this->assertSame('declined', $row['review_status']);
         $this->assertSame('Reason X', $row['decline_reason']);
+    }
+
+    // ── Queue organisation: sections, sort, filters, count ──────────
+
+    /** Create a clip whose derived category resolves from a matching market copy. */
+    private function clipInCategory($market, string $en, string $category, array $attrs = []): DeliveredClip
+    {
+        // Reuse one copy per (en, category) so several clips can share a category.
+        Copy::firstOrCreate(
+            ['market_id' => $market->id, 'copy_key' => $en.'_'.substr(md5($en.$category), 0, 6)],
+            ['copy_text' => ['en' => $en], 'category' => $category, 'shot' => 'PU1', 'brand' => 'Creditstar', 'enabled' => true]
+        );
+
+        return $this->makeClip($market, array_merge(['copy' => $en], $attrs));
+    }
+
+    public function test_pending_queue_and_reviewed_history_are_separate(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $this->makeClip($m, ['name' => 'p1', 'review_status' => 'pending']);
+        $this->makeClip($m, ['name' => 'a1', 'review_status' => 'approved']);
+        $this->makeClip($m, ['name' => 'd1', 'review_status' => 'declined']);
+
+        $pending = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=pending')->assertOk()->json();
+        $this->assertSame(['p1'], collect($pending['data'])->pluck('name')->all());
+
+        $reviewed = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=reviewed')->assertOk()->json();
+        $this->assertEqualsCanonicalizing(['a1', 'd1'], collect($reviewed['data'])->pluck('name')->all());
+        $this->assertSame(2, $reviewed['total']);
+    }
+
+    public function test_pending_walk_order_market_then_category_then_slate_then_format(): void
+    {
+        $ee = $this->market(['code' => 'EE']);
+        $fi = $this->market(['code' => 'FI']);
+
+        // EE clip sorts first (market). Within FI: Cat A before Cat B; S1 before
+        // S2; 16:9 before 9:16.
+        $a = $this->makeClip($ee, ['name' => 'a', 'slate' => 'PU1', 'format' => '16:9']);
+        $b = $this->clipInCategory($fi, 'AlphaMsg', 'Cat A', ['name' => 'b', 'slate' => 'S1', 'format' => '16:9']);
+        $c = $this->clipInCategory($fi, 'AlphaMsg', 'Cat A', ['name' => 'c', 'slate' => 'S1', 'format' => '9:16']);
+        $d = $this->clipInCategory($fi, 'AlphaMsg', 'Cat A', ['name' => 'd', 'slate' => 'S2', 'format' => '16:9']);
+        $e = $this->clipInCategory($fi, 'BetaMsg', 'Cat B', ['name' => 'e', 'slate' => 'S1', 'format' => '16:9']);
+
+        $json = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=pending&sort=walk')->assertOk()->json();
+
+        $this->assertSame([$a->id, $b->id, $c->id, $d->id, $e->id], collect($json['data'])->pluck('id')->all());
+    }
+
+    public function test_pending_sort_toggles_oldest_and_newest(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $old = $this->makeClip($m, ['name' => 'old']);
+        $new = $this->makeClip($m, ['name' => 'new']);
+        $old->forceFill(['created_at' => now()->subDays(3)])->save();
+        $new->forceFill(['created_at' => now()->subHour()])->save();
+
+        $oldest = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=pending&sort=oldest')->json();
+        $this->assertSame([$old->id, $new->id], collect($oldest['data'])->pluck('id')->all());
+
+        $newest = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=pending&sort=newest')->json();
+        $this->assertSame([$new->id, $old->id], collect($newest['data'])->pluck('id')->all());
+    }
+
+    public function test_reviewed_history_sorts_by_reviewed_at_desc_and_filters_by_outcome(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $first = $this->makeClip($m, ['name' => 'first', 'review_status' => 'approved', 'reviewed_at' => now()->subDays(2)]);
+        $last = $this->makeClip($m, ['name' => 'last', 'review_status' => 'declined', 'reviewed_at' => now()->subHour(), 'decline_reason' => 'no']);
+
+        $json = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=reviewed')->json();
+        $this->assertSame([$last->id, $first->id], collect($json['data'])->pluck('id')->all());
+
+        $declined = $this->asUser($this->legal())->getJson('/api/legal/delivered-clips?status=reviewed&outcome=declined')->json();
+        $this->assertSame([$last->id], collect($declined['data'])->pluck('id')->all());
+    }
+
+    public function test_field_filters_and_search_combine_with_and(): void
+    {
+        $fi = $this->market(['code' => 'FI']);
+        $ee = $this->market(['code' => 'EE']);
+        $match = $this->makeClip($fi, ['name' => 'Kemal hero', 'format' => '9:16', 'brand' => 'Creditstar', 'lang' => 'FI']);
+        $this->makeClip($fi, ['name' => 'Kemal hero', 'format' => '16:9', 'brand' => 'Creditstar', 'lang' => 'FI']); // wrong format
+        $this->makeClip($ee, ['name' => 'Kemal hero', 'format' => '9:16', 'brand' => 'Creditstar', 'lang' => 'FI']); // wrong market
+        $this->makeClip($fi, ['name' => 'Other', 'format' => '9:16', 'brand' => 'Creditstar', 'lang' => 'FI']);      // wrong name
+
+        $json = $this->asUser($this->legal())
+            ->getJson('/api/legal/delivered-clips?status=pending&market=FI&format=9:16&brand=Creditstar&language=FI&search=kemal')
+            ->assertOk()->json();
+
+        $this->assertSame([$match->id], collect($json['data'])->pluck('id')->all());
+    }
+
+    public function test_pending_count_endpoint_decrements_after_a_decision(): void
+    {
+        $m = $this->market(['code' => 'FI']);
+        $c1 = $this->makeClip($m, ['name' => 'c1']);
+        $c2 = $this->makeClip($m, ['name' => 'c2']);
+
+        $this->assertSame(2, $this->asUser($this->legal())->getJson('/api/legal/pending-count')->assertOk()->json('count'));
+
+        $this->asUser($this->legal())->postJson("/api/legal/delivered-clips/{$c1->id}/approve")->assertOk();
+        $this->assertSame(1, $this->asUser($this->legal())->getJson('/api/legal/pending-count')->json('count'));
+
+        $this->asUser($this->legal())->postJson("/api/legal/delivered-clips/{$c2->id}/decline", ['reason' => 'nope'])->assertOk();
+        $this->assertSame(0, $this->asUser($this->legal())->getJson('/api/legal/pending-count')->json('count'));
     }
 
     public function test_approval_opens_the_download_gate_for_leads(): void

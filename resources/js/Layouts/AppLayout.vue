@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
+import { legalState, refreshPendingCount } from '../lib/legalStore.js';
 import BrandLockup from '../Components/BrandLockup.vue';
 import WorkspaceSwitch from '../Components/WorkspaceSwitch.vue';
 import NavItem from '../Components/NavItem.vue';
@@ -56,8 +57,18 @@ const NAV = {
     { key: 'review', label: 'Clip review', icon: 'eye', href: '/legal' },
   ],
 };
-const nav = computed(() => NAV[props.workspace] || NAV.admin);
+const nav = computed(() => {
+  const items = NAV[props.workspace] || NAV.admin;
+  // Live "awaiting review" badge on the legal review nav item.
+  if (props.workspace === 'legal') {
+    return items.map((n) => (n.key === 'review' ? { ...n, badge: legalState.pendingCount || 0 } : n));
+  }
+  return items;
+});
 const legacyHref = computed(() => (props.workspace === 'portal' ? '/portal/legacy' : '/legacy'));
+
+// Seed the pending-review count for the badge when a legal user lands.
+onMounted(() => { if (props.workspace === 'legal') refreshPendingCount(); });
 
 function switchWs(next) {
   router.visit(next === 'portal' ? '/portal' : '/');
