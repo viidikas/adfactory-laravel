@@ -28,6 +28,8 @@ class DeliveredClip extends Model
         'thumbnail_path',
         'order_id',
         'uploaded_by',
+        'upload_batch_id',
+        'creative_key',
         'review_status',
         'reviewed_by',
         'reviewed_at',
@@ -49,6 +51,29 @@ class DeliveredClip extends Model
     public function isApproved(): bool
     {
         return $this->review_status === self::STATUS_APPROVED;
+    }
+
+    /** Format tokens that trail a rendered filename (mirrors parseFilename). */
+    private const FORMAT_TOKENS = ['16x9', '1x1', '9x16', '4x5', '4x5v1', '4x5v2'];
+
+    /**
+     * The "creative" a clip belongs to: its filename with the trailing format
+     * token removed, so all formats of one creative share a key
+     * (e.g. Creditstar_PL_rodki_na_TH8_Victoria_design2_4x5 →
+     * Creditstar_PL_rodki_na_TH8_Victoria_design2). Falls back to the full name
+     * when there is no recognisable format token.
+     */
+    public static function creativeKey(?string $name): string
+    {
+        $name = (string) $name;
+        $tokens = explode('_', $name);
+        if (count($tokens) > 1 && in_array(strtolower((string) end($tokens)), self::FORMAT_TOKENS, true)) {
+            array_pop($tokens);
+
+            return implode('_', $tokens);
+        }
+
+        return $name;
     }
 
     public function market(): BelongsTo

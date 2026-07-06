@@ -36,14 +36,17 @@ class LegalReviewController extends Controller
      */
     public function index(Request $request)
     {
-        $status = $request->query('status') === 'reviewed' ? 'reviewed' : 'pending';
+        // Pending | Approved | Declined are the three tabs; 'reviewed'
+        // (approved+declined) is kept for back-compat.
+        $valid = ['pending', 'approved', 'declined', 'reviewed'];
+        $status = in_array($request->query('status'), $valid, true) ? $request->query('status') : 'pending';
 
         // Whole status set (the only DB-level filter); everything else is applied
         // in PHP so the derived `category` participates uniformly.
         $set = DeliveredClip::with(['market', 'uploadedBy', 'reviewer'])
             ->when($status === 'reviewed',
                 fn ($q) => $q->whereIn('review_status', [DeliveredClip::STATUS_APPROVED, DeliveredClip::STATUS_DECLINED]),
-                fn ($q) => $q->where('review_status', DeliveredClip::STATUS_PENDING))
+                fn ($q) => $q->where('review_status', $status))
             ->get();
 
         // Resolve the derived copy meta (category + full text) once, N+1-free.
@@ -64,6 +67,14 @@ class LegalReviewController extends Controller
             'categories' => $set->pluck('_category')->filter()->unique()->sort()->values(),
             'languages' => $set->pluck('lang')->filter()->unique()->sort()->values(),
             'brands' => $set->pluck('brand')->filter()->unique()->sort()->values(),
+            'creatives' => $set->pluck('creative_key')->filter()->unique()->sort()->values(),
+            // Upload batches with a readable label (count + date) for the dropdown.
+            'batches' => $set->filter(fn ($c) => $c->upload_batch_id)
+                ->groupBy('upload_batch_id')
+                ->map(fn ($g, $id) => [
+                    'id' => $id,
+                    'label' => $g->count().' clip'.($g->count() === 1 ? '' : 's').' · '.optional($g->first()->created_at)->format('M j, Y'),
+                ])->values(),
         ];
 
         // Field filters (AND).
@@ -83,6 +94,12 @@ class LegalReviewController extends Controller
         if ($v = $request->query('brand')) {
             $rows = $rows->filter(fn ($c) => $c->brand === $v);
         }
+        if ($v = $request->query('creative')) {
+            $rows = $rows->filter(fn ($c) => $c->creative_key === $v);
+        }
+        if ($v = $request->query('batch')) {
+            $rows = $rows->filter(fn ($c) => $c->upload_batch_id === $v);
+        }
         if (($v = trim((string) $request->query('search'))) !== '') {
             $needle = mb_strtolower($v);
             $rows = $rows->filter(fn ($c) => str_contains(mb_strtolower((string) $c->name), $needle));
@@ -92,16 +109,20 @@ class LegalReviewController extends Controller
             $rows = $rows->filter(fn ($c) => $c->review_status === $request->query('outcome'));
         }
 
-        // Sort.
-        if ($status === 'reviewed') {
-            $rows = $rows->sortByDesc(fn ($c) => optional($c->reviewed_at)->timestamp ?? 0);
-        } else {
+        // Sort. Group-by-creative keeps all formats of a creative contiguous
+        // (so the frontend can render creative headers, page-stable). Otherwise:
+        // pending → walk / oldest / newest; approved & declined → reviewed_at desc.
+        if ($request->boolean('group')) {
+            $rows = $rows->sortBy(fn ($c) => $this->creativeSortKey($c));
+        } elseif ($status === 'pending') {
             $sort = $request->query('sort', 'walk');
             $rows = match ($sort) {
                 'oldest' => $rows->sortBy(fn ($c) => optional($c->created_at)->timestamp ?? 0),
                 'newest' => $rows->sortByDesc(fn ($c) => optional($c->created_at)->timestamp ?? 0),
                 default => $rows->sortBy(fn ($c) => $this->walkKey($c)),
             };
+        } else {
+            $rows = $rows->sortByDesc(fn ($c) => optional($c->reviewed_at)->timestamp ?? 0);
         }
         $rows = $rows->values();
 
@@ -111,13 +132,20 @@ class LegalReviewController extends Controller
         $total = $rows->count();
         $data = $rows->forPage($page, $perPage)->values()->map(fn (DeliveredClip $c) => $this->present($c));
 
+        $counts = [
+            'pending' => DeliveredClip::where('review_status', DeliveredClip::STATUS_PENDING)->count(),
+            'approved' => DeliveredClip::where('review_status', DeliveredClip::STATUS_APPROVED)->count(),
+            'declined' => DeliveredClip::where('review_status', DeliveredClip::STATUS_DECLINED)->count(),
+        ];
+
         return response()->json([
             'data' => $data,
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
             'last_page' => max(1, (int) ceil($total / $perPage)),
-            'pending_count' => $this->pendingTotal(),
+            'pending_count' => $counts['pending'],
+            'counts' => $counts,
             'filters' => $options,
         ]);
     }
@@ -131,6 +159,16 @@ class LegalReviewController extends Controller
     private function pendingTotal(): int
     {
         return DeliveredClip::where('review_status', DeliveredClip::STATUS_PENDING)->count();
+    }
+
+    /** Sort key that keeps a creative's formats together: creative → format → name. */
+    private function creativeSortKey(DeliveredClip $c): string
+    {
+        return implode('|', [
+            mb_strtolower((string) $c->creative_key),
+            $this->formatRank($c->format),
+            mb_strtolower((string) $c->name),
+        ]);
     }
 
     /** Composite sort key: market → category → slate → format → name. */
@@ -261,6 +299,8 @@ class LegalReviewController extends Controller
             'category' => $category,
             'copy' => $c->copy,
             'copy_full' => $copyFull,
+            'upload_batch_id' => $c->upload_batch_id,
+            'creative_key' => $c->creative_key,
             'file_size' => (int) $c->file_size,
             'order_short' => $c->order_id ? substr((string) $c->order_id, 0, 8) : null,
             'market' => $c->market ? [

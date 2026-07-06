@@ -470,4 +470,60 @@ class DeliveredClipTest extends TestCase
         $this->assertSame('approved', $clip->review_status, 'replacing only the thumbnail keeps approval');
         $this->assertDatabaseMissing('delivered_clip_reviews', ['delivered_clip_id' => $clip->id]);
     }
+
+    // ── Batch identity + creative_key ───────────────────────────────
+
+    public function test_storebatch_stamps_one_shared_batch_id_single_store_leaves_null(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+
+        $this->asUser($this->admin())->post('/api/delivered-clips/batch', [
+            'market_id' => $market->id,
+            'files' => [
+                UploadedFile::fake()->create('Creditstar_FI_Msg_PU8_Kemal_design1_16x9.mp4', 512, 'video/mp4'),
+                UploadedFile::fake()->create('Creditstar_FI_Msg_PU8_Kemal_design1_9x16.mp4', 512, 'video/mp4'),
+            ],
+        ])->assertStatus(201);
+
+        $batchIds = DeliveredClip::pluck('upload_batch_id');
+        $this->assertCount(2, $batchIds);
+        $this->assertNotNull($batchIds[0]);
+        $this->assertSame(1, $batchIds->unique()->count(), 'all clips in one storeBatch share a batch id');
+
+        $this->asUser($this->admin())->post('/api/delivered-clips', [
+            'market_id' => $market->id,
+            'name' => 'Solo',
+            'file' => UploadedFile::fake()->create('solo.mp4', 256, 'video/mp4'),
+        ])->assertStatus(201);
+        $this->assertNull(DeliveredClip::where('name', 'Solo')->firstOrFail()->upload_batch_id);
+    }
+
+    public function test_creative_key_strips_trailing_format_token(): void
+    {
+        $this->assertSame('Creditstar_PL_rodki_na_TH8_Victoria_design2', DeliveredClip::creativeKey('Creditstar_PL_rodki_na_TH8_Victoria_design2_4x5'));
+        $this->assertSame('Creditstar_PL_rodki_na_TH8_Victoria_design2', DeliveredClip::creativeKey('Creditstar_PL_rodki_na_TH8_Victoria_design2_16x9'));
+        $this->assertSame('No_format_here', DeliveredClip::creativeKey('No_format_here'), 'no format token → full name');
+    }
+
+    public function test_upload_sets_creative_key_shared_across_formats(): void
+    {
+        Storage::fake('local');
+        $market = $this->market(['code' => 'FI']);
+
+        $this->asUser($this->admin())->post('/api/delivered-clips/batch', [
+            'market_id' => $market->id,
+            'files' => [
+                UploadedFile::fake()->create('Creditstar_FI_Msg_PU8_Kemal_design1_16x9.mp4', 512, 'video/mp4'),
+                UploadedFile::fake()->create('Creditstar_FI_Msg_PU8_Kemal_design1_9x16.mp4', 512, 'video/mp4'),
+                UploadedFile::fake()->create('Creditstar_FI_Msg_PU8_Kemal_design2_16x9.mp4', 512, 'video/mp4'),
+            ],
+        ])->assertStatus(201);
+
+        $keys = DeliveredClip::pluck('creative_key');
+        // design1's two formats share one creative_key; design2 differs.
+        $this->assertSame(2, $keys->unique()->count());
+        $this->assertSame(2, $keys->filter(fn ($k) => $k === 'Creditstar_FI_Msg_PU8_Kemal_design1')->count());
+        $this->assertSame(1, $keys->filter(fn ($k) => $k === 'Creditstar_FI_Msg_PU8_Kemal_design2')->count());
+    }
 }
