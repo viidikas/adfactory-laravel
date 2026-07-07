@@ -12,6 +12,7 @@ import SectionLabel from '../../Components/SectionLabel.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
 import { ALL_LANGS, buildTemplaterState, buildOrderRows, rowsToCsv, TEMPLATER_EXPORT_COLS } from '../../lib/templater.js';
+import { fmtDateTime } from '../../lib/format.js';
 
 const props = defineProps({
   openId: { type: String, default: null },
@@ -67,7 +68,7 @@ const timeline = ['pending', 'processing', 'ready'];
 const curIdx = computed(() => (detail.value ? timeline.indexOf(detail.value.status) : -1));
 
 const shortId = (id) => String(id || '').slice(0, 8);
-const fmtDate = (unix) => (unix ? new Date(unix * 1000).toLocaleString() : '—');
+const fmtDate = (unix) => fmtDateTime(unix, { unix: true });
 const TAB_LABEL = { all: 'All', pending: 'Pending', processing: 'Processing', ready: 'Ready', rejected: 'Rejected' };
 
 const canEdit = computed(() => detail.value && detail.value.status !== 'ready');

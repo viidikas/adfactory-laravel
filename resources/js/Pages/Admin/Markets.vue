@@ -9,6 +9,7 @@ import Field from '../../Components/Field.vue';
 import Select from '../../Components/Select.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
+import { fmtDateTime } from '../../lib/format.js';
 
 defineProps({
   theme: { type: String, default: null },
@@ -101,7 +102,7 @@ async function addMarket() {
 }
 
 const openMarket = (m) => router.visit('/markets/' + encodeURIComponent(m.code));
-const syncedAgo = (iso) => (iso ? new Date(iso).toLocaleString() : 'never');
+const syncedAgo = (iso) => fmtDateTime(iso, { fallback: 'never' });
 </script>
 
 <template>
