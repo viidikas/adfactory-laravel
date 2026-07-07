@@ -1,0 +1,31 @@
+# Local testing services for AD.FACTORY.
+#
+# PostgreSQL 16 with two databases:
+#   - adfactory_local  (the app, used by .env)
+#   - adfactory_test   (PHPUnit, per phpunit.xml / .env.testing)
+#
+# POSTGRES_HOST_AUTH_METHOD=trust matches the empty DB_PASSWORD those configs
+# use, so no password is needed for local connections. Do NOT use trust auth
+# outside local development.
+services:
+  postgres:
+    image: postgres:16
+    container_name: adfactory-postgres
+    environment:
+      POSTGRES_USER: adfactory
+      POSTGRES_DB: adfactory_local
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - adfactory-pgdata:/var/lib/postgresql/data
+      # Runs ONCE on first init (empty data dir) to create the test database.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adfactory -d adfactory_local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  adfactory-pgdata:

@@ -1,0 +1,262 @@
+/* ============================================================
+   Monefit SmartSaver — Colors & Type
+   Sampled from Figma-exported screens (Signup, Login, Summary,
+   Verification, Company flows, Main/Vaults cards).
+   ============================================================ */
+
+/* --- Webfonts ----------------------------------------------- */
+/* Monefit uses "Value Serif Pro" — a grotesque with humanist
+   warmth (the rounded 'a', friendly 'e', open counters).
+   That face is proprietary; we substitute Manrope as the
+   closest open-source match on weight + metrics. If you have
+   the licensed files, drop them in /fonts and swap below. */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* =========================================================
+     COLORS — named roles first, then semantic mappings.
+     ========================================================= */
+
+  /* --- Surface / background --- */
+  --mf-cream-50:          #faf8f5;  /* lightest cream */
+  --mf-cream-100:         #f6f4f2;  /* page bg — ubiquitous */
+  --mf-cream-200:         #f0ece7;  /* subtle divider bg */
+  --mf-white:             #ffffff;  /* card bg */
+  --mf-black:             #000000;  /* primary ink, primary btn */
+
+  /* --- Sage / "Main" account card --- */
+  --mf-sage-50:           #eef4ee;
+  --mf-sage-100:          #e7ede7;  /* Main chip bg, inner chip */
+  --mf-sage-200:          #d8e2d8;
+  --mf-sage-300:          #dbeadc;  /* Main card bg — rgb(219,234,220) from Figma */
+  --mf-sage-400:          #b6c9b8;
+
+  /* --- Sky / "Vaults" card, info pills --- */
+  --mf-sky-50:            #f1f6f8;
+  --mf-sky-100:           #ebf2f4;  /* Vaults chip bg */
+  --mf-sky-200:           #dde8ed;  /* 'Earn 2500€' promo chip */
+  --mf-sky-300:           #d8e8e9;  /* Vaults card bg — rgb(216,232,233) from Figma */
+  --mf-sky-400:           #b9cdd6;
+
+  /* --- Deep ink (hero numerics on cards) --- */
+  --mf-ink-deep:          #1f192c;  /* rgb(31,25,44) — hero amounts on Main/Vault cards */
+
+  /* --- Neutral / ink scale --- */
+  --mf-ink-900:           #000000;  /* headings, body, primary */
+  --mf-ink-700:           #2b2b2b;  /* strong secondary */
+  --mf-ink-500:           #6a6a6a;  /* labels, helper text */
+  --mf-ink-400:           #8a9194;  /* tertiary, 'your data is protected' */
+  --mf-ink-300:           #b8b8b8;  /* disabled text on light */
+  --mf-ink-200:           #dddddd;  /* input borders */
+  --mf-ink-100:           #e5e5e5;  /* disabled button bg */
+
+  /* --- Semantic accents --- */
+  --mf-accent-blue:       #3880ff;  /* links, in-card amounts ('900.00 €'), '(PEP)' */
+  --mf-accent-blue-hover: #2b6fe5;
+  --mf-error:             #ff0000;  /* inline errors — used literally */
+  --mf-error-soft:        #feeded;  /* error field bg tint */
+  --mf-success:           #2ecc71;  /* status positive (not seen in exports; brand extension) */
+  --mf-warning-yellow:    #f6c642;  /* the ⚡ yellow used in 'Almost there ⚡' / 'Get started ⚡' */
+
+  /* =========================================================
+     SEMANTIC TOKENS — use these in components.
+     ========================================================= */
+
+  /* Surfaces */
+  --bg-page:              var(--mf-cream-100);
+  --bg-card:              var(--mf-white);
+  --bg-card-sage:         var(--mf-sage-300);
+  --bg-card-sky:          var(--mf-sky-300);
+  --bg-chip-neutral:      var(--mf-cream-100);
+  --bg-chip-sage:         var(--mf-sage-100);
+  --bg-chip-sky:          var(--mf-sky-100);
+  --bg-chip-sky-promo:    var(--mf-sky-200);
+  --bg-input:             var(--mf-white);
+  --bg-input-disabled:    var(--mf-cream-100);
+  --bg-btn-primary:       var(--mf-black);
+  --bg-btn-secondary:     var(--mf-white);
+  --bg-btn-disabled:      var(--mf-ink-100);
+  --bg-btn-tonal-sky:     var(--mf-sky-200); /* "Add documents" before filled */
+
+  /* Foreground */
+  --fg-primary:           var(--mf-black);
+  --fg-secondary:         var(--mf-ink-500);
+  --fg-tertiary:          var(--mf-ink-400);
+  --fg-disabled:          var(--mf-ink-300);
+  --fg-on-black:          var(--mf-white);
+  --fg-link:              var(--mf-accent-blue);
+  --fg-amount-accent:     var(--mf-accent-blue); /* numeric values linked on Summary */
+  --fg-error:             var(--mf-error);
+
+  /* Borders */
+  --border-input:         rgba(0, 0, 0, 0.32);   /* ~1px hairline on inputs */
+  --border-input-focus:   var(--mf-black);
+  --border-input-error:   var(--mf-error);
+  --border-divider:       rgba(0, 0, 0, 0.08);
+
+  /* =========================================================
+     TYPE
+     ========================================================= */
+
+  /* Families */
+  --font-sans:            'Manrope', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display:         var(--font-sans); /* same family, heavier weight */
+  --font-mono:            'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Weights — Monefit leans HEAVY on 700/800 for hero numbers
+     and screen titles, 500/600 for body emphasis. */
+  --fw-regular:           400;
+  --fw-medium:            500;
+  --fw-semibold:          600;
+  --fw-bold:              700;
+  --fw-heavy:             800;
+
+  /* Fluid size scale (mobile-first, px values match Figma
+     exports at 1x).  All line-heights are unitless. */
+  --fs-display:           34px;  /* 'Earn up to 9.96% APY', hero numeric */
+  --fs-h1:                26px;  /* 'Upload required business documents' */
+  --fs-h2:                22px;  /* 'Login', 'Get started ⚡', 'Forgot password?' */
+  --fs-h3:                18px;  /* 'General information', section titles */
+  --fs-body-lg:           16px;  /* body copy, bullet list */
+  --fs-body:              15px;  /* default body */
+  --fs-label:             13px;  /* form labels inside inputs, chip text */
+  --fs-caption:           12px;  /* 'Your data is protected', tertiary helper */
+  --fs-micro:             11px;  /* 'Powered by Veriff', footer legal */
+
+  --lh-tight:             1.15;
+  --lh-snug:              1.3;
+  --lh-normal:            1.45;
+  --lh-loose:             1.6;
+
+  --ls-tight:             -0.01em;
+  --ls-normal:            0;
+  --ls-wide:              0.02em;
+
+  /* =========================================================
+     SPACING / RADII / SHADOW / MOTION
+     ========================================================= */
+  --space-1:              4px;
+  --space-2:              8px;
+  --space-3:              12px;
+  --space-4:              16px;
+  --space-5:              20px;
+  --space-6:              24px;
+  --space-7:              32px;
+  --space-8:              40px;
+  --space-9:              48px;
+
+  /* Radii — Monefit uses two distinct card radii (per Figma):
+     - 16px on account cards (Main, Vaults) — confirmed from Figma
+     - 24px on larger auth/onboarding cards
+     - 999px (pill) on buttons
+     - 44px on CTA primary buttons (large 64px-tall version)       */
+  --radius-sm:            8px;
+  --radius-md:            12px;
+  --radius-lg:            16px;
+  --radius-card:          16px;  /* Main/Vaults account cards */
+  --radius-card-lg:       24px;  /* larger onboarding cards */
+  --radius-input:         14px;   /* rounded rectangle */
+  --radius-chip:          10px;   /* the 'Main'/'Vaults' chips */
+  --radius-btn:           44px;   /* primary CTA (Figma: 44px on 64px-tall btn) */
+  --radius-pill:          999px;
+
+  /* Shadows — cards are flat. Only subtle elevation on
+     floating chips and the combined Main/Vaults split chip. */
+  --shadow-none:          none;
+  --shadow-chip:          0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card:          0 1px 2px rgba(0, 0, 0, 0.03),
+                          0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-modal:         0 12px 40px rgba(0, 0, 0, 0.16);
+
+  /* Motion */
+  --ease-standard:        cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized:      cubic-bezier(0.3, 0, 0, 1);
+  --dur-fast:             140ms;
+  --dur-base:             220ms;
+  --dur-slow:             360ms;
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT DEFAULTS
+   Inline these or extend with @layer base in product code.
+   ============================================================ */
+
+html, body {
+  font-family: var(--font-sans);
+  color: var(--fg-primary);
+  background: var(--bg-page);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, .mf-h1 {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  margin: 0;
+}
+
+h2, .mf-h2 {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  margin: 0;
+}
+
+h3, .mf-h3 {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  margin: 0;
+}
+
+.mf-display {
+  font-size: var(--fs-display);
+  font-weight: var(--fw-heavy);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+}
+
+p, .mf-body {
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--fg-primary);
+  margin: 0;
+}
+
+.mf-label {
+  font-size: var(--fs-label);
+  color: var(--fg-secondary);
+  font-weight: var(--fw-regular);
+}
+
+.mf-caption {
+  font-size: var(--fs-caption);
+  color: var(--fg-tertiary);
+  font-weight: var(--fw-regular);
+}
+
+.mf-micro {
+  font-size: var(--fs-micro);
+  color: var(--fg-tertiary);
+  font-weight: var(--fw-regular);
+}
+
+a, .mf-link {
+  color: var(--fg-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  opacity: 0.75;
+}
+
+code, pre, .mf-mono {
+  font-family: var(--font-mono);
+}
