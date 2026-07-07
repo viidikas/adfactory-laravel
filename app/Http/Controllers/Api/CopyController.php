@@ -26,7 +26,7 @@ class CopyController extends Controller
             return response()->json(['message' => 'Market not found.'], 404);
         }
 
-        if (! $market->active && $request->user()->role !== 'admin') {
+        if (! $market->isVisibleTo($request->user())) {
             return response()->json(['message' => 'Market is not available.'], 422);
         }
 

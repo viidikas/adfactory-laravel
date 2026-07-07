@@ -506,8 +506,9 @@ class DeliveredClipController extends Controller
 
     private function userCanSee(Request $request, Market $market): bool
     {
-        // Admins see every market; leads only active ones (copy-visibility rule).
-        return $request->user()->role === 'admin' || $market->active;
+        // Admins see every market; leads only active ones. Delegates to the
+        // canonical rule on the Market model (shared with CopyController).
+        return $market->isVisibleTo($request->user());
     }
 
     /** Admins and legal reviewers may view unapproved video (manage / review). */
