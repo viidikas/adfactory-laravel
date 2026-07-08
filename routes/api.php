@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CopyController;
 use App\Http\Controllers\Api\CopyLineController;
 use App\Http\Controllers\Api\DeliveredClipController;
 use App\Http\Controllers\Api\LegalReviewController;
+use App\Http\Controllers\Api\LegalReviewSettingController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
@@ -80,6 +81,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/projects/{project}/designs/upload', [ProjectController::class, 'uploadDesignImage']);
         Route::delete('/projects/{project}/designs/image', [ProjectController::class, 'deleteDesignImage']);
         Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
+
+        // Legal-review module switch — super-admin only, audited (see controller).
+        Route::put('/legal-review', [LegalReviewSettingController::class, 'toggle']);
 
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
