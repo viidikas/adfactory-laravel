@@ -7,6 +7,7 @@ import Input from '../../Components/Input.vue';
 import Field from '../../Components/Field.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
+import { fmtDateTime } from '../../lib/format.js';
 
 defineProps({
   theme: { type: String, default: null },
@@ -73,7 +74,7 @@ async function remove(p) {
   finally { busyId.value = null; }
 }
 
-const scannedAgo = (iso) => (iso ? new Date(iso).toLocaleString() : 'never scanned');
+const scannedAgo = (iso) => fmtDateTime(iso, { fallback: 'never scanned' });
 </script>
 
 <template>

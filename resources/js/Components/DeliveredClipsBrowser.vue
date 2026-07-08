@@ -10,6 +10,7 @@ import SectionLabel from './SectionLabel.vue';
 import EmptyState from './EmptyState.vue';
 import Icon from './Icon.vue';
 import { api } from '../lib/api.js';
+import { fmtSize, fmtDate } from '../lib/format.js';
 
 const props = defineProps({
   clips: { type: Array, default: () => [] },
@@ -37,12 +38,6 @@ const sortOptions = [
 const FORMAT_ORDER = ['16:9', '1:1', '9:16', '4:5'];
 const fmtRank = (f) => { const i = FORMAT_ORDER.indexOf(f); return i === -1 ? 99 : i; };
 
-const fmtSize = (b) => {
-  if (!b) return '';
-  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
-  return (b / 1024 / 1024).toFixed(1) + ' MB';
-};
-const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—');
 
 // ── Legal review gate ────────────────────────────────────────────
 // A clip is downloadable only when approved. Leads can preview only approved

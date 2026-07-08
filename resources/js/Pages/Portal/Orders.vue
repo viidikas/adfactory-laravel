@@ -8,6 +8,7 @@ import StatusPill from '../../Components/StatusPill.vue';
 import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
+import { fmtDate as fmtDateUtil } from '../../lib/format.js';
 
 const props = defineProps({
   justSubmitted: { type: Boolean, default: false },
@@ -32,7 +33,7 @@ onMounted(async () => {
   if (showBanner.value) setTimeout(() => { showBanner.value = false; }, 6000);
 });
 
-const fmtDate = (unix) => (unix ? new Date(unix * 1000).toLocaleDateString() : '');
+const fmtDate = (unix) => fmtDateUtil(unix, { unix: true, fallback: '' });
 const renderedFor = (o, i) => (o.rendered_clips || []).filter((rc) => rc.item_index === i || rc.item_index === undefined);
 const toggle = (id) => { open.value = open.value === id ? null : id; };
 </script>

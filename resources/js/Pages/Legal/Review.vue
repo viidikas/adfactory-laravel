@@ -13,6 +13,7 @@ import EmptyState from '../../Components/EmptyState.vue';
 import Icon from '../../Components/Icon.vue';
 import { api } from '../../lib/api.js';
 import { legalState, setPendingCount, refreshPendingCount } from '../../lib/legalStore.js';
+import { fmtSize, fmtDateTime as fmtDate } from '../../lib/format.js';
 
 defineProps({ theme: { type: String, default: null }, density: { type: String, default: null } });
 
@@ -94,8 +95,6 @@ function onSearch(v) {
 function goPage(n) { filters[tab.value].page = n; persist(); load(tab.value); }
 function resetFilters() { const keepSort = filters[tab.value].sort; Object.assign(filters[tab.value], blank(), { sort: keepSort }); persist(); load(tab.value); }
 
-const fmtSize = (b) => (!b ? '' : b < 1024 * 1024 ? (b / 1024).toFixed(0) + ' KB' : (b / 1024 / 1024).toFixed(1) + ' MB');
-const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
 const metaLine = (c) => [c.category, c.slate, c.actor, c.design, c.lang].filter(Boolean).join(' · ');
 
 const cur = computed(() => result[tab.value]);

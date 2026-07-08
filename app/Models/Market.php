@@ -89,6 +89,21 @@ class Market extends Model
     }
 
     /**
+     * The canonical read-visibility rule for a market's copies and delivered
+     * clips: admins see every market; everyone else sees only active ones.
+     * Single source of truth — used by DeliveredClipController and CopyController
+     * so the rule can't drift between them.
+     *
+     * NB: this is NOT the order-placement gate. Placing an order requires an
+     * ACTIVE market even for admins (see OrderController) — a deliberately
+     * stricter, separate rule left untouched.
+     */
+    public function isVisibleTo(?User $user): bool
+    {
+        return $user?->role === 'admin' || $this->active;
+    }
+
+    /**
      * Deterministic hash of the market's current copy set: the legally-reviewed
      * content. Built from copies ordered by copy_key, each contributing its
      * copy_key, language-sorted copy_text, and per-copy disclaimer flag. Any

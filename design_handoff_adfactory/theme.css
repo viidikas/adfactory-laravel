@@ -1,0 +1,196 @@
+/* ============================================================
+   AD.FACTORY — theme layer
+   Adapts the Monefit SmartSaver tokens (colors_and_type.css) to a
+   data-dense DESKTOP admin surface. Dark-first, with a light variant.
+   Brand cues kept: Manrope type, heavy hero numerics, pill buttons,
+   sage/sky soft accents, electric-blue links, mint-green action.
+   Switchable via [data-theme="dark"|"light"] and [data-density].
+   ============================================================ */
+
+:root {
+  /* font is overridable by the Tweaks panel */
+  --app-font: 'Manrope', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* brand constants reused across themes */
+  --brand-mint:        #49DA8A;   /* rgb(73,218,138) — dominant green in the file */
+  --brand-mint-2:      #3FC97D;
+  --brand-teal:        #48DABA;   /* rgb(72,218,186) */
+  --brand-sage:        #cad8cb;
+  --brand-sky:         #d4e2e8;
+  --brand-blue:        #3880ff;
+  --brand-yellow:      #f6c642;
+}
+
+/* ---------------- DARK (default) ---------------- */
+[data-theme="dark"] {
+  --surface-0:   #16191b;          /* app canvas */
+  --surface-1:   #1c1f21;          /* sidebar / topbar — rgb(28,31,33) from file */
+  --surface-2:   #212528;          /* cards */
+  --surface-2b:  #25292c;          /* card header / subtle raise */
+  --surface-3:   #2b3034;          /* hover / pressed */
+  --surface-inset:#15181a;         /* wells, code, video letterbox */
+
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.16);
+  --divider:       rgba(255,255,255,0.06);
+
+  --text-1: #f1efe9;               /* cream-white primary ink */
+  --text-2: #a7aab0;               /* muted */
+  --text-3: #71747b;               /* tertiary / placeholder — rgb(130,131,142)-ish */
+  --text-on-accent: #0a2416;       /* dark ink on mint */
+
+  --accent:       var(--brand-mint);
+  --accent-hover: var(--brand-mint-2);
+  --accent-soft:  rgba(73,218,138,0.14);
+  --accent-ring:  rgba(73,218,138,0.30);
+
+  --link:    #6fa2ff;
+  --danger:  #ff6a6a;
+  --danger-soft: rgba(255,106,106,0.14);
+  --warning: var(--brand-yellow);
+  --success: var(--brand-mint);
+  --info:    #6fa2ff;
+
+  /* soft status tints on dark */
+  --tint-sage: rgba(202,216,203,0.16);
+  --tint-sky:  rgba(212,226,232,0.16);
+  --tint-violet: rgba(150,140,230,0.18);
+
+  /* primary button: energetic mint */
+  --btn-primary-bg:   var(--brand-mint);
+  --btn-primary-ink:  #0a2416;
+  --btn-primary-hover:var(--brand-mint-2);
+  --btn-secondary-bg: transparent;
+  --btn-secondary-ink:var(--text-1);
+  --btn-secondary-bd: var(--border-strong);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-pop:  0 16px 48px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
+
+  --logo-ink: #f1efe9;
+  color-scheme: dark;
+}
+
+/* ---------------- LIGHT (brand-true) ---------------- */
+[data-theme="light"] {
+  --surface-0:   #f6f4f2;          /* cream page */
+  --surface-1:   #ffffff;
+  --surface-2:   #ffffff;
+  --surface-2b:  #faf8f5;
+  --surface-3:   #f0ece7;
+  --surface-inset:#f0ece7;
+
+  --border:        rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.22);
+  --divider:       rgba(0,0,0,0.07);
+
+  --text-1: #15161a;
+  --text-2: #5f636b;
+  --text-3: #9aa0a8;
+  --text-on-accent: #ffffff;
+
+  --accent:       #14a35a;
+  --accent-hover: #0f8c4c;
+  --accent-soft:  rgba(20,163,90,0.12);
+  --accent-ring:  rgba(20,163,90,0.28);
+
+  --link:    var(--brand-blue);
+  --danger:  #e11d2a;
+  --danger-soft: #feeded;
+  --warning: #b7791f;
+  --success: #14a35a;
+  --info:    var(--brand-blue);
+
+  --tint-sage: #e7ede7;
+  --tint-sky:  #ebf2f4;
+  --tint-violet: #ece9fb;
+
+  /* primary button: black pill (true to Monefit) */
+  --btn-primary-bg:   #000000;
+  --btn-primary-ink:  #ffffff;
+  --btn-primary-hover:#1a1a1a;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-ink:#000000;
+  --btn-secondary-bd: rgba(0,0,0,0.22);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.05);
+  --shadow-pop:  0 16px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08);
+
+  --logo-ink: #000000;
+  color-scheme: light;
+}
+
+/* ---------------- DENSITY ---------------- */
+[data-density="compact"] {
+  --pad-card: 16px;
+  --pad-screen: 22px;
+  --row-h: 40px;
+  --gap: 12px;
+  --gap-sm: 8px;
+  --ctrl-h: 38px;
+  --grid-min: 184px;
+}
+[data-density="regular"] {
+  --pad-card: 20px;
+  --pad-screen: 32px;
+  --row-h: 52px;
+  --gap: 16px;
+  --gap-sm: 10px;
+  --ctrl-h: 44px;
+  --grid-min: 220px;
+}
+[data-density="comfy"] {
+  --pad-card: 26px;
+  --pad-screen: 44px;
+  --row-h: 62px;
+  --gap: 22px;
+  --gap-sm: 14px;
+  --ctrl-h: 50px;
+  --grid-min: 260px;
+}
+
+/* radii — brand system */
+:root {
+  --r-card: 18px;
+  --r-md: 12px;
+  --r-input: 12px;
+  --r-chip: 10px;
+  --r-pill: 999px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  font-family: var(--app-font);
+  background: var(--surface-0);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+::selection { background: var(--accent-soft); }
+
+/* scrollbar */
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* hero numeric — the defining Monefit move */
+.hero-num {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.0;
+}
+
+.mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+
+button { font-family: inherit; }

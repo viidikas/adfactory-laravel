@@ -1,163 +1,225 @@
 # AD.FACTORY
 
-Video ad production platform for Creditstar/Monefit. Built with Laravel 11, Vue 3, Inertia.js.
+A market-aware ad-copy and video-clip delivery platform for the dual-brand
+**Creditstar / Monefit** group. Admins prepare markets (localized ad copy synced
+from Google Sheets) and a library of source footage; growth leads assemble orders
+by pairing approved copy with clips; the production team renders finished,
+localized videos and delivers them back through the platform. Everything is
+gated by two server-side compliance controls — copy confirmation and legal clip
+review — so nothing ships without sign-off.
 
-Two interfaces:
-- **AD.FACTORY** (`/`) — Admin tool for managing projects, clips, copy mapping, and Templater CSV generation
-- **Growth Portal** (`/portal`) — Growth lead interface for browsing clips by copy or category, and submitting video ad orders
+Built with **Laravel 12** (PHP 8.2+), **PostgreSQL**, **Redis**, and a **Vue 3 +
+Inertia.js** front end bundled by **Vite**. Video thumbnails/format detection use
+**ffmpeg**.
 
-## How it works
+---
 
-### Admin workflow
+## Core domain concepts
 
-1. **Create a project** — each project is a folder on the server under `/mnt/footage/`. Upload graded masters via rsync, then scan the folder to index all clips.
+- **Markets** — one per country for Creditstar (EE, FI, ES, CZ, PL, SE, DK, UK)
+  and a single EEA-wide market for Monefit. A market is created **inactive**; an
+  admin prepares and reviews it, then explicitly enables it. Only active markets
+  appear in the lead-facing selector. See `Market::canonical()`.
+- **Copies** — the advertising copy lines for a market, **synced read-only** from
+  a Google Sheet (Category / Shot / Brand / language columns). Copy text is never
+  edited in the app; the sheet is the source of truth. Each copy carries an
+  `enabled` flag and an optional per-copy disclaimer requirement.
+- **Orders** — a growth lead's basket of *(clip × copy × languages × designs)*
+  line items, submitted against one active market. Status flow:
+  `pending → processing → ready` (or `rejected`).
+- **Delivered clips** — the rendered, localized videos the production team uploads
+  back against an order/market. Each carries parsed metadata
+  (brand/lang/copy/slate/actor/design/format), a `creative_key` grouping its
+  formats, and a legal `review_status`.
+- **Legal role & clip review** — a dedicated `legal` user reviews each delivered
+  clip and approves or declines it (with an append-only audit trail). Admins
+  upload clips but **do not** approve them — a deliberate separation of duties.
 
-2. **Connect copy sheets** — paste Google Sheets URL(s) containing advertising copy with columns: Category, Shot, Brand, EN, ET, FR, DE, ES. The system parses the sheet deterministically and maps copy lines to clips by slate code (e.g. PU1 = Product Usage slate 1).
+### The two-gate compliance model
 
-3. **AI analysis (optional)** — run "Analyse All" to send sheets + clip list to Claude API. The AI matches shot descriptions to slates and stores enriched metadata (description, markets). This supplements the deterministic copy matching.
+Two independent, **server-side-enforced** gates stand between raw material and a
+downloadable ad. They are separate controls — do not conflate them:
 
-4. **Sync copy** — after analysis, copy is synced from the sheet into the database. Each clip's slate code determines which copy lines apply. Shot column has specific slates (e.g. "LE1, LE3") or blank for category-wide fallback.
+1. **Copy confirmation (the message).** Copy is synced read-only from the sheet.
+   A per-copy `enabled` flag is the content gate: a market can only be *enabled*
+   once at least one copy is enabled, and leads are only ever offered/able to
+   order **enabled** copy. A `MarketConfirmation` records a compliance sign-off
+   against a deterministic **content hash** of the market's copy set
+   (`Market::computeContentHash()` / `isConfirmed()`); if any copy text, key, or
+   disclaimer flag changes, the hash changes and the confirmation lapses.
 
-5. **Verify matching** — use the "Filter by Copy" panel in the clip library to click a copy line and see which clips it applies to. The clip modal shows only matched copy options.
+2. **Clip legal review (the finished video).** Every delivered clip starts
+   `pending`. Only a `legal` user can move it to `approved` / `declined`.
+   **Downloads are approved-only for everyone** (admins and leads included).
+   Legal and admins may *stream* an unapproved clip to review it, but leads can
+   only preview approved clips. Replacing a clip's video file resets its review
+   to `pending` (with an audit row).
 
-6. **Configure output** — set designs, formats, filename convention (drag-drop parts), folder structure, and AE composition name mapping.
+The download endpoint itself is doubly gated: `authorizeView()` (market
+visibility) **and** `isApproved()` (legal). These rules live server-side in
+`DeliveredClipController` and the `Market` / `DeliveredClip` models — the UI
+mirrors them but never enforces them.
 
-7. **Generate CSV** — select brands, languages, designs, and optionally filter by a specific copy line. The system generates a Dataclay Templater-ready CSV with one row per clip x language x design x format combination. Rows with no copy for a given language are silently omitted.
+---
 
-8. **Export** — download as CSV or copy to clipboard and paste into Google Sheets.
+## Roles & access control
 
-### Growth lead workflow
+Authentication is **passwordless**: a user enters their email, receives a 6-digit
+code by email (queued), and verifies it. The resolved user id lives in the
+session; `/api/*` runs inside the web group and is therefore **CSRF-protected**
+(the front end sends `X-XSRF-TOKEN`, wired in `resources/js/app.js`).
 
-1. **Login** — enter email, receive a 6-digit code, verify.
+| Role | Home | Can do | Gated by |
+|------|------|--------|----------|
+| **Super-admin** | `/` (operator panel) | Everything: manage markets, per-copy enablement, projects/clips, Templater CSV generation, users, delivered-clip admin | Email **allowlist** in `config/adfactory.php` → `super_admins` (env `ADFACTORY_SUPER_ADMINS`, comma-separated, case-insensitive). `SuperAdmin` middleware. |
+| **Admin** (`role = admin`) | portal / admin APIs | Admin-scoped APIs (upload delivered clips, etc.); sees all markets. An `admin` **not** on the super-admin allowlist is treated like a lead for the operator panel. | `AdminOnly` middleware (`role === 'admin'`). |
+| **Growth lead** (`role = growth_lead`) | `/portal` | Browse clips/copy for **active** markets, build and submit orders, download **approved** delivered clips for their market | `auth` + `RejectLegal`. |
+| **Legal** (`role = legal`) | `/legal` | Review delivered clips only (approve/decline). Cannot reach the operator panel or the portal. | `Legal` middleware (`role === 'legal'`); `RejectLegal` bounces legal users out of the portal. |
 
-2. **Browse by Copy** — see all copy lines as cards, filter by category. Click a copy line to see matching clips. Select clips, choose languages and designs, add to order.
+Middleware aliases (`bootstrap/app.php`): `auth`, `admin`, `superadmin`,
+`legal`, `rejectlegal`.
 
-3. **Browse by Clips** — browse all clips with category/actor/search filters. Click a clip to open a detail panel with video preview, copy selector, language and design pickers.
+---
 
-4. **Submit order** — review basket, enter market and optional note, submit. Admin receives the order in their Orders tab.
+## Local setup
 
-5. **Track orders** — see order status: Pending → Processing → Ready.
-
-### Copy matching rules
-
-The Google Sheet has columns: Category, Shot, Brand, EN, ET, FR, DE, ES.
-
-- If **Shot** has slate codes (e.g. "PU1, PU7, PU18") → that copy applies only to those slates
-- If **Shot** is blank → copy applies to the entire category as fallback
-- Multiple copy lines can match the same slate — admin/user picks which to use
-- Slate codes: PU = Product Usage, TH = Travel and Holiday, HR = Home Renovation, LE = Lifestyle and Events, EG = Electronics and Devices, FR = Financial Relief
-
-### Clip filename convention
-
-Clips are parsed from filenames: `Category_SlateNumber_Actor.mov`
-
-- `Product Usage_18_Andrey.mov` → PU18, actor Andrey
-- `Travel and Holiday_3_Viktoria_Lauri.mov` → TH3, actors Viktoria and Lauri
-- `Lifestyle and Events_3_Andrey_v2.mov` → LE3, actor Andrey, version 2
-- Trailing underscores (e.g. `Actor_.mov`) are stripped automatically
-
-## Requirements
-
-- PHP 8.2+
-- PostgreSQL 16
-- Redis
-- Node.js & npm
-- ffmpeg (video thumbnails)
-- Composer
-
-## Setup
+Prerequisites: **PHP 8.2+**, **Composer**, **Node.js + npm**, **Docker** (for
+Postgres), and **ffmpeg** (thumbnails / format detection).
 
 ```bash
-git clone https://github.com/viidikas/adfactory-laravel.git
-cd adfactory-laravel
+# 1. PHP + JS dependencies
 composer install
+npm install
+
+# 2. App env
 cp .env.example .env
 php artisan key:generate
-```
 
-Configure `.env` with your database, Redis, SMTP, and Anthropic API credentials.
+# 3. Postgres (local + test DBs) via Docker
+#    Brings up postgres:16 with adfactory_local and adfactory_test
+#    (see docker-compose.yml and docker/postgres/init/).
+docker compose up -d      # or: docker-compose up -d
 
-```bash
+# 4. Schema + seed data (markets are seeded INACTIVE; UserSeeder adds users)
 php artisan migrate
-npm install
-npm run build
+php artisan db:seed
+
+# 5. Run it
+npm run dev               # Vite dev server
+php artisan serve         # or your usual PHP host
 ```
 
-Create the first admin user:
+Point `.env` at the Docker Postgres (`DB_HOST=127.0.0.1`, `DB_DATABASE=adfactory_local`,
+`DB_USERNAME=adfactory`, empty `DB_PASSWORD` — the container uses `trust` auth for
+local dev only).
 
-```bash
-php artisan tinker --execute="App\Models\User::create(['name' => 'Your Name', 'email' => 'you@example.com', 'role' => 'admin']);"
-```
+### Environment keys that matter
 
-## Environment variables
-
-| Variable | Description |
-|----------|-------------|
+| Variable | Purpose |
+|----------|---------|
 | `DB_*` | PostgreSQL connection |
-| `REDIS_*` | Redis connection (cache, sessions, queue) |
-| `ANTHROPIC_API_KEY` | Claude API key for AI sheet analysis |
-| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | SMTP for login code emails |
-| `MAIL_SCHEME` | `smtps` for port 465 SSL (Laravel 11 uses Symfony Mailer) |
-| `FOOTAGE_PATH` | Absolute path to source video clips (default: `/mnt/footage`) |
-| `RENDERED_PATH` | Absolute path to rendered exports (default: `/mnt/exports`) |
+| `REDIS_*` | Redis (cache, sessions, queue) — production defaults to redis |
+| `ANTHROPIC_API_KEY` | Claude API key for the **optional** AI sheet-analysis step (`config/services.php` → `anthropic`) |
+| `ADFACTORY_SUPER_ADMINS` | Comma-separated super-admin email allowlist |
+| `MAIL_*` | SMTP for login-code emails (`MAIL_SCHEME=smtps` for port 465) |
+| `FOOTAGE_PATH` / `RENDERED_PATH` | Absolute paths to source footage / rendered exports |
 
-## Queue worker
+> **Google Sheets:** copy is fetched from the sheet's **public gviz CSV endpoint**
+> (`docs.google.com/.../gviz/tq?...`) in `SheetSyncService`. There are **no
+> Google API credentials** — the sheet simply has to be shared as viewable.
 
-Login code emails are queued via Redis. A worker must be running:
+Login-code emails are queued; run a worker when exercising login:
+`php artisan queue:work`.
 
-```bash
-php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
-```
+### Running the tests (PostgreSQL — **not** SQLite)
 
-In production, use Supervisor to keep it running.
-
-## API endpoints
-
-### Public
-- `GET/POST /login/*` — passwordless email login
-
-### Authenticated (all users)
-- `GET /api/clips` — list clips (optional: `?category=`, `?search=`, `?actor=`)
-- `GET /api/copy-lines` — parsed copy lines from the configured sheet
-- `GET /api/projects` — list projects
-- `GET /api/orders` — list orders (growth leads see own, admins see all)
-- `POST /api/orders` — submit an order
-- `GET /api/video?path=` — stream video file
-- `GET /api/thumb?path=` — generate/serve video thumbnail
-
-### Admin only
-- `POST /api/projects` — create project
-- `POST /api/projects/{id}/scan` — scan project folder for clips
-- `PUT /api/projects/{id}/activate` — set project as active
-- `PUT /api/projects/{id}/designs` — update project designs
-- `POST /api/copy-lines/sync` — fetch sheet and rebuild copy-to-slate mapping
-- `POST /api/analyse-sheets` — AI analysis of sheets + clips
-- `POST /api/config` — update settings
-- `CRUD /api/users` — manage growth lead accounts
-
-## Testing
-
-Tests use a separate `adfactory_test` database to protect production data:
+The suite runs against the `adfactory_test` Postgres database (created by the
+Docker init script; config in `phpunit.xml` / `.env.testing`):
 
 ```bash
-./run-tests.sh
+php artisan test
 ```
 
-28 tests covering: auth, clips, copy lines, orders, portal access, user management.
+Suites: **Unit** (`tests/Unit`, e.g. the filename parser) and **Feature**
+(`tests/Feature`, the HTTP/domain tests).
 
-## Server deployment
+> ⚠️ **Known gotcha:** the committed `.env.testing` ships a placeholder `APP_KEY`
+> that is **not** a valid 32-byte key, so the suite fails with an encryption
+> error out of the box. Until that's fixed in the repo, run with a real key, e.g.
+> `APP_KEY="base64:$(openssl rand -base64 32)" php artisan test`.
+> *(TODO: replace the placeholder with a valid generated key.)*
 
-Provisioned with [adfactory-candalf](https://github.com/viidikas/adfactory-candalf) spellbook using [candalf](https://github.com/jarmo/candalf):
+---
+
+## Deployment
+
+Provisioned with the [adfactory-candalf](https://github.com/viidikas/adfactory-candalf)
+spellbook (via [candalf](https://github.com/jarmo/candalf)) — Nginx, PHP-FPM,
+PostgreSQL, Redis, Supervisor, Let's Encrypt.
+
+Application deploys run from a workstation via `./deploy.sh`, which SSHes to the
+`adfactory` host (`/var/www/adfactory`) and:
+
+1. `git pull origin main`
+2. `npm run build` — **the front-end bundle is built on the server**;
+   `public/build` is gitignored and never committed.
+3. Writes `public/version.json` with a fresh timestamp — **required** cache-bust
+   so browsers pick up the new JS/CSS (stale `version.json` = stale app).
+4. `storage:link`, fixes ownership, then `config:cache` + `route:cache`.
+
+**`deploy.sh` does not run migrations.** Run them manually, and **always
+`pg_dump` the database first**:
 
 ```bash
-cd adfactory-candalf
-cp .env.example .env  # fill in secrets
-./run.sh
+# on the server, after deploy.sh
+pg_dump adfactory > backup-$(date +%F).sql      # 1. back up FIRST
+php artisan migrate --force                      # 2. migrate
+php artisan db:seed --force                      # 3. seed (idempotent) if needed
+# 4. one-off backfills, as needed (both support --dry-run):
+php artisan orders:backfill-market
+php artisan designs:migrate-images
 ```
 
-## Tech stack
+Order: **back up → migrate → seed → backfill.** Some data moves live inside
+migrations (e.g. `backfill_orders_market_id`, the `creative_key` backfill);
+larger/optional moves are the artisan backfill commands above.
 
-- **Backend**: Laravel 11, PHP-FPM, PostgreSQL, Redis
-- **Frontend**: Vue 3 + Inertia.js, Vite
-- **External**: Anthropic Claude API, Google Sheets, ffmpeg
-- **Server**: Nginx, Supervisor, Let's Encrypt SSL, Hetzner
+---
+
+## Templater filename convention
+
+Two distinct filename shapes flow through the system; both are parsed by the
+single authoritative service **`app/Services/ClipParser.php`**:
+
+- **Source library clips** — `Category_SlateNumber_Actor[_version]`
+  (`ClipParser::parse()`), e.g.
+  - `Product Usage_18_Andrey.mov` → slate **PU18**, actor Andrey
+  - `Travel and Holiday_3_Viktoria_Lauri.mov` → **TH3**, actors Viktoria & Lauri
+  - `Lifestyle and Events_3_Andrey_v2.mov` → **LE3**, Andrey, version 2
+  - Slate prefixes: PU (Product Usage), TH (Travel and Holiday),
+    HR (Home Renovation), LE (Lifestyle and Events),
+    EG (Electronics and Devices), FR (Financial Relief).
+- **Rendered Templater outputs** — `brand_lang_copyslug_slate_actor_design_format`
+  (`ClipParser::parseRendered()`), e.g.
+  `Creditstar_FI_Suunnittele_Pt_Hae_PU8_Kemal_design1_16x9`.
+  `ClipParser::creativeKey()` strips the trailing format token so every format of
+  one creative shares a key.
+
+`DeliveredClip` delegates its `parseFilename()` / `creativeKey()` /
+`slugifyCopy()` to `ClipParser` — there is exactly one implementation of each so
+the model and the controllers can't drift.
+
+---
+
+## Conventions
+
+- **Branch-first + PR.** Never commit straight to `main` and never merge without
+  review.
+- **PostgreSQL for tests, not SQLite.** The app relies on Postgres behavior; the
+  test suite is configured for `pgsql` and must stay that way.
+- **No unsanctioned major dependency upgrades.** Framework/library major bumps
+  are a deliberate, reviewed decision — don't fold them into unrelated work.
+- **Compliance rules are server-side.** The copy-confirmation and legal-review
+  gates (and the market-visibility rule, `Market::isVisibleTo()`) are enforced in
+  controllers/models. Treat any front-end check as a mirror, not the source of
+  truth.
