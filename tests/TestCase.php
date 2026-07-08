@@ -5,6 +5,7 @@ namespace Tests;
 use App\Models\Copy;
 use App\Models\Market;
 use App\Models\User;
+use App\Support\LegalReview;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -18,6 +19,11 @@ abstract class TestCase extends BaseTestCase
         // inline (not via admin()), so treat it as a super-admin — these tests
         // describe the authorised operator. nonSuperAdmin() stays blocked.
         $this->allowSuperAdmin('admin@test.com');
+
+        // Legal review defaults OFF in production, but the existing suite is the
+        // regression guard for the ON behavior — so enable it by default here.
+        // The dedicated OFF tests flip it back with LegalReview::setEnabled(false).
+        LegalReview::setEnabled(true);
     }
 
     protected function admin(array $attrs = []): User
