@@ -56,6 +56,11 @@ class DeliveredClip extends Model
         return $this->review_status === self::STATUS_APPROVED;
     }
 
+    public function isDeclined(): bool
+    {
+        return $this->review_status === self::STATUS_DECLINED;
+    }
+
     /**
      * The "creative" a clip belongs to: its filename with the trailing format
      * token removed, so all formats of one creative share a key. Delegates to

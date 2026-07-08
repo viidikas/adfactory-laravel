@@ -8,6 +8,7 @@ use App\Models\DeliveredClip;
 use App\Models\DeliveredClipReview;
 use App\Models\Market;
 use App\Models\Order;
+use App\Support\LegalReview;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -390,7 +391,7 @@ class DeliveredClipController extends Controller
     {
         $this->authorizeView($request, $deliveredClip);
 
-        abort_unless($deliveredClip->isApproved(), 403, 'This clip has not been approved for download.');
+        abort_unless($this->passesReviewGate($request, $deliveredClip), 403, 'This clip has not been approved for download.');
 
         abort_unless(Storage::disk(self::DISK)->exists($deliveredClip->file_path), 404, 'File not found.');
 
@@ -410,11 +411,12 @@ class DeliveredClipController extends Controller
     {
         $this->authorizeView($request, $deliveredClip);
 
-        // Unapproved video is streamable only by its reviewers (legal) and admins
-        // — legal must watch a pending clip to decide. Leads can play a clip in
-        // the portal only once it is approved (the download gate applied to the
-        // in-app player too, so unapproved creative is never distributed).
-        if (! $deliveredClip->isApproved() && ! $this->isReviewerOrAdmin($request)) {
+        // When legal review is ON, unapproved video is streamable only by its
+        // reviewers (legal) and admins — legal must watch a pending clip to
+        // decide; leads can play a clip in the portal only once it is approved.
+        // When OFF, the review gate is gone and any visible clip streams. All of
+        // that is decided centrally in passesReviewGate().
+        if (! $this->passesReviewGate($request, $deliveredClip, reviewerPreview: true)) {
             abort(403, 'This clip is awaiting legal review.');
         }
 
@@ -456,8 +458,9 @@ class DeliveredClipController extends Controller
             }
         }
 
-        // Two-gate rule applies to bulk too: only approved clips are ever zipped.
-        $clips = $clips->filter(fn (DeliveredClip $c) => $c->isApproved())->values();
+        // The review gate applies to bulk too (centralised): when ON only approved
+        // clips are zipped; when OFF every visible clip in the set is included.
+        $clips = $clips->filter(fn (DeliveredClip $c) => $this->passesReviewGate($request, $c))->values();
         abort_if($clips->isEmpty(), 404, 'No approved clips in this set.');
 
         $tmp = tempnam(sys_get_temp_dir(), 'dset').'.zip';
@@ -509,6 +512,40 @@ class DeliveredClipController extends Controller
         // Admins see every market; leads only active ones. Delegates to the
         // canonical rule on the Market model (shared with CopyController).
         return $market->isVisibleTo($request->user());
+    }
+
+    /**
+     * The SINGLE place the legal-review gate is decided for serving a clip's
+     * bytes (download / stream / zip). Market visibility is enforced separately
+     * (authorizeView / userCanSee) and ALWAYS applies, in both modes. This
+     * answers only: does the legal-review layer permit serving this clip?
+     *
+     *  - Module OFF → the review gate is fully removed; every clip passes,
+     *    INCLUDING pending and declined (see the isolated conditional below).
+     *  - Module ON → today's two-gate rule: approved clips pass; an unapproved
+     *    clip passes only for a reviewer/admin preview ($reviewerPreview, used by
+     *    stream so legal can watch a pending clip), never for download/zip.
+     *
+     * Centralised so the `if (LegalReview::enabled())` check lives in exactly one
+     * method — download(), stream() and downloadSet() all call this.
+     */
+    private function passesReviewGate(Request $request, DeliveredClip $clip, bool $reviewerPreview = false): bool
+    {
+        if (! LegalReview::enabled()) {
+            // ── Module OFF: legal-review gate removed ──────────────────────────
+            // DECISION (flagged in PR): with the module off, DECLINED clips are
+            // ALSO downloadable — the gate is fully gone. This is the one place
+            // that decision lives; to instead keep blocking declined clips later,
+            // change this single line to:  return ! $clip->isDeclined();
+            return true;
+        }
+
+        // ── Module ON: unchanged two-gate behavior ────────────────────────────
+        if ($clip->isApproved()) {
+            return true;
+        }
+
+        return $reviewerPreview && $this->isReviewerOrAdmin($request);
     }
 
     /** Admins and legal reviewers may view unapproved video (manage / review). */

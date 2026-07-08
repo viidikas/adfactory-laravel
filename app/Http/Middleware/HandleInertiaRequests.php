@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\LegalReview;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -39,6 +40,9 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'success' => fn () => $request->session()->get('success'),
             ],
+            // The legal clip-review module switch, readable by every page so the
+            // UI can hide the legal surface / review badges when it is OFF.
+            'legalReviewEnabled' => LegalReview::enabled(),
         ];
     }
 }

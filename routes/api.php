@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CopyController;
 use App\Http\Controllers\Api\CopyLineController;
 use App\Http\Controllers\Api\DeliveredClipController;
 use App\Http\Controllers\Api\LegalReviewController;
+use App\Http\Controllers\Api\LegalReviewSettingController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProjectController;
@@ -81,6 +82,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('/projects/{project}/designs/image', [ProjectController::class, 'deleteDesignImage']);
         Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
 
+        // Legal-review module switch — super-admin only, audited (see controller).
+        Route::put('/legal-review', [LegalReviewSettingController::class, 'toggle']);
+
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
         Route::put('/users/{id}', [UserController::class, 'update']);
@@ -115,7 +119,10 @@ Route::middleware('auth')->group(function () {
 // Clip-by-clip review surface. Approve/decline write append-only audit rows.
 // Legal can stream any clip (to watch before deciding) via the shared stream
 // route, but the DOWNLOAD route stays approved-only for everyone.
-Route::middleware('legal')->prefix('legal')->group(function () {
+// Gated by `legalreview`: when the module is OFF these routes 404 (dormant),
+// so no review queue or pending-count is exposed. Registration is unconditional
+// (route-cache safe); the middleware makes the switch live.
+Route::middleware(['legal', 'legalreview'])->prefix('legal')->group(function () {
     Route::get('/delivered-clips', [LegalReviewController::class, 'index']);
     Route::get('/pending-count', [LegalReviewController::class, 'pendingCount']);
     Route::post('/delivered-clips/{deliveredClip}/approve', [LegalReviewController::class, 'approve']);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Support\LegalReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -50,7 +51,26 @@ Route::middleware('superadmin')->group(function () use ($chrome) {
 // Narrow surface: clip-by-clip review of delivered creative. Legal users are
 // redirected here from / and /portal; everyone else is kept out (403/redirect).
 Route::middleware('legal')->group(function () use ($chrome) {
-    Route::get('/legal', fn (Request $r) => Inertia::render('Legal/Review', $chrome($r, 'legal')))->name('legal.review');
+    Route::get('/legal', function (Request $r) use ($chrome) {
+        // Module OFF → the review surface is dormant; send legal reviewers to a
+        // neutral "review disabled" page rather than the (empty) review queue.
+        // Checked at request time so the switch is live (route-cache safe).
+        if (! LegalReview::enabled()) {
+            return redirect('/review-disabled');
+        }
+
+        return Inertia::render('Legal/Review', $chrome($r, 'legal'));
+    })->name('legal.review');
+
+    // Neutral landing for legal reviewers while the module is OFF. When it is ON
+    // there is nothing to show here, so bounce back to the review queue.
+    Route::get('/review-disabled', function (Request $r) use ($chrome) {
+        if (LegalReview::enabled()) {
+            return redirect('/legal');
+        }
+
+        return Inertia::render('Legal/Disabled', $chrome($r, 'legal'));
+    })->name('legal.disabled');
 });
 
 // ── Growth Portal (any authenticated user, except legal reviewers) ──────────

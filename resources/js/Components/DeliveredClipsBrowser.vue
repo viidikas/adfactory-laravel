@@ -9,6 +9,7 @@ import Drawer from './Drawer.vue';
 import SectionLabel from './SectionLabel.vue';
 import EmptyState from './EmptyState.vue';
 import Icon from './Icon.vue';
+import { usePage } from '@inertiajs/vue3';
 import { api } from '../lib/api.js';
 import { fmtSize, fmtDate } from '../lib/format.js';
 
@@ -40,13 +41,21 @@ const fmtRank = (f) => { const i = FORMAT_ORDER.indexOf(f); return i === -1 ? 99
 
 
 // ── Legal review gate ────────────────────────────────────────────
-// A clip is downloadable only when approved. Leads can preview only approved
-// clips; admins (manage) can preview any (to check the file). The decline reason
-// is only present in the payload for admins — never shown to leads.
-const canDownload = (c) => c.review_status === 'approved';
-const canPreview = (c) => c.review_status === 'approved' || props.manage;
+// Whether the legal clip-review module is active (shared app-wide by the server).
+// When OFF the whole review layer is dormant: downloads are not gated by
+// review_status, and no "pending/declined" badges or review sections are shown.
+// Defaults to ON if the flag is somehow absent, preserving prior behavior.
+const legalEnabled = computed(() => usePage().props.legalReviewEnabled !== false);
+
+// A clip is downloadable only when approved WHILE the module is ON. When OFF, any
+// clip the user can see is downloadable. Leads can preview only approved clips
+// (module ON); admins (manage) can preview any. The decline reason is only in the
+// payload for admins — and only shown while the module is ON.
+const canDownload = (c) => !legalEnabled.value || c.review_status === 'approved';
+const canPreview = (c) => !legalEnabled.value || c.review_status === 'approved' || props.manage;
 const setDownloadable = (arr) => arr.some(canDownload);
 function reviewPill(c) {
+  if (!legalEnabled.value) return null; // module OFF — no review badges at all
   if (c.review_status === 'pending') return { label: 'Pending legal review', c: 'var(--warning)', b: 'rgba(246,198,66,0.15)' };
   if (c.review_status === 'declined') return { label: 'Declined', c: 'var(--danger)', b: 'var(--danger-soft)' };
   return null; // approved → no badge in rows
@@ -182,8 +191,9 @@ const adCopyDirty = computed(() => {
 async function saveAdCopy() {
   const c = playing.value;
   if (!c || !adCopyDirty.value) return;
-  // An approved clip loses approval + goes back to legal on any copy change.
-  if (c.review_status === 'approved'
+  // An approved clip loses approval + goes back to legal on any copy change —
+  // only warn about that while the legal-review module is active.
+  if (legalEnabled.value && c.review_status === 'approved'
     && !window.confirm('This clip is approved by legal. Changing the title or description will remove its approval and send it back to legal for review before it can be downloaded again. Continue?')) {
     return;
   }
@@ -208,6 +218,9 @@ const detailRows = computed(() => {
   if (!c) return [];
   const copy = c.copy_full || c.copy || '—';
   const review = [c.review_status, c.reviewer, c.reviewed_at ? fmtDate(c.reviewed_at) : null].filter(Boolean).join(' · ') || '—';
+  // The Review row only makes sense while the module is ON; drop it when OFF so
+  // there is no lingering "pending" implying a review that will never come.
+  const reviewRow = legalEnabled.value ? [['Review', review]] : [];
   if (props.manage) {
     return [
       ['Copy', copy],
@@ -219,7 +232,7 @@ const detailRows = computed(() => {
       ['Design', c.design || '—'],
       ['Size', fmtSize(c.file_size) || '—'],
       ['Delivered', fmtDate(c.created_at) + (c.uploaded_by ? ' · ' + c.uploaded_by : '')],
-      ['Review', review],
+      ...reviewRow,
     ];
   }
   return [
@@ -229,7 +242,7 @@ const detailRows = computed(() => {
     ['Category', c.category || '—'],
     ['Size', fmtSize(c.file_size) || '—'],
     ['Delivered', fmtDate(c.created_at)],
-    ['Review', review],
+    ...reviewRow,
   ];
 });
 function saveRename() {
@@ -371,7 +384,7 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
           <template v-for="row in detailRows" :key="row[0]">
             <span :style="{ color: 'var(--text-3)' }">{{ row[0] }}</span><span>{{ row[1] }}</span>
           </template>
-          <template v-if="playing.decline_reason">
+          <template v-if="legalEnabled && playing.decline_reason">
             <span :style="{ color: 'var(--text-3)' }">Decline reason</span><span :style="{ color: 'var(--danger)' }">{{ playing.decline_reason }}</span>
           </template>
         </div>
@@ -383,7 +396,7 @@ const rowStyle = { display: 'flex', alignItems: 'center', gap: '14px', padding: 
         <div :style="{ fontSize: '12px', color: 'var(--text-3)', margin: '10px 0 4px' }">Description</div>
         <textarea v-model="adDescription" rows="4" placeholder="Ad description…"
           :style="{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-1)', fontSize: '13.5px', fontFamily: 'inherit', resize: 'vertical', outline: 'none' }" />
-        <div v-if="playing.review_status === 'approved'" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '6px' }">
+        <div v-if="legalEnabled && playing.review_status === 'approved'" :style="{ fontSize: '12px', color: 'var(--text-3)', marginTop: '6px' }">
           Editing this sends the clip back to legal review.
         </div>
         <Button :disabled="!adCopyDirty || adSaving" icon="check_circle" :style="{ marginTop: '10px' }" @click="saveAdCopy">{{ adSaving ? 'Saving…' : 'Save ad copy' }}</Button>

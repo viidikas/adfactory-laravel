@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { usePage, router } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Card from '../../Components/Card.vue';
 import Button from '../../Components/Button.vue';
@@ -20,9 +21,35 @@ const tabs = [
   { value: 'users', label: 'Users' },
   { value: 'output', label: 'Output' },
   { value: 'designs', label: 'Project designs' },
+  { value: 'compliance', label: 'Compliance' },
 ];
 const toast = ref('');
 function flash(msg) { toast.value = msg; setTimeout(() => { if (toast.value === msg) toast.value = ''; }, 3000); }
+
+// ── Compliance: legal-review module switch (super-admin only) ─────
+// The Settings screen is already super-admin gated (route + API), so exposing the
+// toggle here is inherently super-admin only. The write endpoint is separately
+// super-admin gated and audited server-side.
+const page = usePage();
+const legalReviewEnabled = ref(page.props.legalReviewEnabled !== false);
+const savingLegal = ref(false);
+const legalMode = computed({
+  get: () => (legalReviewEnabled.value ? 'on' : 'off'),
+  set: (v) => setLegalReview(v === 'on'),
+});
+const legalOptions = [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }];
+async function setLegalReview(on) {
+  if (savingLegal.value || on === legalReviewEnabled.value) return;
+  savingLegal.value = true;
+  try {
+    const res = await api.put('/api/legal-review', { enabled: on });
+    legalReviewEnabled.value = res.legal_review_enabled;
+    // Refresh the shared flag so nav / clip panels update without a full reload.
+    router.reload({ only: ['legalReviewEnabled'] });
+    flash(legalReviewEnabled.value ? 'Legal review enabled.' : 'Legal review disabled.');
+  } catch (e) { flash(e.message || 'Could not update legal review.'); }
+  finally { savingLegal.value = false; }
+}
 
 // ── Users ───────────────────────────────────────────────────────
 const users = ref([]);
@@ -295,8 +322,35 @@ onMounted(async () => {
         </div>
       </template>
 
+      <!-- COMPLIANCE -->
+      <template v-else-if="tab === 'compliance'">
+        <Card>
+          <SectionLabel>Legal clip review</SectionLabel>
+          <div :style="{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px', marginTop: '10px', flexWrap: 'wrap' }">
+            <div :style="{ flex: '1 1 340px' }">
+              <p :style="{ color: 'var(--text-2)', fontSize: '13.5px', margin: 0, lineHeight: 1.55 }">
+                When <strong>on</strong>, every delivered clip must be approved by a legal reviewer
+                before it can be downloaded (the legal role, the review queue and the approval gate
+                are all active). When <strong>off</strong>, the legal layer is dormant: clips are
+                downloadable without review and growth leads own their own compliance. No legal data
+                is deleted — turning this back on restores the full review workflow and history.
+              </p>
+              <p :style="{ color: 'var(--text-3)', fontSize: '12.5px', margin: '10px 0 0' }">
+                Current status:
+                <strong :style="{ color: legalReviewEnabled ? 'var(--success)' : 'var(--text-2)' }">
+                  {{ legalReviewEnabled ? 'Enabled — downloads gated by legal approval' : 'Disabled — downloads not gated' }}
+                </strong>. Every change is recorded for audit.
+              </p>
+            </div>
+            <div :style="{ opacity: savingLegal ? 0.6 : 1, pointerEvents: savingLegal ? 'none' : 'auto' }">
+              <Segmented v-model="legalMode" :options="legalOptions" />
+            </div>
+          </div>
+        </Card>
+      </template>
+
       <!-- PROJECT DESIGNS -->
-      <template v-else>
+      <template v-else-if="tab === 'designs'">
         <Card v-if="!project">
           <div :style="{ color: 'var(--text-2)', fontSize: '14px' }">No active project. Activate one on the <a href="/projects" :style="{ color: 'var(--link)' }">Projects</a> screen first.</div>
         </Card>
