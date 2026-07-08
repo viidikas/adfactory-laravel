@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin' => \App\Http\Middleware\SuperAdmin::class,
             'legal' => \App\Http\Middleware\Legal::class,
             'rejectlegal' => \App\Http\Middleware\RejectLegal::class,
+            'legalreview' => \App\Http\Middleware\EnsureLegalReviewEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

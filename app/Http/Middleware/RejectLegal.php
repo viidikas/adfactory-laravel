@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\LegalReview;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,7 +25,9 @@ class RejectLegal
                 return response()->json(['message' => 'Not available to legal reviewers.'], 403);
             }
 
-            return redirect('/legal');
+            // Send them to the review queue when the module is ON, or the neutral
+            // "review disabled" page when it is OFF.
+            return redirect(LegalReview::enabled() ? '/legal' : '/review-disabled');
         }
 
         return $next($request);

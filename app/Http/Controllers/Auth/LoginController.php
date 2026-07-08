@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\LoginCode as LoginCodeMail;
 use App\Models\LoginCode;
 use App\Models\User;
+use App\Support\LegalReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -151,7 +152,9 @@ class LoginController extends Controller
     private function homeFor(User $user): string
     {
         if ($user->isLegal()) {
-            return '/legal';
+            // With the legal-review module OFF, there is no review queue to land
+            // on — show the neutral "review disabled" page instead.
+            return LegalReview::enabled() ? '/legal' : '/review-disabled';
         }
 
         return $user->isSuperAdmin() ? '/' : '/portal';
